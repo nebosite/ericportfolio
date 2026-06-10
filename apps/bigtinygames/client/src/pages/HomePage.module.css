@@ -1,0 +1,57 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  text-align: center;
+  padding: 2.5rem 1rem 1rem;
+}
+
+.logo {
+  margin: 0;
+  font-size: 3rem;
+  letter-spacing: 0.15em;
+  color: var(--coin-gold);
+  text-shadow: 3px 3px 0 var(--alert-red);
+}
+
+.logoTiny {
+  font-size: 1.4rem;
+  vertical-align: middle;
+  color: var(--phosphor);
+  text-shadow: 2px 2px 0 var(--phosphor-dim);
+}
+
+.tagline {
+  margin: 0.75rem 0 0;
+  color: var(--phosphor-dim);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.cabinetTitle {
+  color: var(--coin-gold);
+  letter-spacing: 0.2em;
+  margin: 0 0 1rem;
+}
+
+.footer {
+  text-align: center;
+  padding: 1.25rem;
+  border-top: 2px solid var(--screen-line);
+  color: var(--phosphor-dim);
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+}
+
+.footer p {
+  margin: 0;
+}

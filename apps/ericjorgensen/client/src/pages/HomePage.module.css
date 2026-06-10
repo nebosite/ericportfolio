@@ -1,0 +1,111 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  text-align: center;
+  padding: 4rem 1.5rem 3rem;
+  background: linear-gradient(180deg, #ffffff 0%, var(--paper) 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.avatarPlaceholder {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 1.5rem;
+  border-radius: 50%;
+  border: 3px dashed var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: #eef3fa;
+}
+
+.name {
+  margin: 0;
+  font-size: 2.75rem;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  max-width: 32rem;
+  margin: 0.75rem auto 0;
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+}
+
+.visitCount {
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 3rem;
+}
+
+.section {
+  margin-top: 2.5rem;
+}
+
+.section h2 {
+  font-size: 1.5rem;
+  border-bottom: 2px solid var(--accent);
+  display: inline-block;
+  padding-bottom: 0.2rem;
+}
+
+.sectionIntro {
+  color: var(--ink-soft);
+}
+
+.projectList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.projectCard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+}
+
+.projectCard h3 {
+  margin: 0 0 0.25rem;
+}
+
+.projectCard a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.projectCard a:hover {
+  color: var(--accent-dark);
+  text-decoration: underline;
+}
+
+.projectCard p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}

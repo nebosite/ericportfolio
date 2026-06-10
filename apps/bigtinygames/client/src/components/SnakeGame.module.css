@@ -1,0 +1,156 @@
+.arcade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.screenWrap {
+  background: var(--crt-panel);
+  border: 3px solid var(--screen-line);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0.25rem 0.5rem;
+  color: var(--coin-gold);
+  letter-spacing: 0.1em;
+  font-size: 0.9rem;
+}
+
+.screen {
+  position: relative;
+}
+
+.canvas {
+  display: block;
+  width: 800px;
+  height: 600px;
+  max-width: 92vw;
+  max-height: 69vw; /* keep the 4:3 ratio on small screens */
+  border: 2px solid var(--phosphor-dim);
+  background: var(--crt-black);
+  image-rendering: pixelated;
+}
+
+.overlay {
+  position: absolute;
+  inset: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(13, 13, 20, 0.88);
+  text-align: center;
+  padding: 1rem;
+}
+
+.overlayTitle {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.25em;
+  color: var(--coin-gold);
+}
+
+.overlay p {
+  margin: 0;
+}
+
+.arcadeButton {
+  font-family: inherit;
+  font-size: 1.1rem;
+  letter-spacing: 0.15em;
+  padding: 0.6rem 1.6rem;
+  background: var(--phosphor);
+  color: var(--crt-black);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.arcadeButton:hover {
+  background: var(--coin-gold);
+}
+
+.initialsForm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.initialsInput {
+  width: 4.5rem;
+  font-family: inherit;
+  font-size: 1.4rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  background: var(--crt-black);
+  color: var(--phosphor);
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 4px;
+  padding: 0.35rem 0.2rem;
+}
+
+.skipButton {
+  font-family: inherit;
+  background: none;
+  border: none;
+  color: var(--phosphor-dim);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.leaderboard {
+  background: var(--crt-panel);
+  border: 3px solid var(--screen-line);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  min-width: 14rem;
+}
+
+.leaderboardTitle {
+  margin: 0 0 0.75rem;
+  color: var(--coin-gold);
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+.scoreList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.scoreRow {
+  display: grid;
+  grid-template-columns: 2rem 3.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.rank {
+  color: var(--phosphor-dim);
+}
+
+.scoreInitials {
+  color: var(--phosphor);
+}
+
+.scoreValue {
+  text-align: right;
+  color: var(--coin-gold);
+}
+
+.scoreEmpty {
+  color: var(--phosphor-dim);
+  text-align: center;
+  letter-spacing: 0.1em;
+}

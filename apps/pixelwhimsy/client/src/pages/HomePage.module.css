@@ -1,0 +1,48 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  text-align: center;
+  padding: 2.5rem 1rem 1rem;
+}
+
+.logo {
+  margin: 0;
+  font-size: 3.5rem;
+  letter-spacing: 0.02em;
+}
+
+.logoPixel {
+  color: var(--grape);
+}
+
+.logoWhimsy {
+  color: var(--bubblegum);
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  font-size: 1.3rem;
+  color: var(--ink);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.footer {
+  text-align: center;
+  padding: 1.25rem;
+  background: var(--sunshine);
+  font-size: 1rem;
+}
+
+.footer p {
+  margin: 0;
+}

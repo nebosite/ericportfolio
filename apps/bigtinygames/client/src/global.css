@@ -1,0 +1,22 @@
+/* bigtinygames.com — retro arcade base styles */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --crt-black: #0d0d14;
+  --crt-panel: #181826;
+  --phosphor: #57ff7a;
+  --phosphor-dim: #2f9e4c;
+  --coin-gold: #ffce3b;
+  --alert-red: #ff5757;
+  --screen-line: #2a2a40;
+}
+
+body {
+  margin: 0;
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--phosphor);
+  background: var(--crt-black);
+  line-height: 1.5;
+}

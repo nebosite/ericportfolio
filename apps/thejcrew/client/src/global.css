@@ -1,0 +1,23 @@
+/* thejcrew.net — warm, personal, welcoming base styles */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --cream: #fdf6ec;
+  --cocoa: #4a3528;
+  --cocoa-soft: #8a705e;
+  --terracotta: #c96f4a;
+  --terracotta-dark: #a85537;
+  --sage: #8aa67a;
+  --card: #fffdf8;
+  --line: #e8dcc8;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--cocoa);
+  background: var(--cream);
+  line-height: 1.6;
+}

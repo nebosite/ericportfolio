@@ -1,0 +1,13 @@
+node_modules/
+dist/
+
+# SQLite databases (self-bootstrap on server startup)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment files (use .env.example as the template)
+.env
+
+.DS_Store

@@ -1,0 +1,21 @@
+/* pixelwhimsy.com — bright, playful, crayon-box base styles */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --sky: #cdefff;
+  --sunshine: #ffd93d;
+  --bubblegum: #ff6fa5;
+  --grape: #7b5ee6;
+  --grass: #4cc94c;
+  --ink: #3a2e4f;
+}
+
+body {
+  margin: 0;
+  font-family: 'Comic Sans MS', 'Segoe UI', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--sky);
+  line-height: 1.5;
+}

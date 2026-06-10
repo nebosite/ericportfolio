@@ -1,0 +1,62 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  text-align: center;
+  padding: 3rem 1.5rem 2rem;
+}
+
+.portraitPlaceholder {
+  max-width: 600px;
+  margin: 0 auto 1.5rem;
+  padding: 3.5rem 1.5rem;
+  border: 3px dashed var(--terracotta);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--cocoa-soft);
+  font-size: 1.1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 3rem;
+  color: var(--terracotta);
+}
+
+.welcome {
+  max-width: 34rem;
+  margin: 0.75rem auto 0;
+  font-size: 1.15rem;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 38rem;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+.boardTitle {
+  font-size: 1.6rem;
+  color: var(--cocoa);
+  border-bottom: 3px double var(--terracotta);
+  display: inline-block;
+  padding-bottom: 0.2rem;
+}
+
+.footer {
+  text-align: center;
+  padding: 1.5rem;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  color: var(--cocoa-soft);
+  font-size: 0.9rem;
+}
+
+.footer p {
+  margin: 0;
+}

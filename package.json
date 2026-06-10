@@ -1,0 +1,17 @@
+{
+  "name": "portfolio-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Multi-domain portfolio monorepo: four React/Express/SQLite apps behind nginx on one VPS",
+  "workspaces": [
+    "apps/*/client",
+    "apps/*/server"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:ericjorgensen": "npm run build -w apps/ericjorgensen/client -w apps/ericjorgensen/server",
+    "build:pixelwhimsy": "npm run build -w apps/pixelwhimsy/client -w apps/pixelwhimsy/server",
+    "build:thejcrew": "npm run build -w apps/thejcrew/client -w apps/thejcrew/server",
+    "build:bigtinygames": "npm run build -w apps/bigtinygames/client -w apps/bigtinygames/server"
+  }
+}
