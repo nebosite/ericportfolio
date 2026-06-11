@@ -64,14 +64,14 @@ export default function Guestbook() {
         <input
           className={styles.input}
           type="text"
-          placeholder="A short message"
+          placeholder="Besmirchment"
           value={message}
           maxLength={500}
           onChange={(e) => setMessage(e.target.value)}
           required
         />
         <button className={styles.button} type="submit" disabled={submitting}>
-          {submitting ? 'Signing…' : 'Sign the guestbook'}
+          {submitting ? 'Besmirching…' : 'Besmirch Fred Lefty, will you?'}
         </button>
       </form>
 

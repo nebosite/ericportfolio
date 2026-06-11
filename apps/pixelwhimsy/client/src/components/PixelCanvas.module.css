@@ -52,7 +52,6 @@
   gap: 0.75rem;
 }
 
-.saveButton,
 .clearButton {
   font-family: inherit;
   font-size: 1.1rem;
@@ -61,61 +60,9 @@
   border-radius: 999px;
   cursor: pointer;
   color: #ffffff;
-}
-
-.saveButton {
-  background: var(--grass);
-}
-
-.saveButton:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.clearButton {
   background: var(--bubblegum);
 }
 
-.saveButton:hover:not(:disabled),
 .clearButton:hover {
   filter: brightness(1.1);
-}
-
-.notice {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.gallery {
-  background: #ffffff;
-  border: 4px dashed var(--sunshine);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  max-width: 16rem;
-}
-
-.galleryTitle {
-  margin: 0;
-  color: var(--grape);
-}
-
-.galleryHint {
-  font-size: 0.9rem;
-}
-
-.thumbnails {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.thumbnail {
-  border: 2px solid var(--sky);
-  border-radius: 6px;
-  image-rendering: pixelated;
-}
-
-.galleryEmpty {
-  font-size: 0.9rem;
-  font-style: italic;
 }

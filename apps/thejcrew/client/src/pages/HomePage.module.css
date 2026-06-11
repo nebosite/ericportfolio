@@ -40,12 +40,11 @@
   padding: 0 1.5rem 3rem;
 }
 
-.boardTitle {
-  font-size: 1.6rem;
-  color: var(--cocoa);
-  border-bottom: 3px double var(--terracotta);
-  display: inline-block;
-  padding-bottom: 0.2rem;
+.comingSoon {
+  text-align: center;
+  font-size: 1.2rem;
+  color: var(--cocoa-soft);
+  font-style: italic;
 }
 
 .footer {

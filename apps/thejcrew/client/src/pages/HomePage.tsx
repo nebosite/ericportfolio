@@ -1,4 +1,3 @@
-import BulletinBoard from '../components/BulletinBoard';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
@@ -12,16 +11,14 @@ export default function HomePage() {
         </div>
         <h1 className={styles.title}>The J Crew</h1>
         <p className={styles.welcome}>
-          Welcome to our little corner of the internet! Pull up a chair, grab a cookie, and leave
-          us a note on the bulletin board.
+          Welcome to our little corner of the internet! Pull up a chair, grab a cookie, and stay a
+          while.
         </p>
       </header>
 
       <main className={styles.main}>
-        <section>
-          <h2 className={styles.boardTitle}>Family Bulletin Board</h2>
-          <BulletinBoard />
-        </section>
+        {/* PLACEHOLDER: the family's content (photos, news, recipes…) goes here. */}
+        <p className={styles.comingSoon}>More from the crew coming soon. 🍪</p>
       </main>
 
       <footer className={styles.footer}>

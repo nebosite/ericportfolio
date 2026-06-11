@@ -36,8 +36,14 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.get('/api/guestbook', (_req, res) => {
+  // Only surface the last 10 entries from the past hour. created_at is stored
+  // in UTC (CURRENT_TIMESTAMP), so it compares directly against datetime('now').
   const entries = db
-    .prepare('SELECT id, name, message, created_at FROM guestbook ORDER BY id DESC LIMIT 10')
+    .prepare(
+      `SELECT id, name, message, created_at FROM guestbook
+       WHERE created_at >= datetime('now', '-1 hour')
+       ORDER BY id DESC LIMIT 10`,
+    )
     .all();
   res.json(entries);
 });

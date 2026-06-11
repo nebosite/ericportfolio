@@ -5,11 +5,10 @@ export default function HomePage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        {/* PLACEHOLDER ART: bouncy hand-drawn PixelWhimsy logo with crayon
-            texture goes here (~480x140px). The wordmark below is a stand-in. */}
+        {/* Logo lifted from the original pixelwhimsy.com masthead (the wordmark
+            band, cropped above the old nav). Lives in client/public/. */}
         <h1 className={styles.logo}>
-          <span className={styles.logoPixel}>Pixel</span>
-          <span className={styles.logoWhimsy}>Whimsy</span>
+          <img className={styles.logoImg} src="/pixelwhimsy-logo.png" alt="PixelWhimsy" />
         </h1>
         <p className={styles.tagline}>Paint tiny pictures. Make big smiles!</p>
       </header>

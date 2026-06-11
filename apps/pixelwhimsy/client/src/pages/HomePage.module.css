@@ -11,16 +11,17 @@
 
 .logo {
   margin: 0;
-  font-size: 3.5rem;
-  letter-spacing: 0.02em;
 }
 
-.logoPixel {
-  color: var(--grape);
-}
-
-.logoWhimsy {
-  color: var(--bubblegum);
+.logoImg {
+  /* The logo art has a black background; on a black rounded card it reads as a
+     framed masthead. Scales down on narrow screens. */
+  display: inline-block;
+  width: 100%;
+  max-width: 662px;
+  height: auto;
+  background: #000000;
+  border-radius: 14px;
 }
 
 .tagline {

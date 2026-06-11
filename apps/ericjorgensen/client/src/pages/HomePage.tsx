@@ -65,12 +65,6 @@ export default function HomePage() {
               </h3>
               <p>Classic games reimagined: large canvas, original tiny pixel sprites.</p>
             </li>
-            <li className={styles.projectCard}>
-              <h3>
-                <a href="https://thejcrew.net">The J Crew</a>
-              </h3>
-              <p>Our family's warm little home on the web.</p>
-            </li>
           </ul>
         </section>
 

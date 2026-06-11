@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './PixelCanvas.module.css';
 
 const GRID = 32;
@@ -25,12 +25,6 @@ const PALETTE = [
   '#ffe0c2', // peach
 ];
 
-interface Drawing {
-  id: number;
-  pixels: string[];
-  created_at: string;
-}
-
 function paintCanvas(canvas: HTMLCanvasElement, pixels: string[], cellSize: number) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -40,35 +34,15 @@ function paintCanvas(canvas: HTMLCanvasElement, pixels: string[], cellSize: numb
   }
 }
 
-function Thumbnail({ drawing }: { drawing: Drawing }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (ref.current) paintCanvas(ref.current, drawing.pixels, 3); // 96x96 thumbnail
-  }, [drawing]);
-  return <canvas ref={ref} className={styles.thumbnail} width={GRID * 3} height={GRID * 3} />;
-}
-
 export default function PixelCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paintingRef = useRef(false);
   const [pixels, setPixels] = useState<string[]>(() => Array(GRID * GRID).fill(BLANK));
   const [color, setColor] = useState(PALETTE[0]);
-  const [gallery, setGallery] = useState<Drawing[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (canvasRef.current) paintCanvas(canvasRef.current, pixels, CELL);
   }, [pixels]);
-
-  const loadGallery = useCallback(() => {
-    fetch('/api/drawings')
-      .then((res) => res.json())
-      .then((data: Drawing[]) => setGallery(data))
-      .catch(() => setNotice('Could not load the gallery.'));
-  }, []);
-
-  useEffect(loadGallery, [loadGallery]);
 
   // Stop painting even when the pointer is released outside the canvas
   useEffect(() => {
@@ -93,25 +67,6 @@ export default function PixelCanvas() {
       next[index] = color;
       return next;
     });
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setNotice(null);
-    try {
-      const res = await fetch('/api/drawings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pixels }),
-      });
-      if (!res.ok) throw new Error('save failed');
-      setNotice('Saved! Your masterpiece is in the gallery. 🎨');
-      loadGallery();
-    } catch {
-      setNotice('Uh oh, saving did not work. Try again!');
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
@@ -143,9 +98,6 @@ export default function PixelCanvas() {
           ))}
         </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.saveButton} onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Drawing'}
-          </button>
           <button
             type="button"
             className={styles.clearButton}
@@ -154,19 +106,7 @@ export default function PixelCanvas() {
             Clear
           </button>
         </div>
-        {notice && <p className={styles.notice}>{notice}</p>}
       </div>
-
-      <aside className={styles.gallery}>
-        <h2 className={styles.galleryTitle}>Gallery</h2>
-        <p className={styles.galleryHint}>The last 5 masterpieces saved by visitors:</p>
-        <div className={styles.thumbnails}>
-          {gallery.map((drawing) => (
-            <Thumbnail key={drawing.id} drawing={drawing} />
-          ))}
-          {gallery.length === 0 && <p className={styles.galleryEmpty}>Nothing here yet — save the first drawing!</p>}
-        </div>
-      </aside>
     </div>
   );
 }
