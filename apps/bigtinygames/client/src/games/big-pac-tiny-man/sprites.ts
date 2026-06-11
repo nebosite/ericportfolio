@@ -1,51 +1,49 @@
-import { Graphics, Renderer, Texture } from 'pixi.js';
+import { Assets, Graphics, Renderer, Texture } from 'pixi.js';
 
-// PLACEHOLDER ART: 8x8 one-bit pixel patterns, same convention as the snake
-// game — '#' pixels get the color, '.' pixels are transparent. Swap these (or
-// replace patternTexture with a sprite-sheet loader) for custom art later.
+// Pac, the ghosts, and fruit are loaded from editable PNGs in public/sprites/
+// at their real arcade sizes (Pac 13x13, ghosts 14x15, fruit 13x13). Drop in
+// your own art with the same filenames to reskin the game. The power pellet and
+// dots stay as code-drawn graphics (there can be tens of thousands of dots, so
+// they're batched rather than textured).
 
-export const PAC_OPEN = [
-  '..####..',
-  '.######.',
-  '######..',
-  '####....',
-  '####....',
-  '######..',
-  '.######.',
-  '..####..',
-];
+export interface SpriteTextures {
+  pacOpen: Texture;
+  pacClosed: Texture;
+  ghost: Texture; // white body — the engine tints it per ghost
+  ghostFrightened: Texture; // blue, drawn untinted
+  fruit: Texture;
+}
 
-export const PAC_CLOSED = [
-  '..####..',
-  '.######.',
-  '########',
-  '########',
-  '########',
-  '########',
-  '.######.',
-  '..####..',
-];
+const SPRITE_FILES: Record<keyof SpriteTextures, string> = {
+  pacOpen: '/sprites/pac-open.png',
+  pacClosed: '/sprites/pac-closed.png',
+  ghost: '/sprites/ghost.png',
+  ghostFrightened: '/sprites/ghost-frightened.png',
+  fruit: '/sprites/fruit.png',
+};
 
-export const GHOST = [
-  '..####..',
-  '.######.',
-  '########',
-  '##.##.##',
-  '##.##.##',
-  '########',
-  '########',
-  '#.#..#.#',
-];
+/** Load every sprite PNG with nearest-neighbor scaling (crisp pixel art). */
+export async function loadSpriteTextures(): Promise<SpriteTextures> {
+  const entries = await Promise.all(
+    (Object.keys(SPRITE_FILES) as Array<keyof SpriteTextures>).map(async (key) => {
+      const texture: Texture = await Assets.load(SPRITE_FILES[key]);
+      texture.source.scaleMode = 'nearest';
+      return [key, texture] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as unknown as SpriteTextures;
+}
 
-export const PELLET = [
-  '........',
+// Power pellet: a fat pulsing dot, drawn into a GPU texture once.
+const PELLET = [
   '..####..',
   '.######.',
-  '.######.',
-  '.######.',
+  '########',
+  '########',
+  '########',
+  '########',
   '.######.',
   '..####..',
-  '........',
 ];
 
 /** Bake a pixel pattern into a GPU texture (1 world unit = 1 device pixel). */
@@ -61,4 +59,8 @@ export function patternTexture(renderer: Renderer, pattern: string[], color: num
   texture.source.scaleMode = 'nearest';
   g.destroy();
   return texture;
+}
+
+export function pelletTexture(renderer: Renderer, color: number): Texture {
+  return patternTexture(renderer, PELLET, color);
 }

@@ -47,23 +47,25 @@ export default function BigPacTinyManPage() {
           ◀ LOBBY
         </Link>
         <h1 className={styles.title}>BIG PAC TINY MAN</h1>
-        <p className={styles.notice}>
-          STUB BUILD — wander the labyrinth and eat dots; ghost AI, lives &amp; scoring coming
-          soon.
-        </p>
         {stats && (
-          <ul className={styles.stats}>
-            <li>
-              MAZE: {stats.cols}×{stats.rows} TILES
-            </li>
-            <li>
-              DOTS: {stats.dotsEaten}/{stats.dotsTotal}
-            </li>
-            <li>GHOSTS: {stats.ghosts}</li>
-            <li>POWER PELLETS: {stats.powerPellets}</li>
-            <li>GHOST BASES: {stats.ghostBases}</li>
-          </ul>
+          <>
+            <p className={styles.score}>SCORE {stats.score.toLocaleString()}</p>
+            <ul className={styles.stats}>
+              <li>
+                MAZE: {stats.cols}×{stats.rows} TILES
+              </li>
+              <li>
+                DOTS: {stats.dotsEaten}/{stats.dotsTotal}
+              </li>
+              <li>GHOSTS: {stats.ghosts}</li>
+              <li>POWER PELLETS: {stats.powerPellets}</li>
+              <li>GHOST BASES: {stats.ghostBases}</li>
+            </ul>
+          </>
         )}
+        <p className={styles.hint}>
+          Grab a power pellet to scare nearby ghosts home. Eat fruit by the bases for points.
+        </p>
         <p className={styles.controls}>ARROWS / WASD / D-PAD / LEFT STICK</p>
       </div>
     </div>

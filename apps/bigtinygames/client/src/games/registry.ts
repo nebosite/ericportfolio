@@ -22,6 +22,6 @@ export const GAMES: GameMeta[] = [
     title: 'BIG PAC TINY MAN',
     blurb: 'A labyrinth as big as your monitor — up to 4K — and one very small man to feed.',
     path: '/big-pac-tiny-man',
-    status: 'construction',
+    status: 'ready',
   },
 ];
