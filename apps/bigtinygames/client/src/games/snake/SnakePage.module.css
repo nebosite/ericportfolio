@@ -1,0 +1,58 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.backLink {
+  color: var(--phosphor-dim);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.backLink:hover {
+  color: var(--coin-gold);
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  color: var(--coin-gold);
+  letter-spacing: 0.2em;
+  font-size: 1.5rem;
+}
+
+/* Balances the back link so the title stays centered */
+.spacer {
+  width: 5rem;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 1rem 3rem;
+}
+
+.footer {
+  text-align: center;
+  padding: 1.25rem;
+  border-top: 2px solid var(--screen-line);
+  color: var(--phosphor-dim);
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+}
+
+.footer p {
+  margin: 0;
+}

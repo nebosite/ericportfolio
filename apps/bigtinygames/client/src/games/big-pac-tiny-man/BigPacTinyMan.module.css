@@ -1,0 +1,78 @@
+.page {
+  position: fixed;
+  inset: 0;
+  background: #05050c;
+  overflow: hidden;
+}
+
+/* The engine fills this with a canvas sized to the physical pixels (capped
+   at 4K); flex centering handles the case where the cap leaves a margin. */
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage canvas {
+  display: block;
+}
+
+.hud {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem 1.1rem;
+  background: rgba(13, 13, 20, 0.85);
+  border: 2px solid var(--screen-line);
+  border-radius: 8px;
+  max-width: 19rem;
+}
+
+.backLink {
+  color: var(--phosphor-dim);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  font-size: 0.8rem;
+}
+
+.backLink:hover {
+  color: var(--coin-gold);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--coin-gold);
+  letter-spacing: 0.15em;
+  text-shadow: 2px 2px 0 var(--alert-red);
+}
+
+.notice {
+  margin: 0;
+  color: var(--alert-red);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--phosphor);
+  letter-spacing: 0.08em;
+}
+
+.controls {
+  margin: 0;
+  color: var(--phosphor-dim);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+}

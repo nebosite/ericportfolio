@@ -29,7 +29,7 @@
   color: var(--phosphor-dim);
 }
 
-.main {
+.lobby {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -37,10 +37,89 @@
   padding: 1.5rem 1rem 3rem;
 }
 
-.cabinetTitle {
+.lobbyTitle {
   color: var(--coin-gold);
   letter-spacing: 0.2em;
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.cabinetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  justify-content: center;
+  max-width: 64rem;
+}
+
+/* Each game gets an arcade-cabinet card */
+.cabinet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 20rem;
+  padding: 1.25rem;
+  background: var(--crt-panel);
+  border: 3px solid var(--screen-line);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--phosphor);
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.cabinet:hover,
+.cabinet:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--coin-gold);
+}
+
+.marquee {
+  font-size: 1.3rem;
+  color: var(--coin-gold);
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-shadow: 2px 2px 0 var(--alert-red);
+}
+
+.blurb {
+  color: var(--phosphor-dim);
+  font-size: 0.95rem;
+  min-height: 3em;
+}
+
+.cabinetFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badgeReady,
+.badgeWip {
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.badgeReady {
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor-dim);
+}
+
+.badgeWip {
+  color: var(--coin-gold);
+  border: 1px solid var(--coin-gold);
+}
+
+.play {
+  letter-spacing: 0.15em;
+}
+
+.cabinet:hover .play {
+  color: var(--coin-gold);
 }
 
 .footer {

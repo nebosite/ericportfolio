@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
+import { attachGameInput, Vec } from '../input';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: an 800x600 canvas crossed by a 100x75 grid of
@@ -10,7 +11,6 @@ const TICK_MS = 70;
 const POINTS_PER_APPLE = 10;
 const START_LENGTH = 6;
 
-type Vec = { x: number; y: number };
 type Phase = 'idle' | 'playing' | 'gameover' | 'saved';
 
 interface ScoreRow {
@@ -131,34 +131,34 @@ export default function SnakeGame() {
 
   useEffect(draw, [draw, phase]);
 
-  // Keyboard: arrows + WASD. Queue turns so quick double-taps don't let the
-  // snake reverse into itself within a single tick.
+  const startGame = useCallback(() => {
+    snakeRef.current = freshSnake();
+    dirRef.current = { x: 1, y: 0 };
+    dirQueueRef.current = [];
+    foodRef.current = randomFood(snakeRef.current);
+    setScore(0);
+    setInitials('');
+    setPhase('playing');
+  }, []);
+
+  // Keyboard + gamepad via the shared input module. Queue turns so quick
+  // double-taps don't let the snake reverse into itself within a single tick.
   useEffect(() => {
-    const DIRS: Record<string, Vec> = {
-      ArrowUp: { x: 0, y: -1 },
-      ArrowDown: { x: 0, y: 1 },
-      ArrowLeft: { x: -1, y: 0 },
-      ArrowRight: { x: 1, y: 0 },
-      w: { x: 0, y: -1 },
-      s: { x: 0, y: 1 },
-      a: { x: -1, y: 0 },
-      d: { x: 1, y: 0 },
-    };
-    const onKey = (e: KeyboardEvent) => {
-      const dir = DIRS[e.key] ?? DIRS[e.key.toLowerCase()];
-      if (!dir) return;
-      e.preventDefault();
-      const queue = dirQueueRef.current;
-      const last = queue.length > 0 ? queue[queue.length - 1] : dirRef.current;
-      if (dir.x === -last.x && dir.y === -last.y) return; // no 180° turns
-      if (dir.x === last.x && dir.y === last.y) return;
-      if (queue.length < 3) queue.push(dir);
-    };
     if (phase === 'playing') {
-      window.addEventListener('keydown', onKey);
-      return () => window.removeEventListener('keydown', onKey);
+      return attachGameInput({
+        onDirection: (dir) => {
+          const queue = dirQueueRef.current;
+          const last = queue.length > 0 ? queue[queue.length - 1] : dirRef.current;
+          if (dir.x === -last.x && dir.y === -last.y) return; // no 180° turns
+          if (dir.x === last.x && dir.y === last.y) return;
+          if (queue.length < 3) queue.push(dir);
+        },
+      });
     }
-  }, [phase]);
+    if (phase === 'idle' || phase === 'saved') {
+      return attachGameInput({ onConfirm: startGame });
+    }
+  }, [phase, startGame]);
 
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -189,16 +189,6 @@ export default function SnakeGame() {
     return () => window.clearInterval(timer);
   }, [phase, draw]);
 
-  const startGame = () => {
-    snakeRef.current = freshSnake();
-    dirRef.current = { x: 1, y: 0 };
-    dirQueueRef.current = [];
-    foodRef.current = randomFood(snakeRef.current);
-    setScore(0);
-    setInitials('');
-    setPhase('playing');
-  };
-
   const submitScore = async (e: FormEvent) => {
     e.preventDefault();
     const clean = initials.trim().toUpperCase();
@@ -220,7 +210,7 @@ export default function SnakeGame() {
       <div className={styles.screenWrap}>
         <div className={styles.hud}>
           <span>SCORE: {score.toString().padStart(5, '0')}</span>
-          <span>ARROWS / WASD</span>
+          <span>ARROWS / WASD / PAD</span>
         </div>
         <div className={styles.screen}>
           <canvas ref={canvasRef} className={styles.canvas} width={COLS * CELL} height={ROWS * CELL} />
