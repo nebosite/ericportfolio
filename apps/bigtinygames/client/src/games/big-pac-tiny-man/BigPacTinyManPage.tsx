@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BigPacEngine, WorldStats } from './engine';
+import { BigPacEngine } from './engine';
 import styles from './BigPacTinyMan.module.css';
 
 export default function BigPacTinyManPage() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [stats, setStats] = useState<WorldStats | null>(null);
+  const engineRef = useRef<BigPacEngine | null>(null);
+  const [score, setScore] = useState(0);
   const [worldKey, setWorldKey] = useState(0);
 
-  // The maze, ghost count, etc. all derive from the page size, so a resize
-  // means a new world. Debounced so drag-resizing doesn't thrash the GPU.
+  // The maze derives from the page size, so a resize means a new world — but
+  // only until play begins. Once the player has started, the world is locked
+  // in and resizing just letterboxes the existing canvas.
   useEffect(() => {
     let timer: number | undefined;
     const onResize = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => setWorldKey((k) => k + 1), 400);
+      timer = window.setTimeout(() => {
+        if (engineRef.current?.hasStarted) return;
+        setWorldKey((k) => k + 1);
+      }, 400);
     };
     window.addEventListener('resize', onResize);
     return () => {
@@ -28,46 +33,32 @@ export default function BigPacTinyManPage() {
     if (!host) return;
     let engine: BigPacEngine | null = null;
     let disposed = false;
-    BigPacEngine.create(host, setStats).then((e) => {
-      if (disposed) e.destroy();
-      else engine = e;
+    BigPacEngine.create(host, setScore).then((e) => {
+      if (disposed) {
+        e.destroy();
+      } else {
+        engine = e;
+        engineRef.current = e;
+      }
     });
     return () => {
       disposed = true;
+      engineRef.current = null;
       engine?.destroy();
     };
   }, [worldKey]);
 
   return (
     <div className={styles.page}>
-      <div ref={hostRef} key={worldKey} className={styles.stage} />
-
-      <div className={styles.hud}>
+      {/* 50px bar above the game grid — everything HUD lives here. */}
+      <div className={styles.topBar}>
         <Link to="/" className={styles.backLink}>
           ◀ LOBBY
         </Link>
         <h1 className={styles.title}>BIG PAC TINY MAN</h1>
-        {stats && (
-          <>
-            <p className={styles.score}>SCORE {stats.score.toLocaleString()}</p>
-            <ul className={styles.stats}>
-              <li>
-                MAZE: {stats.cols}×{stats.rows} TILES
-              </li>
-              <li>
-                DOTS: {stats.dotsEaten}/{stats.dotsTotal}
-              </li>
-              <li>GHOSTS: {stats.ghosts}</li>
-              <li>POWER PELLETS: {stats.powerPellets}</li>
-              <li>GHOST BASES: {stats.ghostBases}</li>
-            </ul>
-          </>
-        )}
-        <p className={styles.hint}>
-          Grab a power pellet to scare nearby ghosts home. Eat fruit by the bases for points.
-        </p>
-        <p className={styles.controls}>ARROWS / WASD / D-PAD / LEFT STICK</p>
+        <p className={styles.score}>SCORE {score.toLocaleString()}</p>
       </div>
+      <div ref={hostRef} key={worldKey} className={styles.stage} />
     </div>
   );
 }

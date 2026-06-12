@@ -1,66 +1,46 @@
-import { Assets, Graphics, Renderer, Texture } from 'pixi.js';
+import { Assets, Texture } from 'pixi.js';
+import pacOpenUrl from './assetts/sprites/pac-open.png';
+import pacClosedUrl from './assetts/sprites/pac-closed.png';
+import ghostUrl from './assetts/sprites/ghost.png';
+import ghostFrightenedUrl from './assetts/sprites/ghost-frightened.png';
+import ghostEyesUrl from './assetts/sprites/ghost-eyes.png';
+import pelletUrl from './assetts/sprites/pellet.png';
+import fruitUrl from './assetts/sprites/fruit.png';
 
-// Pac, the ghosts, and fruit are loaded from editable PNGs in public/sprites/
-// at their real arcade sizes (Pac 13x13, ghosts 14x15, fruit 13x13). Drop in
-// your own art with the same filenames to reskin the game. The power pellet and
-// dots stay as code-drawn graphics (there can be tens of thousands of dots, so
-// they're batched rather than textured).
+// Every gameplay graphic is an editable PNG checked into this game's
+// assetts/sprites/ folder at its real arcade size (Pac 13x13, ghosts 14x15,
+// pellet 14x14, fruit 13x13). Repaint them in any pixel editor to reskin the
+// game — nothing is generated. Vite bundles them via the imports above.
+// (The thousands of tiny dots and the maze walls stay code-drawn geometry.)
 
 export interface SpriteTextures {
   pacOpen: Texture;
   pacClosed: Texture;
   ghost: Texture; // white body — the engine tints it per ghost
   ghostFrightened: Texture; // blue, drawn untinted
+  ghostEyes: Texture; // eyes-only, shown while running home after being eaten
+  pellet: Texture;
   fruit: Texture;
 }
 
-const SPRITE_FILES: Record<keyof SpriteTextures, string> = {
-  pacOpen: '/sprites/pac-open.png',
-  pacClosed: '/sprites/pac-closed.png',
-  ghost: '/sprites/ghost.png',
-  ghostFrightened: '/sprites/ghost-frightened.png',
-  fruit: '/sprites/fruit.png',
+const SPRITE_URLS: Record<keyof SpriteTextures, string> = {
+  pacOpen: pacOpenUrl,
+  pacClosed: pacClosedUrl,
+  ghost: ghostUrl,
+  ghostFrightened: ghostFrightenedUrl,
+  ghostEyes: ghostEyesUrl,
+  pellet: pelletUrl,
+  fruit: fruitUrl,
 };
 
 /** Load every sprite PNG with nearest-neighbor scaling (crisp pixel art). */
 export async function loadSpriteTextures(): Promise<SpriteTextures> {
   const entries = await Promise.all(
-    (Object.keys(SPRITE_FILES) as Array<keyof SpriteTextures>).map(async (key) => {
-      const texture: Texture = await Assets.load(SPRITE_FILES[key]);
+    (Object.keys(SPRITE_URLS) as Array<keyof SpriteTextures>).map(async (key) => {
+      const texture: Texture = await Assets.load(SPRITE_URLS[key]);
       texture.source.scaleMode = 'nearest';
       return [key, texture] as const;
     }),
   );
   return Object.fromEntries(entries) as unknown as SpriteTextures;
-}
-
-// Power pellet: a fat pulsing dot, drawn into a GPU texture once.
-const PELLET = [
-  '..####..',
-  '.######.',
-  '########',
-  '########',
-  '########',
-  '########',
-  '.######.',
-  '..####..',
-];
-
-/** Bake a pixel pattern into a GPU texture (1 world unit = 1 device pixel). */
-export function patternTexture(renderer: Renderer, pattern: string[], color: number): Texture {
-  const g = new Graphics();
-  for (let row = 0; row < pattern.length; row++) {
-    for (let col = 0; col < pattern[row].length; col++) {
-      if (pattern[row][col] === '#') g.rect(col, row, 1, 1);
-    }
-  }
-  g.fill(color);
-  const texture = renderer.generateTexture(g);
-  texture.source.scaleMode = 'nearest';
-  g.destroy();
-  return texture;
-}
-
-export function pelletTexture(renderer: Renderer, color: number): Texture {
-  return patternTexture(renderer, PELLET, color);
 }

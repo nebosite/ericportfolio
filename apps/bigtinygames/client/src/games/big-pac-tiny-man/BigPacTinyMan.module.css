@@ -1,36 +1,22 @@
 .page {
   position: fixed;
   inset: 0;
+  display: flex;
+  flex-direction: column;
   background: #05050c;
   overflow: hidden;
 }
 
-/* The engine fills this with a canvas sized to the physical pixels (capped
-   at 4K); flex centering handles the case where the cap leaves a margin. */
-.stage {
-  position: absolute;
-  inset: 0;
+/* The reserved HUD strip above the game grid. */
+.topBar {
+  flex: 0 0 50px;
+  height: 50px;
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.stage canvas {
-  display: block;
-}
-
-.hud {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.9rem 1.1rem;
-  background: rgba(13, 13, 20, 0.85);
-  border: 2px solid var(--screen-line);
-  border-radius: 8px;
-  max-width: 19rem;
+  gap: 1.5rem;
+  padding: 0 1.25rem;
+  background: var(--crt-panel);
+  border-bottom: 2px solid var(--screen-line);
 }
 
 .backLink {
@@ -53,33 +39,22 @@
 }
 
 .score {
-  margin: 0;
+  margin: 0 0 0 auto;
   color: var(--coin-gold);
   font-size: 1rem;
   letter-spacing: 0.12em;
 }
 
-.hint {
-  margin: 0;
-  color: var(--phosphor-dim);
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
+/* The engine fills this with a canvas sized to the physical pixels (capped
+   at 4K); flex centering handles the case where the cap leaves a margin. */
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.stats {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.15rem;
-  font-size: 0.75rem;
-  color: var(--phosphor);
-  letter-spacing: 0.08em;
-}
-
-.controls {
-  margin: 0;
-  color: var(--phosphor-dim);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
+.stage canvas {
+  display: block;
 }

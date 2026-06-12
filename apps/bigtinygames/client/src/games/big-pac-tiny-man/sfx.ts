@@ -1,14 +1,20 @@
-// Sound effects for Big Pac Tiny Man. Plays the MP3s in public/sounds/ through
-// the Web Audio API, which decodes them once and can fire many overlapping
-// one-shots cheaply (Pac eats a lot of dots). Drop in your own same-named MP3s
-// to change the sounds.
+import wakaUrl from './assetts/sounds/waka.mp3';
+import powerUrl from './assetts/sounds/power.mp3';
+import fruitUrl from './assetts/sounds/fruit.mp3';
+import eatghostUrl from './assetts/sounds/eatghost.mp3';
 
-type SoundName = 'waka' | 'power' | 'fruit';
+// Sound effects for Big Pac Tiny Man. Plays the MP3s in this game's
+// assetts/sounds/ folder through the Web Audio API, which decodes them once
+// and can fire many overlapping one-shots cheaply (Pac eats a lot of dots).
+// Replace the MP3s to change the sounds; Vite bundles them via the imports.
+
+type SoundName = 'waka' | 'power' | 'fruit' | 'eatghost';
 
 const SOUND_FILES: Record<SoundName, string> = {
-  waka: '/sounds/waka.mp3',
-  power: '/sounds/power.mp3',
-  fruit: '/sounds/fruit.mp3',
+  waka: wakaUrl,
+  power: powerUrl,
+  fruit: fruitUrl,
+  eatghost: eatghostUrl,
 };
 
 const WAKA_MIN_GAP_MS = 55; // throttle the munch blip so it doesn't machine-gun

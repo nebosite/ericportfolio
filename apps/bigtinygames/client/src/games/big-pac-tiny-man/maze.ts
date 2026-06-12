@@ -61,8 +61,11 @@ const CELL_DIRS = [
   [0, -1],
 ] as const;
 
-const BASE_ROOM_W = 9; // tiles, odd so room edges land on the corridor lattice
-const BASE_ROOM_H = 5;
+// Ghost box: 5x4 exterior, 3x2 open interior, 1-tile walls all around, and a
+// single exit at the top middle. Odd-aligned so the exit column lands on the
+// corridor lattice.
+const BASE_ROOM_W = 5;
+const BASE_ROOM_H = 4;
 
 export function generateMaze(plan: WorldPlan): Maze {
   const { cols, rows } = plan;
@@ -158,10 +161,12 @@ export function generateMaze(plan: WorldPlan): Maze {
     tunnelCols.push(tx);
   }
 
-  // Ghost bases: open rooms spread across the maze, each nudged by a random
-  // jitter so they don't sit on a rigid grid. Their odd-aligned footprint
-  // guarantees they overlap corridors, so ghosts can always wander out.
+  // Ghost boxes: walled rooms spread across the maze, each nudged by a random
+  // jitter so they don't sit on a rigid grid. The box border is forced to
+  // wall, the 3x2 interior is open, and the only way in or out is the top
+  // middle tile, which connects up to the corridor lattice.
   const baseRooms: Rect[] = [];
+  const pacSpawn = { x: 2 * startCx + 1, y: 2 * startCy + 1 };
   const bCols = Math.max(1, Math.round(Math.sqrt(plan.ghostBases * (cols / rows))));
   const bRows = Math.max(1, Math.ceil(plan.ghostBases / bCols));
   const jitterX = Math.max(0, Math.floor((cols / bCols) * 0.28));
@@ -174,13 +179,73 @@ export function generateMaze(plan: WorldPlan): Maze {
     let x = Math.round(((gx + 0.5) / bCols) * cols - BASE_ROOM_W / 2) + jitter(jitterX);
     let y = Math.round(((gy + 0.5) / bRows) * rows - BASE_ROOM_H / 2) + jitter(jitterY);
     x = Math.min(Math.max(x, 1), cols - 1 - BASE_ROOM_W) | 1;
-    y = Math.min(Math.max(y, 1), rows - 1 - BASE_ROOM_H) | 1;
+    // y >= 3 keeps room above the exit for the connector up to the lattice.
+    y = Math.min(Math.max(y, 3), rows - 1 - BASE_ROOM_H) | 1;
+    // Pac spawns in a walkable clearing; never drop a box on top of him.
+    if (Math.abs(x + 2 - pacSpawn.x) <= 4 && Math.abs(y + 2 - pacSpawn.y) <= 4) {
+      x = x + 8 <= cols - 1 - BASE_ROOM_W ? (x + 8) | 1 : (x - 8) | 1;
+    }
+
+    const exitX = x + 2; // top middle (odd column — on the corridor lattice)
     for (let ry = y; ry < y + BASE_ROOM_H; ry++) {
       for (let rx = x; rx < x + BASE_ROOM_W; rx++) {
-        carve(rx, ry);
+        const isBorder = rx === x || rx === x + BASE_ROOM_W - 1 || ry === y || ry === y + BASE_ROOM_H - 1;
+        const isExit = rx === exitX && ry === y;
+        grid[at(rx, ry)] = isBorder && !isExit ? 0 : 1;
       }
     }
+    // Connect the exit upward: (exitX, y-2) is an odd/odd lattice tile, which
+    // the backtracker always carved, so one connector tile reaches the maze.
+    carve(exitX, y - 1);
     baseRooms.push({ x, y, w: BASE_ROOM_W, h: BASE_ROOM_H });
+  }
+
+  // Stamping walled boxes over the braided maze chops some loops into stubs.
+  // Repair pass: any corridor tile left with <=1 open neighbor gets re-opened
+  // through to the corridor beyond (when that wouldn't breach a box or the
+  // outer border), otherwise the stub tile is eroded back to wall. Repeats
+  // until stable, so stubs either reconnect or vanish.
+  const boxMask = new Uint8Array(cols * rows);
+  for (const r of baseRooms) {
+    for (let ry = r.y; ry < r.y + r.h; ry++) {
+      for (let rx = r.x; rx < r.x + r.w; rx++) boxMask[at(rx, ry)] = 1;
+    }
+  }
+  const wrapX = (v: number) => ((v % cols) + cols) % cols;
+  const wrapY = (v: number) => ((v % rows) + rows) % rows;
+  for (let pass = 0, dirty = true; dirty && pass < 50; pass++) {
+    dirty = false;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const idx = at(x, y);
+        if (!grid[idx] || boxMask[idx]) continue;
+        let open = 0;
+        for (const [dx, dy] of CELL_DIRS) {
+          if (grid[at(wrapX(x + dx), wrapY(y + dy))]) open++;
+        }
+        if (open > 1) continue;
+        // Try to reconnect: carve the wall beside the stub if a corridor lies
+        // just beyond it (without tunneling through boxes or the outer edge).
+        let fixed = false;
+        for (const [dx, dy] of CELL_DIRS) {
+          const wx = x + dx;
+          const wy = y + dy;
+          const fx = x + 2 * dx;
+          const fy = y + 2 * dy;
+          if (wx <= 0 || wy <= 0 || wx >= cols - 1 || wy >= rows - 1) continue;
+          if (fx < 0 || fy < 0 || fx >= cols || fy >= rows) continue;
+          if (grid[at(wx, wy)] || boxMask[at(wx, wy)]) continue;
+          if (!grid[at(fx, fy)] || boxMask[at(fx, fy)]) continue;
+          carve(wx, wy);
+          fixed = true;
+          break;
+        }
+        if (!fixed && !(x === pacSpawn.x && y === pacSpawn.y)) {
+          grid[idx] = 0; // erode the stub; the next pass re-checks its neighbor
+        }
+        dirty = true;
+      }
+    }
   }
 
   return {
@@ -188,7 +253,7 @@ export function generateMaze(plan: WorldPlan): Maze {
     rows,
     grid,
     baseRooms,
-    pacSpawn: { x: 2 * startCx + 1, y: 2 * startCy + 1 },
+    pacSpawn,
     tunnelRows,
     tunnelCols,
   };

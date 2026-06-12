@@ -1,36 +1,28 @@
 import { Application, Container, Graphics, Sprite, Ticker } from 'pixi.js';
 import { attachGameInput, Vec } from '../input';
 import { Maze, TILE, WorldPlan, generateMaze, planWorld } from './maze';
-import { loadSpriteTextures, pelletTexture, SpriteTextures } from './sprites';
+import { loadSpriteTextures, SpriteTextures } from './sprites';
 import { Sfx } from './sfx';
 
-export interface WorldStats {
-  cols: number;
-  rows: number;
-  ghosts: number;
-  powerPellets: number;
-  ghostBases: number;
-  dotsTotal: number;
-  dotsEaten: number;
-  score: number;
-}
-
+const BG_COLOR = 0x05050c;
 const MAX_W = 3840; // cap the playfield at 4K
 const MAX_H = 2160;
 const PAC_SPEED = 150; // px/sec (~9 tiles/sec at the 16px tile)
-const GHOST_SPEED = 120;
+const GHOST_SPEED = 60; // ghosts amble at less than half Pac's speed
+const EYES_SPEED = 150; // eaten ghosts hurry home
 const CHUNK = 32; // dots batched into one Graphics per 32x32-tile chunk
 
 // AI tuning, all in grid squares.
-const CHASE_RADIUS = 20; // start hunting Pac when this close
+const CHASE_RADIUS = 20; // hunt Pac via shortest path when within this range
 const LEASH = 30; // wander no further than this from home before drifting back
-const FRIGHTEN_RADIUS = 22; // a power pellet scares ghosts within this range
+const FRIGHT_MS = 8000; // how long fright lasts if the ghost isn't eaten
 const POWERUP_MIN_GAP = 10; // no two power pellets closer than this
 
 // Scoring.
 const DOT_POINTS = 10;
 const PELLET_POINTS = 50;
 const FRUIT_POINTS = 100;
+const GHOST_POINTS = 200;
 
 // Fruit spawning (per ghost base).
 const FRUIT_INTERVAL = 6000; // ms between a base's fruit spawns
@@ -38,9 +30,8 @@ const FRUIT_PER_BASE = 6; // max alive fruit a single base will keep out
 const FRUIT_RADIUS = 8; // tiles from base center a fruit can appear
 
 const WALL_COLOR = 0x1c1c8a;
+const BOX_FLOOR_COLOR = 0x141467; // forbidden ground: slightly darker than walls
 const DOT_COLOR = 0xffc7ae;
-const PELLET_COLOR = 0xffe14b;
-const BASE_OUTLINE = 0xff6ec7;
 const GHOST_TINTS = [0xff4b4b, 0xffb8ff, 0x00ffff, 0xffb852];
 
 const DIRS: Vec[] = [
@@ -62,10 +53,14 @@ interface Mover {
   sprite: Sprite;
 }
 
+type GhostState = 'normal' | 'frightened' | 'eyes';
+
 interface Ghost extends Mover {
-  home: { x: number; y: number };
+  home: { x: number; y: number }; // a tile inside its box
+  exitAbove: { x: number; y: number }; // the corridor tile just above the exit
   color: number;
-  frightened: boolean;
+  state: GhostState;
+  frightUntil: number; // elapsed-ms deadline while frightened
 }
 
 interface Fruit {
@@ -78,13 +73,13 @@ export class BigPacEngine {
    * Sizes the canvas to the host's PHYSICAL pixels (CSS size x devicePixelRatio,
    * capped at 4K) so one world unit is one device pixel.
    */
-  static async create(host: HTMLElement, onStats: (s: WorldStats) => void): Promise<BigPacEngine> {
+  static async create(host: HTMLElement, onScore: (score: number) => void): Promise<BigPacEngine> {
     const dpr = window.devicePixelRatio || 1;
     const pxW = Math.min(Math.round(host.clientWidth * dpr), MAX_W);
     const pxH = Math.min(Math.round(host.clientHeight * dpr), MAX_H);
 
     const app = new Application();
-    await app.init({ width: pxW, height: pxH, background: 0x05050c, antialias: false });
+    await app.init({ width: pxW, height: pxH, background: BG_COLOR, antialias: false });
     app.canvas.style.width = `${pxW / dpr}px`;
     app.canvas.style.height = `${pxH / dpr}px`;
     app.canvas.style.setProperty('image-rendering', 'pixelated');
@@ -95,11 +90,11 @@ export class BigPacEngine {
     const sfx = new Sfx();
     sfx.load();
 
-    return new BigPacEngine(app, pxW, pxH, onStats, textures, sfx);
+    return new BigPacEngine(app, pxW, pxH, onScore, textures, sfx);
   }
 
   private app: Application;
-  private onStats: (s: WorldStats) => void;
+  private onScore: (score: number) => void;
   private tex: SpriteTextures;
   private sfx: Sfx;
   private plan: WorldPlan;
@@ -115,25 +110,34 @@ export class BigPacEngine {
   private fruitByTile = new Map<number, Fruit>();
   private baseFruitCount: number[] = [];
   private baseFruitTimer: number[] = [];
+  /** Every tile of every ghost box footprint (walls, interior, exit). */
+  private baseTiles = new Set<number>();
   private ghosts: Ghost[] = [];
   private pac: Mover;
   private desiredDir: Vec | null = null;
-  private dotsTotal = 0;
-  private dotsEaten = 0;
   private score = 0;
   private elapsed = 0;
+  private started = false;
+  /** BFS path distances from Pac's tile, out to CHASE_RADIUS (toroidal). */
+  private pacDistances = new Map<number, number>();
+  private lastPacIdx = -1;
   private detachInput: () => void;
+
+  /** True once the player has pressed a control; the world is locked in. */
+  get hasStarted(): boolean {
+    return this.started;
+  }
 
   private constructor(
     app: Application,
     pxW: number,
     pxH: number,
-    onStats: (s: WorldStats) => void,
+    onScore: (score: number) => void,
     textures: SpriteTextures,
     sfx: Sfx,
   ) {
     this.app = app;
-    this.onStats = onStats;
+    this.onScore = onScore;
     this.tex = textures;
     this.sfx = sfx;
     this.plan = planWorld(pxW, pxH);
@@ -163,21 +167,50 @@ export class BigPacEngine {
     walls.fill(WALL_COLOR);
     world.addChild(walls);
 
-    const baseOutlines = new Graphics();
-    for (const r of this.maze.baseRooms) {
-      baseOutlines.rect(r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);
-    }
-    baseOutlines.stroke({ width: 1, color: BASE_OUTLINE });
-    world.addChild(baseOutlines);
-
-    // Tiles that never hold a dot: ghost base interiors + a clearing around
-    // Pac's spawn.
-    const noDot = new Uint8Array(cols * rows);
-    for (const r of this.maze.baseRooms) {
-      for (let y = r.y; y < r.y + r.h; y++) {
-        for (let x = r.x; x < r.x + r.w; x++) noDot[y * cols + x] = 1;
+    // Wider-looking passages: every floor run is redrawn in the background
+    // color expanded 1px outward, shaving 1px off each adjoining wall edge.
+    const floorCarve = new Graphics();
+    for (let y = 0; y < rows; y++) {
+      let runStart = -1;
+      for (let x = 0; x <= cols; x++) {
+        const isFloor = x < cols && grid[y * cols + x] === 1;
+        if (isFloor && runStart < 0) runStart = x;
+        if (!isFloor && runStart >= 0) {
+          floorCarve.rect(runStart * TILE - 1, y * TILE - 1, (x - runStart) * TILE + 2, TILE + 2);
+          runStart = -1;
+        }
       }
     }
+    floorCarve.fill(BG_COLOR);
+    world.addChild(floorCarve);
+
+    // Ghost-box footprints: Pac may never stand here; ghosts only when leaving
+    // or returning home.
+    for (const r of this.maze.baseRooms) {
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) this.baseTiles.add(y * cols + x);
+      }
+    }
+
+    // Forbidden ground: tint the walkable area inside each box (3x2 interior
+    // plus the exit doorway) slightly darker than the walls, expanded 1px to
+    // meet the narrowed wall edges.
+    const boxFloor = new Graphics();
+    for (const r of this.maze.baseRooms) {
+      boxFloor.rect(
+        (r.x + 1) * TILE - 1,
+        (r.y + 1) * TILE - 1,
+        (r.w - 2) * TILE + 2,
+        (r.h - 2) * TILE + 2,
+      );
+      boxFloor.rect((r.x + 2) * TILE - 1, r.y * TILE - 1, TILE + 2, TILE + 2);
+    }
+    boxFloor.fill(BOX_FLOOR_COLOR);
+    world.addChild(boxFloor);
+
+    // Tiles that never hold a dot: ghost boxes + a clearing around Pac's spawn.
+    const noDot = new Uint8Array(cols * rows);
+    for (const idx of this.baseTiles) noDot[idx] = 1;
     const spawn = this.maze.pacSpawn;
     for (let y = spawn.y - 2; y <= spawn.y + 2; y++) {
       for (let x = spawn.x - 2; x <= spawn.x + 2; x++) {
@@ -196,11 +229,9 @@ export class BigPacEngine {
     // Power pellets: chosen with even spacing (no two within POWERUP_MIN_GAP
     // tiles) from a shuffled candidate pool; everything left becomes a dot.
     const pelletSet = this.choosePelletTiles(candidates);
-    const pTex = pelletTexture(app.renderer, PELLET_COLOR);
     for (const idx of pelletSet) {
-      const sprite = new Sprite(pTex);
+      const sprite = new Sprite(this.tex.pellet);
       sprite.anchor.set(0.5);
-      sprite.scale.set(TILE / 8);
       sprite.x = (idx % cols) * TILE + TILE / 2;
       sprite.y = Math.floor(idx / cols) * TILE + TILE / 2;
       this.pelletLayer.addChild(sprite);
@@ -224,21 +255,19 @@ export class BigPacEngine {
       set.add(idx);
       this.dotTiles.add(idx);
     }
-    this.dotsTotal = this.dotTiles.size;
     for (const ck of this.chunkGfx.keys()) this.redrawChunk(ck);
 
     world.addChild(this.fruitLayer);
 
-    // Ghosts spawn spread across the base rooms; each remembers its home room
-    // center and its classic tint.
+    // Ghosts spawn inside the box interiors; each remembers its home box and
+    // its classic tint.
     const ghostLayer = new Container();
     world.addChild(ghostLayer);
     const rooms = this.maze.baseRooms;
     this.baseFruitCount = rooms.map(() => 0);
     this.baseFruitTimer = rooms.map(() => Math.random() * FRUIT_INTERVAL);
     for (let i = 0; i < this.plan.ghosts; i++) {
-      const roomIdx = i % rooms.length;
-      const room = rooms[roomIdx];
+      const room = rooms[i % rooms.length];
       const color = GHOST_TINTS[i % GHOST_TINTS.length];
       const sprite = new Sprite(this.tex.ghost);
       sprite.anchor.set(0.5);
@@ -250,9 +279,11 @@ export class BigPacEngine {
         progress: 0,
         dir: STOPPED,
         sprite,
-        home: { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) },
+        home: { x: room.x + 2, y: room.y + 1 },
+        exitAbove: { x: room.x + 2, y: room.y - 1 },
         color,
-        frightened: false,
+        state: 'normal',
+        frightUntil: 0,
       });
     }
 
@@ -264,12 +295,13 @@ export class BigPacEngine {
     this.detachInput = attachGameInput({
       onDirection: (dir) => {
         this.desiredDir = dir;
+        this.started = true; // the world stays frozen until the first input
         this.sfx.resume(); // browsers need a gesture to start audio
       },
     });
     for (const m of [this.pac, ...this.ghosts]) this.place(m);
     app.ticker.add(this.update, this);
-    this.pushStats();
+    this.pushScore();
   }
 
   destroy() {
@@ -282,6 +314,8 @@ export class BigPacEngine {
   // ---- main loop -----------------------------------------------------------
 
   private update(ticker: Ticker) {
+    if (!this.started) return; // frozen until the first control input
+
     const dt = Math.min(ticker.deltaMS, 50) / 1000;
     this.elapsed += ticker.deltaMS;
 
@@ -306,10 +340,17 @@ export class BigPacEngine {
       () => this.eatAt(pac.tx, pac.ty),
     );
 
+    this.rebuildPacDistances();
+
     for (const ghost of this.ghosts) {
-      this.advance(ghost, GHOST_SPEED * dt, (m) => this.chooseGhostDir(m as Ghost));
-      if (ghost.frightened && torusDist(ghost.tx, ghost.ty, ghost.home.x, ghost.home.y, cols, rows) <= 2) {
-        this.calm(ghost);
+      if (ghost.state === 'frightened' && this.elapsed >= ghost.frightUntil) this.calm(ghost);
+      const speed = ghost.state === 'eyes' ? EYES_SPEED : GHOST_SPEED;
+      this.advance(ghost, speed * dt, (m) => this.chooseGhostDir(m as Ghost));
+      if (
+        ghost.state === 'eyes' &&
+        torusDist(ghost.tx, ghost.ty, ghost.home.x, ghost.home.y, cols, rows) <= 1
+      ) {
+        this.calm(ghost); // eyes made it home — back to a regular ghost
       }
     }
 
@@ -321,6 +362,22 @@ export class BigPacEngine {
     pac.sprite.texture =
       moving && Math.floor(this.elapsed / 120) % 2 === 0 ? this.tex.pacClosed : this.tex.pacOpen;
     for (const ghost of this.ghosts) this.place(ghost);
+
+    // Pac eats frightened ghosts on contact; they become homebound eyes.
+    for (const ghost of this.ghosts) {
+      if (ghost.state !== 'frightened') continue;
+      if (
+        Math.abs(ghost.sprite.x - pac.sprite.x) < TILE * 0.7 &&
+        Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
+      ) {
+        ghost.state = 'eyes';
+        ghost.sprite.texture = this.tex.ghostEyes;
+        ghost.sprite.tint = 0xffffff;
+        this.score += GHOST_POINTS;
+        this.sfx.play('eatghost', 0.5);
+        this.pushScore();
+      }
+    }
 
     this.pelletLayer.alpha = 0.55 + 0.45 * Math.sin(this.elapsed / 220);
   }
@@ -356,29 +413,88 @@ export class BigPacEngine {
 
   // ---- ghost AI ------------------------------------------------------------
 
+  /**
+   * Flood-fill walkable path distances outward from Pac's tile, stopping at
+   * CHASE_RADIUS. Ghosts inside the flood chase by descending the gradient —
+   * a true shortest path. Rebuilt only when Pac changes tile (~800 tiles max).
+   */
+  private rebuildPacDistances() {
+    const { cols, rows, grid } = this.maze;
+    const startIdx = this.pac.ty * cols + this.pac.tx;
+    if (startIdx === this.lastPacIdx) return;
+    this.lastPacIdx = startIdx;
+    this.pacDistances.clear();
+    this.pacDistances.set(startIdx, 0);
+    let frontier = [startIdx];
+    for (let depth = 1; depth <= CHASE_RADIUS && frontier.length > 0; depth++) {
+      const next: number[] = [];
+      for (const idx of frontier) {
+        const x = idx % cols;
+        const y = (idx - x) / cols;
+        for (const d of DIRS) {
+          const nx = wrap(x + d.x, cols);
+          const ny = wrap(y + d.y, rows);
+          const nidx = ny * cols + nx;
+          if (this.pacDistances.has(nidx)) continue;
+          if (grid[nidx] !== 1 || this.baseTiles.has(nidx)) continue;
+          this.pacDistances.set(nidx, depth);
+          next.push(nidx);
+        }
+      }
+      frontier = next;
+    }
+  }
+
   private chooseGhostDir(g: Ghost): Vec | null {
     const { cols, rows } = this.maze;
-
-    // Pick a target tile and how directly to pursue it (lower = more wandering).
-    let target: { x: number; y: number } | null = null;
-    let directness = 0;
-    if (g.frightened) {
-      target = g.home;
-      directness = 0.85; // flee home fairly purposefully
-    } else if (torusDist(g.tx, g.ty, this.pac.tx, this.pac.ty, cols, rows) <= CHASE_RADIUS) {
-      target = { x: this.pac.tx, y: this.pac.ty };
-      directness = 0.55; // chase, but take a circuitous route
-    } else if (torusDist(g.tx, g.ty, g.home.x, g.home.y, cols, rows) > LEASH) {
-      target = g.home;
-      directness = 0.7; // drifting too far — head back toward the leash
-    }
+    const inBase = this.baseTiles.has(g.ty * cols + g.tx);
+    // Box tiles are walkable only for ghosts already inside (heading out) or
+    // eyes heading home.
+    const allowBase = g.state === 'eyes' || inBase;
 
     const options = DIRS.filter(
-      (d) => this.isOpen(g.tx, g.ty, d) && !(d.x === -g.dir.x && d.y === -g.dir.y),
+      (d) => this.isOpen(g.tx, g.ty, d, allowBase) && !(d.x === -g.dir.x && d.y === -g.dir.y),
     );
     if (options.length === 0) {
       const back = { x: -g.dir.x, y: -g.dir.y };
-      return (back.x || back.y) && this.isOpen(g.tx, g.ty, back) ? back : null;
+      return (back.x || back.y) && this.isOpen(g.tx, g.ty, back, allowBase) ? back : null;
+    }
+
+    // Aggressive chase: a normal ghost inside Pac's BFS flood follows the
+    // distance gradient down — the true shortest path, no wandering.
+    if (g.state === 'normal' && !inBase && this.pacDistances.has(g.ty * cols + g.tx)) {
+      let best: Vec | null = null;
+      let bestD = Infinity;
+      for (const d of options) {
+        const nidx = wrap(g.ty + d.y, rows) * cols + wrap(g.tx + d.x, cols);
+        const nd = this.pacDistances.get(nidx);
+        if (nd !== undefined && nd < bestD) {
+          bestD = nd;
+          best = d;
+        }
+      }
+      if (best) return best;
+      // No non-reversing option descends the gradient; fall through to wander.
+    }
+
+    // Pick a target tile, how directly to pursue it (lower = more wandering),
+    // and whether to run toward it or away from it.
+    let target: { x: number; y: number } | null = null;
+    let directness = 0;
+    let flee = false;
+    if (g.state === 'eyes') {
+      target = g.home;
+      directness = 0.9; // a little wobble keeps eyes from pacing in corners
+    } else if (inBase) {
+      target = g.exitAbove; // newly spawned or just-respawned: file out the door
+      directness = 1;
+    } else if (g.state === 'frightened') {
+      target = { x: this.pac.tx, y: this.pac.ty };
+      flee = true;
+      directness = 0.8; // run away from Pac, with a panicked stumble
+    } else if (torusDist(g.tx, g.ty, g.home.x, g.home.y, cols, rows) > LEASH) {
+      target = g.home;
+      directness = 0.7; // drifting too far — head back toward the leash
     }
 
     if (!target) {
@@ -390,17 +506,16 @@ export class BigPacEngine {
       return options[Math.floor(Math.random() * options.length)];
     }
 
-    // Targeted: usually step toward the target, but sometimes pick any open
-    // direction so the pursuit meanders instead of being a perfect chase.
     if (Math.random() < directness) {
       let best = options[0];
-      let bestD = Infinity;
+      let bestScore = Infinity;
       for (const d of options) {
         const nx = wrap(g.tx + d.x, cols);
         const ny = wrap(g.ty + d.y, rows);
         const dist = torusDist(nx, ny, target.x, target.y, cols, rows);
-        if (dist < bestD) {
-          bestD = dist;
+        const score = flee ? -dist : dist;
+        if (score < bestScore) {
+          bestScore = score;
           best = d;
         }
       }
@@ -409,22 +524,19 @@ export class BigPacEngine {
     return options[Math.floor(Math.random() * options.length)];
   }
 
-  private frighten(tileIdx: number) {
-    const { cols, rows } = this.maze;
-    const px = tileIdx % cols;
-    const py = Math.floor(tileIdx / cols);
+  /** A power pellet frightens every ghost on the board (except homebound eyes). */
+  private frighten() {
     for (const g of this.ghosts) {
-      if (g.frightened) continue;
-      if (torusDist(g.tx, g.ty, px, py, cols, rows) <= FRIGHTEN_RADIUS) {
-        g.frightened = true;
-        g.sprite.texture = this.tex.ghostFrightened;
-        g.sprite.tint = 0xffffff;
-      }
+      if (g.state === 'eyes') continue; // already eaten — nothing to scare
+      g.state = 'frightened';
+      g.frightUntil = this.elapsed + FRIGHT_MS;
+      g.sprite.texture = this.tex.ghostFrightened;
+      g.sprite.tint = 0xffffff;
     }
   }
 
   private calm(g: Ghost) {
-    g.frightened = false;
+    g.state = 'normal';
     g.sprite.texture = this.tex.ghost;
     g.sprite.tint = g.color;
   }
@@ -442,12 +554,13 @@ export class BigPacEngine {
       const room = rooms[b];
       const cx = room.x + Math.floor(room.w / 2);
       const cy = room.y + Math.floor(room.h / 2);
-      // A few random tries to land on an open, unoccupied tile near the base.
+      // A few random tries to land on an open, unoccupied tile near the base
+      // (but never inside the box, where Pac can't reach it).
       for (let attempt = 0; attempt < 12; attempt++) {
         const tx = wrap(cx + Math.floor(Math.random() * (2 * FRUIT_RADIUS + 1)) - FRUIT_RADIUS, cols);
         const ty = wrap(cy + Math.floor(Math.random() * (2 * FRUIT_RADIUS + 1)) - FRUIT_RADIUS, rows);
         const idx = ty * cols + tx;
-        if (!grid[idx] || this.fruitByTile.has(idx)) continue;
+        if (!grid[idx] || this.baseTiles.has(idx) || this.fruitByTile.has(idx)) continue;
         const sprite = new Sprite(this.tex.fruit);
         sprite.anchor.set(0.5);
         sprite.x = tx * TILE + TILE / 2;
@@ -462,11 +575,14 @@ export class BigPacEngine {
 
   // ---- helpers -------------------------------------------------------------
 
-  private isOpen(tx: number, ty: number, d: Vec): boolean {
+  /** Is the tile one step in direction `d` walkable? Box tiles need `allowBase`. */
+  private isOpen(tx: number, ty: number, d: Vec, allowBase = false): boolean {
     const { cols, rows, grid } = this.maze;
     const x = wrap(tx + d.x, cols);
     const y = wrap(ty + d.y, rows);
-    return grid[y * cols + x] === 1;
+    const idx = y * cols + x;
+    if (grid[idx] !== 1) return false;
+    return allowBase || !this.baseTiles.has(idx);
   }
 
   private place(m: Mover) {
@@ -484,17 +600,16 @@ export class BigPacEngine {
       fruit.sprite.destroy();
       this.score += FRUIT_POINTS;
       this.sfx.play('fruit', 0.45);
-      this.pushStats();
+      this.pushScore();
     }
 
     if (this.dotTiles.delete(idx)) {
       const ck = Math.floor(ty / CHUNK) * this.chunkCols + Math.floor(tx / CHUNK);
       this.chunkDots.get(ck)!.delete(idx);
       this.redrawChunk(ck);
-      this.dotsEaten++;
       this.score += DOT_POINTS;
       this.sfx.waka();
-      this.pushStats();
+      this.pushScore();
       return;
     }
 
@@ -504,8 +619,8 @@ export class BigPacEngine {
       pellet.destroy();
       this.score += PELLET_POINTS;
       this.sfx.play('power', 0.5);
-      this.frighten(idx); // scare nearby ghosts back to their bases
-      this.pushStats();
+      this.frighten(); // every ghost panics and scatters away from Pac
+      this.pushScore();
     }
   }
 
@@ -571,17 +686,8 @@ export class BigPacEngine {
     g.fill(DOT_COLOR);
   }
 
-  private pushStats() {
-    this.onStats({
-      cols: this.maze.cols,
-      rows: this.maze.rows,
-      ghosts: this.ghosts.length,
-      powerPellets: this.plan.powerPellets,
-      ghostBases: this.maze.baseRooms.length,
-      dotsTotal: this.dotsTotal,
-      dotsEaten: this.dotsEaten,
-      score: this.score,
-    });
+  private pushScore() {
+    this.onScore(this.score);
   }
 }
 
