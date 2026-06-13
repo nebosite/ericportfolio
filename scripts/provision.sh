@@ -54,9 +54,11 @@ if [[ -d "${REPO_DIR}/.git" ]]; then
   echo "==> [6/11] Repo already present in ${REPO_DIR} — skipping clone"
 else
   echo "==> [6/11] Cloning monorepo"
-  read -rp "Git repository URL to clone: " GIT_REPO_URL
+  if [[ -z "${GIT_REPO_URL:-}" ]]; then
+    read -rp "Git repository URL to clone: " GIT_REPO_URL
+  fi
   if [[ -z "${GIT_REPO_URL}" ]]; then
-    echo "ERROR: a git repository URL is required." >&2
+    echo "ERROR: a git repository URL is required (set GIT_REPO_URL or enter it at the prompt)." >&2
     exit 1
   fi
   git clone "${GIT_REPO_URL}" "${REPO_DIR}"
