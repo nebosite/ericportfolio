@@ -1,24 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './PortraitStrip.module.css';
 
-// All square portraits — Vite bundles them as hashed asset URLs at build time.
-const photoModules = import.meta.glob<string>(
-  '../../assetts/Photos/squares/*.jpg',
-  { eager: true, query: '?url', import: 'default' },
-);
-const ALL_PHOTOS: string[] = Object.values(photoModules);
+// The portrait pool is served by the API (src/media/Photos/squares) instead of
+// being bundled, so the browser only downloads the handful of images on screen.
 
-function pickRandom(exclude: ReadonlySet<string>): string | null {
-  const pool = ALL_PHOTOS.filter((p) => !exclude.has(p));
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+function pickRandom(pool: readonly string[], exclude: ReadonlySet<string>): string | null {
+  const choices = pool.filter((p) => !exclude.has(p));
+  if (choices.length === 0) return null;
+  return choices[Math.floor(Math.random() * choices.length)];
 }
 
-function pickInitial(count: number): string[] {
+function pickInitial(pool: readonly string[], count: number): string[] {
   const result: string[] = [];
   const used = new Set<string>();
   for (let i = 0; i < count; i++) {
-    const pick = pickRandom(used);
+    const pick = pickRandom(pool, used);
     if (!pick) break;
     result.push(pick);
     used.add(pick);
@@ -33,7 +29,29 @@ export default function PortraitStrip() {
   const count = mobile ? 3 : 5;
   const prevCount = useRef(count);
 
-  const [slots, setSlots] = useState<string[]>(() => pickInitial(count));
+  const [pool, setPool] = useState<string[]>([]);
+  const [slots, setSlots] = useState<string[]>([]);
+
+  // Load the available portraits once.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/portraits')
+      .then((res) => res.json())
+      .then((urls: string[]) => {
+        if (cancelled) return;
+        setPool(urls);
+        setSlots(pickInitial(urls, count));
+        prevCount.current = count;
+      })
+      .catch(() => {
+        /* leave the strip empty if the list can't load */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // count is intentionally read once at load; breakpoint changes are handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Track mobile breakpoint
   useEffect(() => {
@@ -46,11 +64,12 @@ export default function PortraitStrip() {
   useEffect(() => {
     if (prevCount.current === count) return;
     prevCount.current = count;
-    setSlots(pickInitial(count));
-  }, [count]);
+    if (pool.length > 0) setSlots(pickInitial(pool, count));
+  }, [count, pool]);
 
   // Replace one random slot every 10–15 seconds; never show a photo twice.
   useEffect(() => {
+    if (pool.length === 0) return;
     let timer: ReturnType<typeof setTimeout>;
 
     const rotate = () => {
@@ -58,7 +77,7 @@ export default function PortraitStrip() {
         const used = new Set(prev);
         const idx = Math.floor(Math.random() * prev.length);
         used.delete(prev[idx]); // the evicted slot is no longer "used"
-        const next = pickRandom(used);
+        const next = pickRandom(pool, used);
         if (!next) return prev;
         const updated = [...prev];
         updated[idx] = next;
@@ -69,7 +88,7 @@ export default function PortraitStrip() {
 
     timer = setTimeout(rotate, 10_000 + Math.random() * 5_000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [pool]);
 
   return (
     <div className={styles.strip}>

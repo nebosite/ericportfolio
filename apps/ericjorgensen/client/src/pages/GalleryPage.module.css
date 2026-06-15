@@ -1,0 +1,131 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topBar {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, var(--paper) 100%);
+}
+
+.back {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.back:hover {
+  color: var(--accent-dark);
+  text-decoration: underline;
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  gap: 2.5rem;
+  padding: 2rem;
+  align-items: stretch;
+}
+
+/* The list of short titles on the left, one selected. */
+.titleList {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
+
+.title,
+.titleActive {
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.title:hover {
+  background: #eef3fa;
+  color: var(--ink);
+}
+
+.titleActive {
+  background: #eef3fa;
+  border-left-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The selected image is the main element, centered vertically on the page. */
+.viewer {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.figure {
+  margin: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.image {
+  width: 800px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+/* Title + description sit 40px below the image. */
+.caption {
+  margin-top: 40px;
+  max-width: 800px;
+}
+
+.captionTitle {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.captionDesc {
+  margin: 0.4rem 0 0;
+  color: var(--ink-soft);
+}
+
+.empty {
+  color: var(--ink-soft);
+}
+
+@media (max-width: 760px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .titleList {
+    flex-basis: auto;
+    max-height: 30vh;
+    width: 100%;
+  }
+}

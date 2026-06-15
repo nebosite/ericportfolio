@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import express from 'express';
 import cors from 'cors';
@@ -8,6 +9,13 @@ import Database from 'better-sqlite3';
 const APP = 'ericjorgensen';
 const PORT = Number(process.env.PORT) || 3001;
 const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, '..', 'data.db');
+
+// Portraits, art, photography and poetry live under src/media and are served as
+// static files rather than bundled into the client, so the browser only loads
+// the images it actually shows. This path resolves the same from dist/ (prod)
+// and src/ (tsx dev) since both sit one level under the server root.
+const MEDIA_DIR = path.join(__dirname, '..', 'src', 'media');
+const IMAGE_RE = /\.(jpe?g|png|gif|webp)$/i;
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -33,6 +41,24 @@ app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', app: APP, timestamp: new Date().toISOString() });
+});
+
+// Static media (portrait images, gallery images, and each gallery's
+// contents.json). Mounted under /api so it rides the existing nginx/vite
+// proxy without any extra routing config.
+app.use('/api/media', express.static(MEDIA_DIR));
+
+// The square portraits rotated across the top of the home page. Returns the
+// public URLs so the client never has to know the filenames ahead of time.
+app.get('/api/portraits', (_req, res) => {
+  const dir = path.join(MEDIA_DIR, 'Photos', 'squares');
+  let files: string[] = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => IMAGE_RE.test(f));
+  } catch {
+    // No squares folder yet — just return an empty strip.
+  }
+  res.json(files.map((f) => `/api/media/Photos/squares/${encodeURIComponent(f)}`));
 });
 
 app.get('/api/guestbook', (_req, res) => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import PortraitStrip from '../components/PortraitStrip';
 import styles from './HomePage.module.css';
 
@@ -55,6 +56,24 @@ export default function HomePage() {
               </h3>
               <p>Classic games reimagined: large canvas, original tiny pixel sprites.</p>
             </li>
+            <li className={styles.projectCard}>
+              <h3>
+                <Link to="/art">Art</Link>
+              </h3>
+              <p>Drawings and paintings, from quick studies to finished pieces.</p>
+            </li>
+            <li className={styles.projectCard}>
+              <h3>
+                <Link to="/photography">Photography</Link>
+              </h3>
+              <p>A wandering eye: moments, places, and light worth keeping.</p>
+            </li>
+            <li className={styles.projectCard}>
+              <h3>
+                <Link to="/poetry">Poetry</Link>
+              </h3>
+              <p>Short written pieces — words arranged with intent.</p>
+            </li>
           </ul>
         </section>
       </main>
@@ -64,7 +83,7 @@ export default function HomePage() {
       </footer>
 
       {visitCount !== null && (
-        <p className={styles.visitCount}>visitor #{visitCount.toLocaleString()}</p>
+        <p className={styles.visitCount}>{visitCount.toLocaleString()}</p>
       )}
     </div>
   );
