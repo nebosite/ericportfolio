@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Guestbook from '../components/Guestbook';
+import PortraitStrip from '../components/PortraitStrip';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
@@ -20,11 +21,7 @@ export default function HomePage() {
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
-        {/* PLACEHOLDER ART: hand-drawn self-portrait / avatar in the owner's
-            quirky personal style goes here (~160x160px, top of hero). */}
-        <div className={styles.avatarPlaceholder} aria-hidden="true">
-          EJ
-        </div>
+        <PortraitStrip />
         <h1 className={styles.name}>Eric Jorgensen</h1>
         <p className={styles.tagline}>
           Software developer. I build things that are useful, fast, and occasionally a little
