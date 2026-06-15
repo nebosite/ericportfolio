@@ -4,13 +4,13 @@ import styles from './PortraitStrip.module.css';
 // The portrait pool is served by the API (src/media/Photos/squares) instead of
 // being bundled, so the browser only downloads the handful of images on screen.
 
-function pickRandom(pool: readonly string[], exclude: ReadonlySet<string>): string | null {
+export function pickRandom(pool: readonly string[], exclude: ReadonlySet<string>): string | null {
   const choices = pool.filter((p) => !exclude.has(p));
   if (choices.length === 0) return null;
   return choices[Math.floor(Math.random() * choices.length)];
 }
 
-function pickInitial(pool: readonly string[], count: number): string[] {
+export function pickInitial(pool: readonly string[], count: number): string[] {
   const result: string[] = [];
   const used = new Set<string>();
   for (let i = 0; i < count; i++) {

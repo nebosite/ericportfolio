@@ -15,18 +15,18 @@ interface GalleryPageProps {
   heading: string;
 }
 
-function readCookie(name: string): string | null {
+export function readCookie(name: string): string | null {
   const prefix = `${name}=`;
   const hit = document.cookie.split('; ').find((c) => c.startsWith(prefix));
   return hit ? decodeURIComponent(hit.slice(prefix.length)) : null;
 }
 
-function writeCookie(name: string, value: string, days = 365): void {
+export function writeCookie(name: string, value: string, days = 365): void {
   const expires = new Date(Date.now() + days * 86_400_000).toUTCString();
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
 }
 
-function shuffle<T>(arr: readonly T[]): T[] {
+export function shuffle<T>(arr: readonly T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

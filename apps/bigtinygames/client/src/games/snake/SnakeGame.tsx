@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { attachGameInput, Vec } from '../input';
+import { COLS, ROWS, POINTS_PER_APPLE, freshSnake, randomFood, step } from './snakeLogic';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: an 800x600 canvas crossed by a 100x75 grid of
-// tiny 8x8px sprites. A very large world for a very small snake.
+// tiny 8x8px sprites. A very large world for a very small snake. The grid
+// dimensions and movement rules live in snakeLogic.ts (unit tested); CELL and
+// TICK_MS are presentation-only.
 const CELL = 8;
-const COLS = 100;
-const ROWS = 75;
 const TICK_MS = 70;
-const POINTS_PER_APPLE = 10;
-const START_LENGTH = 6;
 
 type Phase = 'idle' | 'playing' | 'gameover' | 'saved';
 
@@ -75,21 +74,6 @@ function drawSprite(
       }
     }
   }
-}
-
-function randomFood(snake: Vec[]): Vec {
-  let food: Vec;
-  do {
-    food = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
-  } while (snake.some((s) => s.x === food.x && s.y === food.y));
-  return food;
-}
-
-function freshSnake(): Vec[] {
-  const startX = Math.floor(COLS / 2);
-  const startY = Math.floor(ROWS / 2);
-  // Head first, body trailing left
-  return Array.from({ length: START_LENGTH }, (_, i) => ({ x: startX - i, y: startY }));
 }
 
 export default function SnakeGame() {
@@ -166,24 +150,14 @@ export default function SnakeGame() {
       const queued = dirQueueRef.current.shift();
       if (queued) dirRef.current = queued;
 
-      const snake = snakeRef.current;
-      const head = snake[0];
-      const next: Vec = { x: head.x + dirRef.current.x, y: head.y + dirRef.current.y };
-
-      const hitWall = next.x < 0 || next.x >= COLS || next.y < 0 || next.y >= ROWS;
-      const hitSelf = snake.some((s) => s.x === next.x && s.y === next.y);
-      if (hitWall || hitSelf) {
+      const result = step(snakeRef.current, dirRef.current, foodRef.current);
+      if (result.dead) {
         setPhase('gameover');
         return;
       }
-
-      snake.unshift(next);
-      if (next.x === foodRef.current.x && next.y === foodRef.current.y) {
-        setScore((s) => s + POINTS_PER_APPLE);
-        foodRef.current = randomFood(snake);
-      } else {
-        snake.pop();
-      }
+      snakeRef.current = result.snake;
+      foodRef.current = result.food;
+      if (result.ate) setScore((s) => s + POINTS_PER_APPLE);
       draw();
     }, TICK_MS);
     return () => window.clearInterval(timer);

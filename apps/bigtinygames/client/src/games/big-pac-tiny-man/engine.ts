@@ -1,6 +1,15 @@
 import { Application, Container, Graphics, Sprite, Ticker } from 'pixi.js';
 import { attachGameInput, Vec } from '../input';
 import { Maze, TILE, WorldPlan, generateMaze, planWorld } from './maze';
+import {
+  DIRS,
+  bestTowardTarget,
+  bfsDistances,
+  chooseSpacedTiles,
+  gradientStep,
+  torusDist,
+  wrap,
+} from './grid';
 import { loadSpriteTextures, SpriteTextures } from './sprites';
 import { Sfx } from './sfx';
 
@@ -34,12 +43,6 @@ const BOX_FLOOR_COLOR = 0x141467; // forbidden ground: slightly darker than wall
 const DOT_COLOR = 0xffc7ae;
 const GHOST_TINTS = [0xff4b4b, 0xffb8ff, 0x00ffff, 0xffb852];
 
-const DIRS: Vec[] = [
-  { x: 1, y: 0 },
-  { x: -1, y: 0 },
-  { x: 0, y: 1 },
-  { x: 0, y: -1 },
-];
 const STOPPED: Vec = { x: 0, y: 0 };
 
 // Grid-locked mover, classic Pac style: an entity occupies a tile and walks
@@ -228,7 +231,12 @@ export class BigPacEngine {
 
     // Power pellets: chosen with even spacing (no two within POWERUP_MIN_GAP
     // tiles) from a shuffled candidate pool; everything left becomes a dot.
-    const pelletSet = this.choosePelletTiles(candidates);
+    const pelletSet = chooseSpacedTiles(
+      candidates,
+      cols,
+      this.plan.powerPellets,
+      POWERUP_MIN_GAP,
+    );
     for (const idx of pelletSet) {
       const sprite = new Sprite(this.tex.pellet);
       sprite.anchor.set(0.5);
@@ -423,26 +431,14 @@ export class BigPacEngine {
     const startIdx = this.pac.ty * cols + this.pac.tx;
     if (startIdx === this.lastPacIdx) return;
     this.lastPacIdx = startIdx;
-    this.pacDistances.clear();
-    this.pacDistances.set(startIdx, 0);
-    let frontier = [startIdx];
-    for (let depth = 1; depth <= CHASE_RADIUS && frontier.length > 0; depth++) {
-      const next: number[] = [];
-      for (const idx of frontier) {
-        const x = idx % cols;
-        const y = (idx - x) / cols;
-        for (const d of DIRS) {
-          const nx = wrap(x + d.x, cols);
-          const ny = wrap(y + d.y, rows);
-          const nidx = ny * cols + nx;
-          if (this.pacDistances.has(nidx)) continue;
-          if (grid[nidx] !== 1 || this.baseTiles.has(nidx)) continue;
-          this.pacDistances.set(nidx, depth);
-          next.push(nidx);
-        }
-      }
-      frontier = next;
-    }
+    this.pacDistances = bfsDistances(
+      grid,
+      cols,
+      rows,
+      startIdx,
+      this.baseTiles,
+      CHASE_RADIUS,
+    );
   }
 
   private chooseGhostDir(g: Ghost): Vec | null {
@@ -463,16 +459,7 @@ export class BigPacEngine {
     // Aggressive chase: a normal ghost inside Pac's BFS flood follows the
     // distance gradient down — the true shortest path, no wandering.
     if (g.state === 'normal' && !inBase && this.pacDistances.has(g.ty * cols + g.tx)) {
-      let best: Vec | null = null;
-      let bestD = Infinity;
-      for (const d of options) {
-        const nidx = wrap(g.ty + d.y, rows) * cols + wrap(g.tx + d.x, cols);
-        const nd = this.pacDistances.get(nidx);
-        if (nd !== undefined && nd < bestD) {
-          bestD = nd;
-          best = d;
-        }
-      }
+      const best = gradientStep(options, g.tx, g.ty, cols, rows, this.pacDistances);
       if (best) return best;
       // No non-reversing option descends the gradient; fall through to wander.
     }
@@ -507,19 +494,7 @@ export class BigPacEngine {
     }
 
     if (Math.random() < directness) {
-      let best = options[0];
-      let bestScore = Infinity;
-      for (const d of options) {
-        const nx = wrap(g.tx + d.x, cols);
-        const ny = wrap(g.ty + d.y, rows);
-        const dist = torusDist(nx, ny, target.x, target.y, cols, rows);
-        const score = flee ? -dist : dist;
-        if (score < bestScore) {
-          bestScore = score;
-          best = d;
-        }
-      }
-      return best;
+      return bestTowardTarget(options, g.tx, g.ty, target, cols, rows, flee);
     }
     return options[Math.floor(Math.random() * options.length)];
   }
@@ -624,57 +599,6 @@ export class BigPacEngine {
     }
   }
 
-  /**
-   * Greedy spaced sampling: shuffle the candidate corridor tiles, then accept
-   * one only if it's at least POWERUP_MIN_GAP tiles from every pellet already
-   * accepted. A bucket grid keeps the neighbor check O(1).
-   */
-  private choosePelletTiles(candidates: number[]): Set<number> {
-    const { cols } = this.maze;
-    const target = Math.min(this.plan.powerPellets, candidates.length);
-    const gap = POWERUP_MIN_GAP;
-
-    const order = candidates.slice();
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-
-    const buckets = new Map<number, Array<[number, number]>>();
-    const bucketCols = Math.ceil(cols / gap) + 2;
-    const bkey = (bx: number, by: number) => by * bucketCols + bx;
-    const farEnough = (x: number, y: number) => {
-      const bx = Math.floor(x / gap);
-      const by = Math.floor(y / gap);
-      for (let iy = by - 1; iy <= by + 1; iy++) {
-        for (let ix = bx - 1; ix <= bx + 1; ix++) {
-          const arr = buckets.get(bkey(ix, iy));
-          if (!arr) continue;
-          for (const [px, py] of arr) {
-            const dx = px - x;
-            const dy = py - y;
-            if (dx * dx + dy * dy < gap * gap) return false;
-          }
-        }
-      }
-      return true;
-    };
-
-    const chosen = new Set<number>();
-    for (const idx of order) {
-      if (chosen.size >= target) break;
-      const x = idx % cols;
-      const y = Math.floor(idx / cols);
-      if (!farEnough(x, y)) continue;
-      chosen.add(idx);
-      const key = bkey(Math.floor(x / gap), Math.floor(y / gap));
-      let arr = buckets.get(key);
-      if (!arr) buckets.set(key, (arr = []));
-      arr.push([x, y]);
-    }
-    return chosen;
-  }
-
   private redrawChunk(ck: number) {
     const g = this.chunkGfx.get(ck)!;
     const { cols } = this.maze;
@@ -689,17 +613,4 @@ export class BigPacEngine {
   private pushScore() {
     this.onScore(this.score);
   }
-}
-
-// Toroidal helpers — the maze wraps at its tunnel rows/cols.
-function wrap(v: number, n: number): number {
-  return ((v % n) + n) % n;
-}
-
-function torusDist(ax: number, ay: number, bx: number, by: number, cols: number, rows: number): number {
-  let dx = Math.abs(ax - bx);
-  let dy = Math.abs(ay - by);
-  if (dx > cols - dx) dx = cols - dx;
-  if (dy > rows - dy) dy = rows - dy;
-  return dx + dy;
 }

@@ -248,6 +248,57 @@ export function generateMaze(plan: WorldPlan): Maze {
     }
   }
 
+  // Connectivity guarantee: stamping walled boxes (and the erosion above) can
+  // island a box or a small corridor pocket off the main network. Flood from
+  // Pac's spawn, then reconnect every unreached open tile by carving the single
+  // interior wall between it and a reachable corridor. Carving only ever adds
+  // open space, so it can't create a dead end or strand ghosts in a sealed box.
+  const floodFromSpawn = (): Uint8Array => {
+    const seen = new Uint8Array(cols * rows);
+    const start = at(pacSpawn.x, pacSpawn.y);
+    seen[start] = 1;
+    const stack = [start];
+    while (stack.length > 0) {
+      const idx = stack.pop()!;
+      const x = idx % cols;
+      const y = (idx - x) / cols;
+      for (const [dx, dy] of CELL_DIRS) {
+        const nidx = at(wrapX(x + dx), wrapY(y + dy));
+        if (seen[nidx] || grid[nidx] !== 1) continue;
+        seen[nidx] = 1;
+        stack.push(nidx);
+      }
+    }
+    return seen;
+  };
+
+  for (let pass = 0; pass < 50; pass++) {
+    const reach = floodFromSpawn();
+    let carved = false;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const idx = at(x, y);
+        if (grid[idx] !== 1 || reach[idx]) continue; // only unreachable open tiles
+        for (const [dx, dy] of CELL_DIRS) {
+          const wx = x + dx;
+          const wy = y + dy;
+          const fx = wrapX(x + 2 * dx);
+          const fy = wrapY(y + 2 * dy);
+          // Stay off the outer border so we never open a stray wrap tunnel.
+          if (wx <= 0 || wy <= 0 || wx >= cols - 1 || wy >= rows - 1) continue;
+          const wIdx = at(wx, wy);
+          const fIdx = at(fx, fy);
+          if (grid[wIdx] !== 0 || boxMask[wIdx]) continue; // need an interior wall, not a box border
+          if (grid[fIdx] !== 1 || !reach[fIdx]) continue; // far side must be reachable corridor
+          carve(wx, wy);
+          carved = true;
+          break;
+        }
+      }
+    }
+    if (!carved) break; // converged (or nothing left to connect)
+  }
+
   return {
     cols,
     rows,
