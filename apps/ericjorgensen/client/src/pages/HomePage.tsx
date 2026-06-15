@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import Guestbook from '../components/Guestbook';
 import PortraitStrip from '../components/PortraitStrip';
 import styles from './HomePage.module.css';
 
@@ -24,24 +23,18 @@ export default function HomePage() {
         <PortraitStrip />
         <h1 className={styles.name}>Eric Jorgensen</h1>
         <p className={styles.tagline}>
-          Software developer. I build things that are useful, fast, and occasionally a little
-          whimsical.
+          I use AI to build things that are useful, fast, and occasionally a little
+          whimsical.  All the code found here was built using <a href="https://claude.ai">Claude</a> and <a href="https://chat.openai.com">ChatGPT</a>. 
         </p>
-        {visitCount !== null && (
-          <p className={styles.visitCount}>
-            You are visitor <strong>#{visitCount.toLocaleString()}</strong>
-          </p>
-        )}
       </header>
 
       <main className={styles.main}>
         <section className={styles.section}>
           <h2>About</h2>
           <p>
-            Welcome to my corner of the internet. I spend my days writing software and my spare
-            time turning odd ideas into working code — from pixel toys for kids to tiny
-            reimaginings of classic games. Everything on this server, from the apps to the
-            deployment scripts, lives in one monorepo I built by hand.
+            I've been a software engineer for over 30 years, and now I am transitioning 
+            to powerful AI tools to help me build software gadgets, toys, and solutions using AI.  This site is a place
+            where you can explore what I can create and experience a few of my quirks firsthand. 
           </p>
         </section>
 
@@ -64,19 +57,15 @@ export default function HomePage() {
             </li>
           </ul>
         </section>
-
-        <section className={styles.section}>
-          <h2>Leave a note</h2>
-          <p className={styles.sectionIntro}>
-            This guestbook is a live demo of the full stack: React → Express → SQLite and back.
-          </p>
-          <Guestbook />
-        </section>
       </main>
 
       <footer className={styles.footer}>
-        <p>© {new Date().getFullYear()} Eric Jorgensen · Built with React, Express &amp; SQLite</p>
+        <p>© {new Date().getFullYear()} Eric Jorgensen</p>
       </footer>
+
+      {visitCount !== null && (
+        <p className={styles.visitCount}>visitor #{visitCount.toLocaleString()}</p>
+      )}
     </div>
   );
 }

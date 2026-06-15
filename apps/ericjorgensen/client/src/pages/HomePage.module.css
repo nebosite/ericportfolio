@@ -25,9 +25,12 @@
 }
 
 .visitCount {
-  margin-top: 1.25rem;
-  font-size: 0.9rem;
-  color: var(--ink-soft);
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  margin: 0;
+  font-size: 8pt;
+  color: gray;
 }
 
 .main {
