@@ -124,9 +124,9 @@ export class BigPacEngine {
   /** BFS path distances from Pac's tile, out to CHASE_RADIUS (toroidal). */
   private pacDistances = new Map<number, number>();
   private lastPacIdx = -1;
-  private detachInput: () => void;
+  private detachInput: () => void = () => {};
 
-  /** True once the player has pressed a control; the world is locked in. */
+  /** True once the player has pressed Start; the world is locked in. */
   get hasStarted(): boolean {
     return this.started;
   }
@@ -300,16 +300,25 @@ export class BigPacEngine {
     world.addChild(pacSprite);
     this.pac = { tx: spawn.x, ty: spawn.y, progress: 0, dir: STOPPED, sprite: pacSprite };
 
-    this.detachInput = attachGameInput({
-      onDirection: (dir) => {
-        this.desiredDir = dir;
-        this.started = true; // the world stays frozen until the first input
-        this.sfx.resume(); // browsers need a gesture to start audio
-      },
-    });
     for (const m of [this.pac, ...this.ghosts]) this.place(m);
     app.ticker.add(this.update, this);
     this.pushScore();
+  }
+
+  /**
+   * Begin play. Until this is called the world stays frozen and no keyboard or
+   * gamepad input is consumed, so typing elsewhere on the title screen (e.g. the
+   * feedback box) can never trip the controls. Driven by the page's Start button.
+   */
+  start() {
+    if (this.started) return;
+    this.started = true;
+    this.sfx.resume(); // browsers need a user gesture to start audio
+    this.detachInput = attachGameInput({
+      onDirection: (dir) => {
+        this.desiredDir = dir;
+      },
+    });
   }
 
   destroy() {

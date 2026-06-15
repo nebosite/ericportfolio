@@ -1,4 +1,5 @@
 import PixelCanvas from '../components/PixelCanvas';
+import FeedbackPanel from '../components/FeedbackPanel';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
@@ -11,6 +12,7 @@ export default function HomePage() {
           <img className={styles.logoImg} src="/pixelwhimsy-logo.png" alt="PixelWhimsy" />
         </h1>
         <p className={styles.tagline}>Paint tiny pictures. Make big smiles!</p>
+        <FeedbackPanel entity="pixelwhimsy" />
       </header>
 
       <main className={styles.main}>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { attachGameInput, Vec } from '../input';
 import { COLS, ROWS, POINTS_PER_APPLE, freshSnake, randomFood, step } from './snakeLogic';
+import FeedbackPanel from '../../components/FeedbackPanel';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: an 800x600 canvas crossed by a 100x75 grid of
@@ -196,6 +197,7 @@ export default function SnakeGame() {
               <button type="button" className={styles.arcadeButton} onClick={startGame}>
                 ▶ START
               </button>
+              <FeedbackPanel entity="snake" />
             </div>
           )}
 

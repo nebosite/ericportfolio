@@ -45,6 +45,14 @@
   letter-spacing: 0.12em;
 }
 
+/* Holds the canvas stage and the pre-start title overlay stacked on top. */
+.stageWrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
 /* The engine fills this with a canvas sized to the physical pixels (capped
    at 4K); flex centering handles the case where the cap leaves a margin. */
 .stage {
@@ -57,4 +65,53 @@
 
 .stage canvas {
   display: block;
+}
+
+/* Title screen shown until the first control press; hosts the feedback panel. */
+.titleScreen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(5, 5, 12, 0.82);
+  color: var(--coin-gold, #ffd23f);
+}
+
+.titleHeading {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: 0.15em;
+  text-shadow: 2px 2px 0 var(--alert-red, #d7263d);
+}
+
+.startButton {
+  font: inherit;
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  color: #05050c;
+  background: var(--coin-gold, #ffd23f);
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1.6rem;
+}
+
+.startButton:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.startButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.titleHint {
+  margin: 0;
+  color: var(--phosphor-dim, #8fb98f);
+  letter-spacing: 0.08em;
 }

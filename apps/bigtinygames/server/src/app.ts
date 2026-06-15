@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import type { Database } from 'better-sqlite3';
+import { initFeedbackTable, registerFeedbackRoutes } from './feedback';
 
 const APP = 'bigtinygames';
 
@@ -19,6 +20,7 @@ export function initDb(db: Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  initFeedbackTable(db);
 }
 
 /** Build the Express app around an already-initialized database. */
@@ -57,6 +59,8 @@ export function createApp(db: Database): express.Express {
       .run(initials, score);
     res.status(201).json({ id: Number(info.lastInsertRowid), initials, score });
   });
+
+  registerFeedbackRoutes(app, db);
 
   return app;
 }

@@ -41,3 +41,29 @@ For **every** change, before asking for local review / committing:
 
 Keep test files next to the code as `*.test.ts` / `*.test.tsx`; they are excluded
 from the production `tsc` build via each workspace's `tsconfig.json`.
+
+## Standard feature: per-entity feedback
+
+Every Big Tiny game and the PixelWhimsy app carries a **standard feedback
+feature** on its title screen. New games/apps of this kind should include it too.
+
+On the title screen there are two buttons:
+
+- **Leave Feedback** — a form to submit up to **1000 characters** of feedback
+  about that specific entity (the game or app).
+- **Vote on Feedback** — shows **three randomly selected** items from that
+  entity's active feedback list; the player can **upvote** ones they like (there
+  are **no downvotes**). The browser's **localStorage** records which item ids the
+  player has voted for, so they can't vote for the same item twice.
+
+Implementation:
+
+- **Client:** the reusable `components/FeedbackPanel.tsx` (`<FeedbackPanel
+  entity="..." />`). "entity" is the game/app slug, e.g. `snake`,
+  `big-pac-tiny-man`, `pixelwhimsy`. The component is currently duplicated per
+  client app (no shared workspace) — keep the copies in sync.
+- **Server:** `feedback.ts` (`initFeedbackTable` + `registerFeedbackRoutes`)
+  wired into each `app.ts`, backed by a SQLite `feedback` table. Endpoints:
+  `POST /api/feedback`, `GET /api/feedback/random?entity=<slug>`,
+  `POST /api/feedback/:id/vote`. Per-browser vote dedupe is the client's job;
+  the server just stores feedback and counts upvotes.
