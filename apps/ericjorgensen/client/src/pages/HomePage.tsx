@@ -24,20 +24,12 @@ export default function HomePage() {
         <PortraitStrip />
         <h1 className={styles.name}>Eric Jorgensen</h1>
         <p className={styles.tagline}>
-          I use AI to build things that are useful, fast, and occasionally a little
-          whimsical.  All the code found here was built using <a href="https://claude.ai">Claude</a> and <a href="https://chat.openai.com">ChatGPT</a>. 
+          Working with AI to build things that are useful, interesting, and occasionally 
+          whimsical.  
         </p>
       </header>
 
       <main className={styles.main}>
-        <section className={styles.section}>
-          <h2>About</h2>
-          <p>
-            I've been a software engineer for over 30 years, and now I am transitioning 
-            to powerful AI tools to help me build software gadgets, toys, and solutions using AI.  This site is a place
-            where you can explore what I can create and experience a few of my quirks firsthand. 
-          </p>
-        </section>
 
         <section className={styles.section}>
           <h2>Projects</h2>
@@ -48,7 +40,7 @@ export default function HomePage() {
               <h3>
                 <a href="https://pixelwhimsy.com">PixelWhimsy</a>
               </h3>
-              <p>A colorful pixel-art toy for children, reborn as a web app.</p>
+              <p>A colorful pixel-art toy for children.</p>
             </li>
             <li className={styles.projectCard}>
               <h3>
