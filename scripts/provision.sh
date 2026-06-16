@@ -75,6 +75,22 @@ npm run build
 echo "==> [9/11] Installing nginx configs"
 bash "${REPO_DIR}/scripts/nginx-gen.sh"
 
+# Ensure the feedback service has an admin token. Persisted to /root/portfolio.env
+# (chmod 600) and exported so PM2 captures it; reused by deploy.sh thereafter.
+ENV_FILE=/root/portfolio.env
+GENERATED_TOKEN=0
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  set -a; source "${ENV_FILE}"; set +a
+fi
+if [[ -z "${ADMIN_TOKEN:-}" ]]; then
+  ADMIN_TOKEN="$(openssl rand -hex 24)"
+  echo "ADMIN_TOKEN=${ADMIN_TOKEN}" >> "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+  GENERATED_TOKEN=1
+fi
+export ADMIN_TOKEN
+
 echo "==> [10/11] Starting PM2 apps"
 pm2 startOrReload "${REPO_DIR}/ecosystem.config.js" --update-env
 pm2 save
@@ -82,6 +98,15 @@ pm2 save
 pm2 startup systemd -u root --hp /root | tail -n 1 | bash || true
 
 echo "==> [11/11] Done"
+if [[ "${GENERATED_TOKEN}" == "1" ]]; then
+  echo
+  echo "============================================================"
+  echo " Feedback admin password (save this — it won't be shown again):"
+  echo "     ${ADMIN_TOKEN}"
+  echo " Stored in ${ENV_FILE}. Log in at:"
+  echo "     https://ericjorgensen.com/manage/feedback"
+  echo "============================================================"
+fi
 cat <<'CHECKLIST'
 
 ============================================================
@@ -95,6 +120,8 @@ cat <<'CHECKLIST'
     to HTTPS.
  3. Verify each app:
         curl http://<domain>/api/health
- 4. Check process health any time with:  pm2 status
+ 4. Manage feedback at https://ericjorgensen.com/manage/feedback
+    (admin password is in /root/portfolio.env).
+ 5. Check process health any time with:  pm2 status
 ============================================================
 CHECKLIST

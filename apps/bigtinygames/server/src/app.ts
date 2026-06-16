@@ -3,11 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import type { Database } from 'better-sqlite3';
-import { initFeedbackTable, registerFeedbackRoutes } from './feedback';
 
 const APP = 'bigtinygames';
 
 const MAX_SCORE = 1_000_000; // sanity cap — Snake scores have no business above this
+
+// Feedback is owned by the shared feedback service (apps/feedback); this server
+// only handles the Snake leaderboard.
 
 /** Create the tables this app relies on. Safe to call repeatedly. */
 export function initDb(db: Database): void {
@@ -20,7 +22,6 @@ export function initDb(db: Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  initFeedbackTable(db);
 }
 
 /** Build the Express app around an already-initialized database. */
@@ -59,8 +60,6 @@ export function createApp(db: Database): express.Express {
       .run(initials, score);
     res.status(201).json({ id: Number(info.lastInsertRowid), initials, score });
   });
-
-  registerFeedbackRoutes(app, db);
 
   return app;
 }

@@ -10,6 +10,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Feedback goes to the shared feedback service (3005); the leaderboard and
+      // everything else to the bigtinygames API (3004).
+      '/api/feedback': 'http://localhost:3005',
       '/api': 'http://localhost:3004',
     },
   },

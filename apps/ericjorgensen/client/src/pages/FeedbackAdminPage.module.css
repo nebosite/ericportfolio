@@ -1,0 +1,210 @@
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.gateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(360px, 100%);
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.gateTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+}
+
+.gateInput {
+  font: inherit;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.page {
+  max-width: none;
+  margin: 0;
+  padding: 2px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.count {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.button,
+.buttonGhost,
+.deleteBtn {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+}
+
+.button {
+  background: var(--accent);
+  color: #fff;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.buttonGhost {
+  background: transparent;
+  color: var(--accent);
+}
+
+.deleteBtn {
+  border-color: #c0392b;
+  color: #c0392b;
+  background: transparent;
+}
+
+.deleteBtn:hover {
+  background: #c0392b;
+  color: #fff;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 2px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.sortBtn {
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.textCol {
+  width: 30%;
+  word-break: break-word;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.date {
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.statusSelect {
+  font: inherit;
+  padding: 0.25rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.entityCol {
+  width: 150px;
+}
+
+.notesCol {
+  width: 26%;
+}
+
+/* Notes box and its Save button sit side by side to keep rows short. */
+.notesRow {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.notesInput {
+  font: inherit;
+  flex: 1;
+  resize: vertical;
+  padding: 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.saveBtn {
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+}
+
+.saveBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* New-since-last-check rows stand out. */
+.newRow {
+  background: #fff7e0;
+}
+
+.newBadge {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #a9791a;
+  background: #ffe7a8;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  vertical-align: middle;
+}
+
+.empty {
+  color: var(--ink-soft);
+}
+
+.error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  margin: 0;
+}

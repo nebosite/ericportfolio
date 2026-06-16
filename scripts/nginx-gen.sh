@@ -41,6 +41,24 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
+    # Feedback (public) and the admin API both live in the shared feedback
+    # service on 3005; longest-prefix match wins over the per-app /api/ below.
+    location /api/feedback {
+        proxy_pass http://localhost:3005;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /api/admin/ {
+        proxy_pass http://localhost:3005;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
     location /api/ {
         proxy_pass http://localhost:${port};
         proxy_http_version 1.1;

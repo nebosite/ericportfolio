@@ -56,14 +56,28 @@ On the title screen there are two buttons:
   are **no downvotes**). The browser's **localStorage** records which item ids the
   player has voted for, so they can't vote for the same item twice.
 
-Implementation:
+Implementation — there is **one shared feedback database** for the whole
+portfolio, owned by a dedicated service. Do not add per-app feedback tables.
 
-- **Client:** the reusable `components/FeedbackPanel.tsx` (`<FeedbackPanel
-  entity="..." />`). "entity" is the game/app slug, e.g. `snake`,
-  `big-pac-tiny-man`, `pixelwhimsy`. The component is currently duplicated per
-  client app (no shared workspace) — keep the copies in sync.
-- **Server:** `feedback.ts` (`initFeedbackTable` + `registerFeedbackRoutes`)
-  wired into each `app.ts`, backed by a SQLite `feedback` table. Endpoints:
-  `POST /api/feedback`, `GET /api/feedback/random?entity=<slug>`,
-  `POST /api/feedback/:id/vote`. Per-browser vote dedupe is the client's job;
-  the server just stores feedback and counts upvotes.
+- **Service:** `apps/feedback/server` (port 3005) owns the single SQLite
+  `feedback` table for every entity. Public endpoints: `POST /api/feedback`,
+  `GET /api/feedback/random?entity=<slug>`, `POST /api/feedback/:id/vote`.
+  Per-browser vote dedupe is the client's job; the service stores feedback and
+  counts upvotes. Each row also has a `status` (`Suggested` | `Implemented`).
+- **Client panel:** the reusable `components/FeedbackPanel.tsx` (`<FeedbackPanel
+  entity="..." />`), duplicated per client app (no shared workspace) — keep the
+  copies in sync. It calls relative `/api/feedback*`; routing sends those to the
+  shared service (nginx `location /api/feedback` → 3005 in prod; the per-app vite
+  proxy `'/api/feedback' → 3005` in dev).
+- **Admin console:** a secret, password-gated page at
+  `ericjorgensen.com/manage/feedback` (`apps/ericjorgensen/client` →
+  `pages/FeedbackAdminPage.tsx`). Sortable by entity/date/votes/status, highlights
+  entries new since the last visit, and can delete or change status. It calls the
+  service's admin API (`GET/PATCH/DELETE /api/admin/feedback`), gated by a
+  `Bearer` token checked against the `ADMIN_TOKEN` env var. Routing: nginx
+  `location /api/admin/` → 3005 on ericjorgensen.com; dev vite proxy
+  `'/api/admin' → 3005`.
+- **Secret/`ADMIN_TOKEN`:** never committed. `provision.sh` generates one into
+  `/root/portfolio.env` (chmod 600) and prints it once; `deploy.sh` sources that
+  file so PM2 picks it up via `--update-env`. If `ADMIN_TOKEN` is unset the admin
+  API is closed entirely.

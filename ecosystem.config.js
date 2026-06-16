@@ -24,5 +24,15 @@ module.exports = {
       script: 'dist/index.js',
       env: { NODE_ENV: 'production', PORT: 3004 },
     },
+    {
+      // Single, app-agnostic feedback store + secret admin API for all sites.
+      // ADMIN_TOKEN must be present in the deploy environment (it is read from
+      // the server's env, never committed). Deploy with `pm2 reload
+      // ecosystem.config.js --update-env` after `export ADMIN_TOKEN=...`.
+      name: 'feedback-api',
+      cwd: '/var/www/portfolio/apps/feedback/server',
+      script: 'dist/index.js',
+      env: { NODE_ENV: 'production', PORT: 3005, ADMIN_TOKEN: process.env.ADMIN_TOKEN },
+    },
   ],
 };

@@ -6,6 +6,14 @@
 set -euo pipefail
 
 REPO_DIR=/var/www/portfolio
+ENV_FILE=/root/portfolio.env
+
+# Load persisted secrets (e.g. ADMIN_TOKEN for the feedback service) so PM2
+# captures them via --update-env.
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  set -a; source "${ENV_FILE}"; set +a
+fi
 
 echo "==> Pulling latest code"
 cd "${REPO_DIR}"
@@ -14,7 +22,7 @@ git pull
 echo "==> Installing dependencies"
 npm install
 
-echo "==> Building all four apps"
+echo "==> Building all apps"
 npm run build
 
 echo "==> Reloading PM2 processes"
