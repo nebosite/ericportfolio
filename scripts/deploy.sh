@@ -19,8 +19,10 @@ echo "==> Pulling latest code"
 cd "${REPO_DIR}"
 git pull
 
-echo "==> Installing dependencies"
-npm install
+echo "==> Installing dependencies (clean, from package-lock.json)"
+# npm ci installs exactly what the lockfile says and never rewrites it, so it
+# won't leave the working tree dirty and block the next git pull.
+npm ci
 
 echo "==> Building all apps"
 npm run build

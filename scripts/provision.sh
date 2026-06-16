@@ -66,8 +66,11 @@ fi
 
 cd "${REPO_DIR}"
 
-echo "==> [7/11] Installing npm dependencies (workspaces)"
-npm install
+echo "==> [7/11] Installing npm dependencies (workspaces, clean from lockfile)"
+# npm ci installs exactly what package-lock.json specifies and never rewrites
+# it, keeping the working tree clean so later `git pull`s in deploy.sh aren't
+# blocked by a drifted lockfile.
+npm ci
 
 echo "==> [8/11] Building all four apps (client + server)"
 npm run build
