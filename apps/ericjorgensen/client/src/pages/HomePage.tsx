@@ -50,6 +50,12 @@ export default function HomePage() {
             </li>
             <li className={styles.projectCard}>
               <h3>
+                <a href="https://github.com/nebosite/budgito">Budgito</a>
+              </h3>
+              <p>This is my personal tool for working against a yearly budget.</p>
+            </li>
+            <li className={styles.projectCard}>
+              <h3>
                 <Link to="/art">Art</Link>
               </h3>
               <p>Drawings and paintings, from quick studies to finished pieces.</p>
