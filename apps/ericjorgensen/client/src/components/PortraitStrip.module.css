@@ -1,4 +1,4 @@
-/* Frontispiece: a left-aligned row of square B&W portraits, hand-pinned with a
+/* Frontispiece: a left-aligned row of square portraits, hand-pinned with a
    slight per-slot offset and rotation. */
 .strip {
   display: flex;
@@ -25,7 +25,6 @@
   object-fit: cover;
   display: block;
   border: 1px solid #1d1b16;
-  filter: grayscale(1) contrast(1.06);
   animation: fadeIn 0.5s ease;
 }
 
