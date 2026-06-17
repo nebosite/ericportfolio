@@ -8,10 +8,15 @@
 set -uo pipefail
 
 fail=0
+RETRIES=15 # services are just-reloaded; give them a moment to bind their ports
 
 check() {
-  local name="$1" url="$2" expect="${3:-200}" code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo 000)"
+  local name="$1" url="$2" expect="${3:-200}" code=000
+  for _ in $(seq 1 "${RETRIES}"); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${url}" 2>/dev/null || echo 000)"
+    [[ "${code}" == "${expect}" ]] && break
+    sleep 1
+  done
   if [[ "${code}" == "${expect}" ]]; then
     echo "    OK   ${name} (${code})"
   else
