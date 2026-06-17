@@ -14,7 +14,7 @@ Steps:
 
 ## Workflow: tests are part of every change
 
-Testing is **not optional** and must keep pace as the sites grow. The repo uses
+Testing is **not optional** and must keep pace as the sites grow. The repo uses 
 **Vitest** in every workspace (jsdom + Testing Library for clients, supertest for
 the Express servers). Run `npm test` from the repo root to execute the whole
 suite across all eight workspaces (or `npm test -w apps/<app>/<client|server>`
@@ -41,6 +41,34 @@ For **every** change, before asking for local review / committing:
 
 Keep test files next to the code as `*.test.ts` / `*.test.tsx`; they are excluded
 from the production `tsc` build via each workspace's `tsconfig.json`.
+
+## Deployment: catching errors before they ship
+
+Deploys run on the VPS via `scripts/deploy.sh`:
+**preflight → `git pull --ff-only` → `npm ci` → `npm run build` →
+`pm2 startOrReload` → smoke test.** Two guard scripts bracket the deploy so the
+failure modes we've actually hit can't silently ship stale or broken code.
+
+- **`scripts/preflight.sh`** runs first and **aborts the deploy** on anything it
+  can't safely fix:
+  - **Dirty working tree.** A non-clean tree blocks `git pull`. The one artifact
+    it auto-heals is a drifted `package-lock.json` (older `npm install`s rewrote
+    it; `npm ci` no longer does). Any *other* uncommitted change aborts with a
+    list, so you resolve it by hand instead of deploying around it. *(This is the
+    exact failure that once left stale code live in production.)*
+  - **Wrong branch / diverged history.** Refuses unless on `main` and able to
+    fast-forward to `origin/main` (stray commits made on the server abort).
+  - **Missing `ADMIN_TOKEN`.** Warns if `/root/portfolio.env` has none (the
+    feedback admin API would be closed).
+- **`scripts/smoke-test.sh`** runs last and **fails the deploy** if any service
+  is unhealthy: it hits `/api/health` on every PM2 service (ports 3001–3005) on
+  localhost and confirms the feedback admin API rejects an unauthenticated
+  request (401).
+
+**Rule:** when you add a service or a critical endpoint, add a check to
+`smoke-test.sh`; when you hit a new class of deploy failure, encode the guard in
+`preflight.sh`. Turn every one-off deploy fix into a permanent pre-flight check
+rather than a thing to remember.
 
 ## Standard feature: per-entity feedback
 
