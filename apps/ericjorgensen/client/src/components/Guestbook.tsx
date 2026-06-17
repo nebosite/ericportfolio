@@ -1,5 +1,5 @@
-import { useEffect, useState, FormEvent } from 'react';
-import styles from './Guestbook.module.css';
+import { useEffect, useState, FormEvent } from "react";
+import styles from "./Guestbook.module.css";
 
 interface GuestbookEntry {
   id: number;
@@ -10,16 +10,16 @@ interface GuestbookEntry {
 
 export default function Guestbook() {
   const [entries, setEntries] = useState<GuestbookEntry[]>([]);
-  const [name, setName] = useState('');
-  const [message, setMessage] = useState('');
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadEntries = () => {
-    fetch('/api/guestbook')
+    fetch("/api/guestbook")
       .then((res) => res.json())
       .then((data: GuestbookEntry[]) => setEntries(data))
-      .catch(() => setError('Could not load the guestbook.'));
+      .catch(() => setError("Could not load the guestbook."));
   };
 
   useEffect(loadEntries, []);
@@ -30,20 +30,20 @@ export default function Guestbook() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/guestbook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/guestbook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), message: message.trim() }),
       });
       if (!res.ok) {
         const body = (await res.json()) as { error?: string };
-        throw new Error(body.error ?? 'Something went wrong.');
+        throw new Error(body.error ?? "Something went wrong.");
       }
-      setName('');
-      setMessage('');
+      setName("");
+      setMessage("");
       loadEntries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -71,7 +71,7 @@ export default function Guestbook() {
           required
         />
         <button className={styles.button} type="submit" disabled={submitting}>
-          {submitting ? 'Besmirching…' : 'Besmirch Fred Lefty, will you?'}
+          {submitting ? "Besmirching…" : "Besmirch Fred Lefty, will you?"}
         </button>
       </form>
 
@@ -83,7 +83,7 @@ export default function Guestbook() {
             <span className={styles.entryName}>{entry.name}</span>
             <span className={styles.entryMessage}>{entry.message}</span>
             <span className={styles.entryDate}>
-              {new Date(entry.created_at + 'Z').toLocaleDateString()}
+              {new Date(entry.created_at + "Z").toLocaleDateString()}
             </span>
           </li>
         ))}

@@ -8,7 +8,7 @@ import type { Database } from 'better-sqlite3';
 
 const APP = 'ericjorgensen';
 
-// Portraits, art, photography and poetry live under src/media and are served as
+// Portraits, art, photography and writing live under src/media and are served as
 // static files rather than bundled into the client. This resolves the same from
 // dist/ (prod) and src/ (tsx dev / tests) since both sit one level under root.
 const MEDIA_DIR = path.join(__dirname, '..', 'src', 'media');

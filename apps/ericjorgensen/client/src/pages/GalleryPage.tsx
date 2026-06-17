@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import styles from './GalleryPage.module.css';
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import styles from "./GalleryPage.module.css";
 
 interface GalleryItem {
   title: string;
@@ -17,7 +17,7 @@ interface GalleryPageProps {
 
 export function readCookie(name: string): string | null {
   const prefix = `${name}=`;
-  const hit = document.cookie.split('; ').find((c) => c.startsWith(prefix));
+  const hit = document.cookie.split("; ").find((c) => c.startsWith(prefix));
   return hit ? decodeURIComponent(hit.slice(prefix.length)) : null;
 }
 
@@ -81,16 +81,16 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
   // Arrow keys: up/left = previous, down/right = next.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
         e.preventDefault();
         step(-1);
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
         e.preventDefault();
         step(1);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [step]);
 
   // Auto-advance to the next photo after 60s. The timer resets whenever the
@@ -107,8 +107,11 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
   const openFullRes = (e: React.MouseEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     const w = Math.min(img.naturalWidth || 1000, window.screen.availWidth - 80);
-    const h = Math.min(img.naturalHeight || 800, window.screen.availHeight - 120);
-    window.open(img.src, '_blank', `popup=1,width=${w},height=${h}`);
+    const h = Math.min(
+      img.naturalHeight || 800,
+      window.screen.availHeight - 120,
+    );
+    window.open(img.src, "_blank", `popup=1,width=${w},height=${h}`);
   };
 
   return (
@@ -150,8 +153,12 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
               </figcaption>
             </figure>
           )}
-          {failed && <p className={styles.empty}>Could not load this gallery.</p>}
-          {!failed && items.length === 0 && <p className={styles.empty}>Loading…</p>}
+          {failed && (
+            <p className={styles.empty}>Could not load this gallery.</p>
+          )}
+          {!failed && items.length === 0 && (
+            <p className={styles.empty}>Loading…</p>
+          )}
         </main>
       </div>
     </div>
