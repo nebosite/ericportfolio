@@ -23,7 +23,9 @@
       "PowerShell($env:Path = \"$env:LOCALAPPDATA\\\\node-portable\\\\node-v22.12.0-win-x64;$env:Path\"; node \"$env:LOCALAPPDATA\\\\claude-tools\\\\pw\\\\smoke.mjs\")",
       "PowerShell($env:Path = \"$env:LOCALAPPDATA\\\\node-portable\\\\node-v22.12.0-win-x64;$env:Path\"; node -e \"const {chromium}=require\\('C:/Users/janet/AppData/Local/claude-tools/pw/node_modules/playwright-core'\\); \\(async\\(\\)=>{const b=await chromium.launch\\({channel:'msedge',headless:true}\\);const p=await b.newPage\\(\\);p.on\\('response',r=>{if\\(r.status\\(\\)===404\\)console.log\\('404:',r.url\\(\\)\\)}\\);await p.goto\\('http://localhost:5173',{waitUntil:'networkidle'}\\);await b.close\\(\\);}\\)\\(\\)\")",
       "PowerShell(try { \\(Invoke-WebRequest -Uri http://localhost:5173/favicon.ico -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { \"favicon: $\\($_.Exception.Response.StatusCode.value__\\)\" })",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\janet\\AppData\\Local\\claude-tools\\pw"
