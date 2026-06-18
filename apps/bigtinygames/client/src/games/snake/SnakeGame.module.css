@@ -17,6 +17,11 @@
   font-size: 0.9rem;
 }
 
+.ghostCount {
+  color: #b9c4ff;
+  text-shadow: 0 0 6px rgba(120, 150, 255, 0.7);
+}
+
 /* The play field fills the remaining space; the canvas is sized to it in JS. */
 .stage {
   flex: 1;

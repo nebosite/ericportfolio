@@ -3,10 +3,16 @@ import {
   START_LENGTH,
   POINTS_PER_APPLE,
   CORPSE_LIFE,
+  GHOST_COUNT,
+  GHOST_LEN,
+  GHOST_RUSH_LIFE,
   initialState,
   addFood,
+  addGhostPowerup,
+  advanceGhost,
   step,
   type GameState,
+  type Ghost,
 } from './snakeLogic';
 import type { Vec } from '../input';
 
@@ -20,18 +26,26 @@ const seqRng = (seq: number[]) => {
 };
 
 function gs(partial: Partial<GameState>): GameState {
+  const snakes = partial.snakes ?? [];
   return {
     cols: 20,
     rows: 20,
-    snakes: [],
     foods: [],
     corpses: [],
     rocks: [],
+    ghosts: [],
+    ghostPowerup: null,
     score: 0,
     over: false,
     ...partial,
+    snakes,
+    buffs: partial.buffs ?? snakes.map(() => 0),
+    grow: partial.grow ?? snakes.map(() => 0),
   };
 }
+
+// A ghost whose trail is exactly the listed cells (head-first), parked in place.
+const ghostAt = (cells: Vec[]): Ghost => ({ hx: cells[0].x, hy: cells[0].y, dx: 1, dy: 0, trail: cells });
 
 describe('initialState', () => {
   it('starts with one centered snake and a single food', () => {
@@ -126,7 +140,7 @@ describe('step', () => {
     expect(otherAfter).toHaveLength(4); // grew from 3, even though it didn't eat
   });
 
-  it('spawns a child the same length as the parent that ate', () => {
+  it('spawns a child that ramps up to the parent length', () => {
     const eater: Vec[] = [
       { x: 5, y: 5 },
       { x: 4, y: 5 },
@@ -135,7 +149,9 @@ describe('step', () => {
     const s = gs({ snakes: [eater], foods: [{ x: 6, y: 5 }], cols: 40, rows: 40 });
     const r = step(s, RIGHT, () => 0.5);
     expect(r.snakes).toHaveLength(2);
-    expect(r.snakes.every((sn) => sn.length === 4)).toBe(true);
+    const child = r.snakes.findIndex((sn) => sn.length === 1); // starts one segment long
+    expect(child).toBeGreaterThanOrEqual(0);
+    expect(r.grow[child]).toBe(3); // pending grow to the parent's length of 4
   });
 
   it('multiplies food points by the number of snakes alive', () => {
@@ -250,5 +266,122 @@ describe('corpses & rocks', () => {
   it('kills a snake that runs into a rock', () => {
     const s = gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], rocks: [{ x: 6, y: 5 }] });
     expect(step(s, RIGHT).over).toBe(true);
+  });
+});
+
+describe('ghost powerup', () => {
+  it('places a single powerup, and is a no-op once one exists', () => {
+    const placed = addGhostPowerup(gs({ snakes: [[{ x: 5, y: 5 }]] }), seqRng([0, 0]));
+    expect(placed.ghostPowerup).toEqual({ x: 0, y: 0 });
+
+    const already = gs({ ghostPowerup: { x: 1, y: 1 } });
+    expect(addGhostPowerup(already)).toBe(already);
+  });
+
+  it('bursts 20 ghosts when a snake grabs the powerup', () => {
+    const snake: Vec[] = [{ x: 5, y: 5 }, { x: 4, y: 5 }]; // → head (6,5)
+    const r = step(gs({ snakes: [snake], ghostPowerup: { x: 6, y: 5 } }), RIGHT);
+    expect(r.ghostPowerup).toBeNull();
+    expect(r.ghosts).toHaveLength(GHOST_COUNT);
+    expect(r.over).toBe(false); // the snake survives the pickup
+  });
+
+  it('advances a ghost ~3 cells/tick and trims its trail', () => {
+    const moved = advanceGhost(ghostAt([{ x: 0, y: 5 }]), 40, 40)!;
+    expect(moved.trail[0]).toEqual({ x: 3, y: 5 });
+    expect(moved.trail.length).toBeLessThanOrEqual(GHOST_LEN);
+  });
+
+  it('removes a ghost once its whole trail is off-board', () => {
+    let cur: Ghost | null = { hx: 39, hy: 5, dx: 1, dy: 0, trail: [{ x: 39, y: 5 }] };
+    for (let t = 0; t < 25 && cur; t++) cur = advanceGhost(cur, 40, 40);
+    expect(cur).toBeNull();
+  });
+
+  it('turns a snake into a ghost when its head touches one', () => {
+    const target: Vec[] = [{ x: 5, y: 5 }, { x: 4, y: 5 }]; // → (6,5)
+    const bystander: Vec[] = [{ x: 5, y: 15 }, { x: 4, y: 15 }];
+    const ghost: Ghost = { hx: 9, hy: 5, dx: -1, dy: 0, trail: [{ x: 9, y: 5 }] }; // sweeps onto (6,5)
+    const r = step(gs({ snakes: [target, bystander], ghosts: [ghost], cols: 40, rows: 40 }), RIGHT);
+    expect(r.snakes).toHaveLength(1); // target converted away, bystander remains
+    expect(r.snakes[0][0]).toEqual({ x: 6, y: 15 });
+    expect(r.ghosts.length).toBeGreaterThanOrEqual(2); // advanced + converted
+    expect(r.over).toBe(false);
+  });
+
+  it('clips a snake where a ghost crosses its body, keeping the front half', () => {
+    const snake: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+      { x: 3, y: 5 },
+      { x: 2, y: 5 },
+      { x: 1, y: 5 },
+    ];
+    const ghost: Ghost = { hx: 4, hy: 8, dx: 0, dy: -1, trail: [{ x: 4, y: 8 }] }; // sweeps onto (4,5)
+    const r = step(gs({ snakes: [snake], ghosts: [ghost], cols: 40, rows: 40 }), RIGHT);
+    expect(r.snakes[0]).toHaveLength(2); // front (head side) survives
+    expect(r.snakes[0][0]).toEqual({ x: 6, y: 5 });
+    expect(r.over).toBe(false);
+  });
+});
+
+describe('ghost rush (buff)', () => {
+  it('grants the grabbing snake a 10s ghost rush', () => {
+    const snake: Vec[] = [{ x: 5, y: 5 }, { x: 4, y: 5 }]; // → grabs (6,5)
+    const r = step(gs({ snakes: [snake], ghostPowerup: { x: 6, y: 5 } }), RIGHT);
+    expect(r.ghosts).toHaveLength(GHOST_COUNT);
+    expect(r.buffs[0]).toBe(GHOST_RUSH_LIFE - 1); // granted, then counted down this tick
+  });
+
+  it('counts the rush down each tick', () => {
+    const r = step(gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], buffs: [10] }), RIGHT);
+    expect(r.buffs[0]).toBe(9);
+  });
+
+  it('makes a rushing snake immune to ghosts', () => {
+    const snake: Vec[] = [{ x: 5, y: 5 }, { x: 4, y: 5 }];
+    const ghost: Ghost = { hx: 9, hy: 5, dx: -1, dy: 0, trail: [{ x: 9, y: 5 }] }; // sweeps onto (6,5)
+    const r = step(
+      gs({ snakes: [snake], buffs: [GHOST_RUSH_LIFE], ghosts: [ghost], cols: 40, rows: 40 }),
+      RIGHT,
+    );
+    expect(r.snakes).toHaveLength(1); // not converted away
+    expect(r.snakes[0][0]).toEqual({ x: 6, y: 5 });
+    expect(r.over).toBe(false);
+  });
+
+  it('lets a rushing snake eat rocks as food instead of dying', () => {
+    const snake: Vec[] = [{ x: 5, y: 5 }, { x: 4, y: 5 }];
+    const r = step(
+      gs({ snakes: [snake], buffs: [GHOST_RUSH_LIFE], rocks: [{ x: 6, y: 5 }], cols: 40, rows: 40 }),
+      RIGHT,
+    );
+    expect(r.over).toBe(false); // survived the rock
+    expect(r.rocks).toHaveLength(0); // rock consumed
+    expect(r.score).toBe(POINTS_PER_APPLE); // scored like a food
+  });
+
+  it('still kills an unbuffed snake on a rock', () => {
+    const r = step(gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], rocks: [{ x: 6, y: 5 }] }), RIGHT);
+    expect(r.over).toBe(true);
+  });
+});
+
+describe('grow-in', () => {
+  it('grows a new snake one segment per tick until it is full length', () => {
+    // a one-segment snake at (5,5) heading right, targeting length 3 (grow = 2)
+    let s = gs({ snakes: [[{ x: 5, y: 5 }]], grow: [2], cols: 40, rows: 40 });
+
+    s = step(s, RIGHT);
+    expect(s.snakes[0]).toHaveLength(2);
+    expect(s.grow[0]).toBe(1);
+
+    s = step(s, RIGHT);
+    expect(s.snakes[0]).toHaveLength(3);
+    expect(s.grow[0]).toBe(0);
+
+    s = step(s, RIGHT); // full now: length holds steady as it slithers
+    expect(s.snakes[0]).toHaveLength(3);
+    expect(s.grow[0]).toBe(0);
   });
 });

@@ -1,14 +1,31 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { attachGameInput, Vec } from '../input';
-import { GameState, TICK_MS, CORPSE_LIFE, initialState, addFood, step } from './snakeLogic';
+import {
+  GameState,
+  TICK_MS,
+  CORPSE_LIFE,
+  GHOST_LEN,
+  GHOST_RUSH_FLASH,
+  initialState,
+  addFood,
+  addGhostPowerup,
+  step,
+} from './snakeLogic';
 import FeedbackPanel from '../../components/FeedbackPanel';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: tiny 8x8 sprites on a field that fills the screen.
 // Movement / collision / spawning rules live in snakeLogic.ts (unit tested);
-// CELL and the food cadence are presentation-only.
+// CELL and the timers are presentation-only.
 const CELL = 8;
 const FOOD_EVERY_MS = 3000; // a new food drops in on this cadence
+const GHOST_POWERUP_FIRST_MS = 4000; // first Ghost powerup appears ~4s into a game
+const GHOST_POWERUP_EVERY_MS = 20000; // and then roughly every ~20s
+// Driven off the game loop (in ticks) rather than a wall-clock timer, so it
+// always fires while the loop is running.
+const GHOST_FIRST_TICKS = Math.round(GHOST_POWERUP_FIRST_MS / TICK_MS);
+const GHOST_EVERY_TICKS = Math.round(GHOST_POWERUP_EVERY_MS / TICK_MS);
+const MIDNIGHT_BLUE = [25, 25, 112]; // ghost trails fade toward this
 
 type Phase = 'idle' | 'playing' | 'gameover' | 'saved';
 
@@ -60,6 +77,16 @@ const SPRITE_ROCK = [
   '.######.',
   '..####..',
 ];
+const SPRITE_GHOST = [
+  '..####..',
+  '.######.',
+  '##.##.##',
+  '##.##.##',
+  '########',
+  '########',
+  '########',
+  '#.#..#.#',
+];
 
 function drawSprite(
   ctx: CanvasRenderingContext2D,
@@ -84,10 +111,12 @@ export default function SnakeGame() {
   const stateRef = useRef<GameState | null>(null);
   const dirRef = useRef<Vec>({ x: 1, y: 0 });
   const dirQueueRef = useRef<Vec[]>([]);
+  const tickRef = useRef(0);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [score, setScore] = useState(0);
   const [alive, setAlive] = useState(0);
+  const [ghosts, setGhosts] = useState(0);
   const [initials, setInitials] = useState('');
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
 
@@ -119,12 +148,44 @@ export default function SnakeGame() {
 
     for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, '#ff5757');
 
-    for (const snake of state.snakes) {
+    // The Ghost powerup throbs between blue and white.
+    if (state.ghostPowerup) {
+      const pulse = 0.5 + 0.5 * Math.sin(((Date.now() % 700) / 700) * Math.PI * 2);
+      const r = Math.round(120 + 135 * pulse);
+      const g = Math.round(150 + 105 * pulse);
+      drawSprite(ctx, SPRITE_GHOST, state.ghostPowerup.x, state.ghostPowerup.y, `rgb(${r},${g},255)`);
+    }
+
+    state.snakes.forEach((snake, si) => {
+      // Ghost-rushing snakes go blue; in the last 2s they flash blue↔green.
+      const buff = state.buffs[si] ?? 0;
+      const flashing = buff > 0 && buff <= GHOST_RUSH_FLASH;
+      const blue = buff > 0 && (!flashing || Date.now() % 320 < 160);
+      const bodyA = blue ? '#2f6fd6' : '#2f9e4c';
+      const bodyB = blue ? '#5a9bff' : '#3dbf5e';
+      const headColor = blue ? '#a9d6ff' : '#57ff7a';
       for (let i = snake.length - 1; i >= 1; i--) {
-        // Alternate two greens so the body reads as segments even at 8px.
-        drawSprite(ctx, SPRITE_BODY, snake[i].x, snake[i].y, i % 2 === 0 ? '#2f9e4c' : '#3dbf5e');
+        // Alternate two shades so the body reads as segments even at 8px.
+        drawSprite(ctx, SPRITE_BODY, snake[i].x, snake[i].y, i % 2 === 0 ? bodyA : bodyB);
       }
-      drawSprite(ctx, SPRITE_HEAD, snake[0].x, snake[0].y, '#57ff7a');
+      drawSprite(ctx, SPRITE_HEAD, snake[0].x, snake[0].y, headColor);
+    });
+
+    // Ghost snakes ride on top, their tails fading bright-white → midnight blue.
+    for (const ghost of state.ghosts) {
+      for (let i = ghost.trail.length - 1; i >= 1; i--) {
+        const c = ghost.trail[i];
+        if (c.x < 0 || c.y < 0 || c.x >= state.cols || c.y >= state.rows) continue;
+        const t = i / GHOST_LEN;
+        const r = Math.round(255 + (MIDNIGHT_BLUE[0] - 255) * t);
+        const g = Math.round(255 + (MIDNIGHT_BLUE[1] - 255) * t);
+        const b = Math.round(255 + (MIDNIGHT_BLUE[2] - 255) * t);
+        drawSprite(ctx, SPRITE_BODY, c.x, c.y, `rgb(${r},${g},${b})`);
+      }
+      const head = ghost.trail[0];
+      if (head.x >= 0 && head.y >= 0 && head.x < state.cols && head.y < state.rows) {
+        drawSprite(ctx, SPRITE_GHOST, head.x, head.y, '#ffffff');
+      }
     }
   }, []);
 
@@ -140,8 +201,10 @@ export default function SnakeGame() {
     stateRef.current = initialState(cols, rows);
     dirRef.current = { x: 1, y: 0 };
     dirQueueRef.current = [];
+    tickRef.current = 0;
     setScore(0);
     setAlive(stateRef.current.snakes.length);
+    setGhosts(0);
     setInitials('');
     setPhase('playing');
   }, []);
@@ -175,10 +238,23 @@ export default function SnakeGame() {
       const queued = dirQueueRef.current.shift();
       if (queued) dirRef.current = queued;
 
-      const next = step(stateRef.current!, dirRef.current);
+      let next = step(stateRef.current!, dirRef.current);
+
+      // Drop a Ghost powerup on a cadence measured in ticks (first ~4s, then
+      // ~20s). addGhostPowerup is a no-op while one is already on the field.
+      tickRef.current += 1;
+      if (
+        !next.over &&
+        tickRef.current >= GHOST_FIRST_TICKS &&
+        (tickRef.current - GHOST_FIRST_TICKS) % GHOST_EVERY_TICKS === 0
+      ) {
+        next = addGhostPowerup(next);
+      }
+
       stateRef.current = next;
       setScore(next.score);
       setAlive(next.snakes.length);
+      setGhosts(next.ghosts.length);
       if (next.over) {
         setPhase('gameover');
         return;
@@ -234,6 +310,7 @@ export default function SnakeGame() {
       <div className={styles.hud}>
         <span>SCORE: {score.toString().padStart(6, '0')}</span>
         <span>SNAKES ×{alive}</span>
+        {ghosts > 0 && <span className={styles.ghostCount}>GHOSTS ×{ghosts}</span>}
         <span>ARROWS / WASD / PAD</span>
       </div>
 
@@ -244,6 +321,7 @@ export default function SnakeGame() {
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG TINY SNAKE</p>
             <p>One field, one heading, ever more snakes. Eat to multiply — keep them all alive.</p>
+            <p>Grab the throbbing 👻 Ghost for a wild burst — but beware its sweeping trails.</p>
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
             </button>

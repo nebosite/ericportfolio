@@ -13,14 +13,14 @@ export const GAMES: GameMeta[] = [
   {
     id: 'snake',
     title: 'BIG TINY SNAKE',
-    blurb: 'One large field. One tiny snake. How long can you get?',
+    blurb: 'One large field. One(?) tiny snake. How long can you last?',
     path: '/snake',
     status: 'ready',
   },
   {
     id: 'big-pac-tiny-man',
     title: 'BIG PAC TINY MAN',
-    blurb: 'A labyrinth as big as your monitor — up to 4K — and one very small man to feed.',
+    blurb: 'A labyrinth as big as your monitor and one very small man to feed.',
     path: '/big-pac-tiny-man',
     status: 'ready',
   },
