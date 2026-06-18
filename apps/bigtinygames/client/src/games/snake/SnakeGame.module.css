@@ -1,53 +1,54 @@
-.arcade {
+.game {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-.screenWrap {
-  background: var(--crt-panel);
-  border: 3px solid var(--screen-line);
-  border-radius: 10px;
-  padding: 0.75rem;
+  flex-direction: column;
 }
 
 .hud {
   display: flex;
   justify-content: space-between;
-  padding: 0 0.25rem 0.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0 0.5rem 0.5rem;
   color: var(--coin-gold);
   letter-spacing: 0.1em;
   font-size: 0.9rem;
 }
 
-.screen {
+/* The play field fills the remaining space; the canvas is sized to it in JS. */
+.stage {
+  flex: 1;
+  min-height: 0;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--crt-black);
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .canvas {
   display: block;
-  width: 800px;
-  height: 600px;
-  max-width: 92vw;
-  max-height: 69vw; /* keep the 4:3 ratio on small screens */
-  border: 2px solid var(--phosphor-dim);
-  background: var(--crt-black);
+  background: #0d0d14;
   image-rendering: pixelated;
 }
 
 .overlay {
   position: absolute;
-  inset: 2px;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  background: rgba(13, 13, 20, 0.88);
+  background: rgba(13, 13, 20, 0.9);
   text-align: center;
-  padding: 1rem;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
 }
 
 .overlayTitle {
@@ -59,6 +60,7 @@
 
 .overlay p {
   margin: 0;
+  max-width: 30rem;
 }
 
 .arcadeButton {
@@ -106,27 +108,14 @@
   text-decoration: underline;
 }
 
-.leaderboard {
-  background: var(--crt-panel);
-  border: 3px solid var(--screen-line);
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
-  min-width: 14rem;
-}
-
-.leaderboardTitle {
-  margin: 0 0 0.75rem;
-  color: var(--coin-gold);
-  letter-spacing: 0.2em;
-  text-align: center;
-}
-
+/* High-scores list, shown inside the idle/game-over overlays. */
 .scoreList {
   list-style: none;
-  margin: 0;
+  margin: 0.5rem 0 0;
   padding: 0;
   display: grid;
   gap: 0.4rem;
+  min-width: 14rem;
 }
 
 .scoreRow {

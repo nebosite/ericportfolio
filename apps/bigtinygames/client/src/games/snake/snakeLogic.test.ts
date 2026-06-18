@@ -1,96 +1,181 @@
 import { describe, it, expect } from 'vitest';
 import {
-  COLS,
-  ROWS,
   START_LENGTH,
-  freshSnake,
-  randomFood,
+  POINTS_PER_APPLE,
+  initialState,
+  addFood,
   step,
-  type StepResult,
+  type GameState,
 } from './snakeLogic';
 import type { Vec } from '../input';
 
-describe('freshSnake', () => {
-  it('starts at center, full length, trailing left', () => {
-    const snake = freshSnake();
-    expect(snake).toHaveLength(START_LENGTH);
-    expect(snake[0]).toEqual({ x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) });
-    // Body trails to the left of the head along one row.
-    for (let i = 1; i < snake.length; i++) {
-      expect(snake[i]).toEqual({ x: snake[0].x - i, y: snake[0].y });
-    }
+const RIGHT: Vec = { x: 1, y: 0 };
+const UP: Vec = { x: 0, y: -1 };
+
+function gs(partial: Partial<GameState>): GameState {
+  return { cols: 20, rows: 20, snakes: [], foods: [], score: 0, over: false, ...partial };
+}
+
+describe('initialState', () => {
+  it('starts with one centered snake and a single food', () => {
+    const s = initialState(20, 20, () => 0);
+    expect(s.snakes).toHaveLength(1);
+    expect(s.snakes[0]).toHaveLength(START_LENGTH);
+    expect(s.snakes[0][0]).toEqual({ x: 10, y: 10 });
+    expect(s.foods).toHaveLength(1);
+    expect(s.over).toBe(false);
+    expect(s.cols).toBe(20);
+    expect(s.rows).toBe(20);
   });
 });
 
-describe('randomFood', () => {
-  it('never lands on the snake', () => {
-    const snake = freshSnake();
-    // Force the rng to first hit the head cell, then move on.
-    const head = snake[0];
-    const seq = [head.x / COLS, head.y / ROWS, 0.0, 0.0];
-    let i = 0;
-    const rng = () => seq[Math.min(i++, seq.length - 1)];
-    const food = randomFood(snake, rng);
-    expect(snake.some((s) => s.x === food.x && s.y === food.y)).toBe(false);
+describe('addFood', () => {
+  it('adds one food on a free cell', () => {
+    const s = gs({ snakes: [[{ x: 5, y: 5 }]] });
+    const r = addFood(s, () => 0); // picks (0,0)
+    expect(r.foods).toHaveLength(1);
+    expect(r.foods[0]).toEqual({ x: 0, y: 0 });
   });
 
-  it('stays within the grid', () => {
-    for (let n = 0; n < 50; n++) {
-      const food = randomFood(freshSnake());
-      expect(food.x).toBeGreaterThanOrEqual(0);
-      expect(food.x).toBeLessThan(COLS);
-      expect(food.y).toBeGreaterThanOrEqual(0);
-      expect(food.y).toBeLessThan(ROWS);
-    }
+  it('does nothing once the game is over', () => {
+    const s = gs({ over: true });
+    expect(addFood(s)).toBe(s);
   });
 });
 
 describe('step', () => {
-  const RIGHT: Vec = { x: 1, y: 0 };
-  const UP: Vec = { x: 0, y: -1 };
-
-  it('moves forward without growing when there is no food', () => {
-    const snake = freshSnake();
-    const food: Vec = { x: 0, y: 0 }; // far away
-    const r = step(snake, RIGHT, food);
-    expect(r.dead).toBe(false);
-    expect(r.ate).toBe(false);
-    expect(r.snake).toHaveLength(snake.length); // unchanged length
-    expect(r.snake[0]).toEqual({ x: snake[0].x + 1, y: snake[0].y });
+  it('moves a snake forward without growing when there is no food', () => {
+    const snake: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+      { x: 3, y: 5 },
+    ];
+    const r = step(gs({ snakes: [snake] }), RIGHT);
+    expect(r.snakes[0][0]).toEqual({ x: 6, y: 5 });
+    expect(r.snakes[0]).toHaveLength(3);
+    expect(r.over).toBe(false);
   });
 
-  it('does not mutate the input snake', () => {
-    const snake = freshSnake();
-    const copy = snake.map((s) => ({ ...s }));
-    step(snake, RIGHT, { x: 0, y: 0 });
-    expect(snake).toEqual(copy);
+  it('does not mutate the input state', () => {
+    const s = gs({
+      snakes: [
+        [
+          { x: 5, y: 5 },
+          { x: 4, y: 5 },
+        ],
+      ],
+      foods: [{ x: 9, y: 9 }],
+    });
+    const copy = JSON.parse(JSON.stringify(s));
+    step(s, RIGHT);
+    expect(s).toEqual(copy);
   });
 
-  it('grows by one and respawns food when eating', () => {
-    const snake = freshSnake();
-    const food: Vec = { x: snake[0].x + 1, y: snake[0].y };
-    const r: StepResult = step(snake, RIGHT, food, () => 0);
-    expect(r.ate).toBe(true);
-    expect(r.snake).toHaveLength(snake.length + 1);
-    expect(r.food).not.toEqual(food); // a new apple appeared
+  it('grows, scores, and spawns a new snake on eating', () => {
+    const snake: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+    ];
+    const s = gs({ snakes: [snake], foods: [{ x: 6, y: 5 }] });
+    const r = step(s, RIGHT, () => 0.5);
+    expect(r.snakes.length).toBe(2); // the grown snake + one freshly spawned
+    const grown = r.snakes.find((sn) => sn[0].x === 6 && sn[0].y === 5)!;
+    expect(grown).toHaveLength(3);
+    expect(r.foods).toHaveLength(0); // food consumed
+    expect(r.score).toBe(POINTS_PER_APPLE * 1); // one snake alive when eaten
   });
 
-  it('dies on running into a wall', () => {
-    // Place a one-cell snake at the right edge facing right.
-    const snake: Vec[] = [{ x: COLS - 1, y: 5 }];
-    const r = step(snake, RIGHT, { x: 0, y: 0 });
-    expect(r.dead).toBe(true);
+  it('lengthens every snake when any one eats', () => {
+    const eater: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+    ];
+    const other: Vec[] = [
+      { x: 5, y: 15 },
+      { x: 4, y: 15 },
+      { x: 3, y: 15 },
+    ];
+    const s = gs({ snakes: [eater, other], foods: [{ x: 6, y: 5 }], cols: 40, rows: 40 });
+    const r = step(s, RIGHT, () => 0.5);
+    const otherAfter = r.snakes.find((sn) => sn[0].x === 6 && sn[0].y === 15)!;
+    expect(otherAfter).toHaveLength(4); // grew from 3, even though it didn't eat
   });
 
-  it('dies on running into its own body', () => {
-    // U-shape so that turning up drives the head into an occupied cell.
+  it('spawns a child the same length as the parent that ate', () => {
+    const eater: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+      { x: 3, y: 5 },
+    ]; // length 3 → grows to 4 this tick
+    const s = gs({ snakes: [eater], foods: [{ x: 6, y: 5 }], cols: 40, rows: 40 });
+    const r = step(s, RIGHT, () => 0.5);
+    expect(r.snakes).toHaveLength(2);
+    expect(r.snakes.every((sn) => sn.length === 4)).toBe(true);
+  });
+
+  it('multiplies food points by the number of snakes alive', () => {
+    const a: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+    ];
+    const b: Vec[] = [
+      { x: 5, y: 10 },
+      { x: 4, y: 10 },
+    ];
+    const c: Vec[] = [
+      { x: 5, y: 15 },
+      { x: 4, y: 15 },
+    ];
+    const s = gs({ snakes: [a, b, c], foods: [{ x: 6, y: 5 }], cols: 40, rows: 40 });
+    const r = step(s, RIGHT, () => 0.5);
+    expect(r.score).toBe(POINTS_PER_APPLE * 3);
+  });
+
+  it('ends the game when the last snake hits a wall', () => {
+    const s = gs({ snakes: [[{ x: 19, y: 5 }]], cols: 20, rows: 20 });
+    const r = step(s, RIGHT); // head → x=20 (out of bounds)
+    expect(r.snakes).toHaveLength(0);
+    expect(r.over).toBe(true);
+  });
+
+  it('kills a snake that runs into its own body', () => {
     const snake: Vec[] = [
       { x: 5, y: 5 },
       { x: 4, y: 5 },
       { x: 4, y: 4 },
       { x: 5, y: 4 },
     ];
-    const r = step(snake, UP, { x: 0, y: 0 });
-    expect(r.dead).toBe(true);
+    const r = step(gs({ snakes: [snake] }), UP); // head (5,5) → (5,4), an own cell
+    expect(r.over).toBe(true);
+  });
+
+  it('kills both snakes when two collide, leaving other snakes alive', () => {
+    const a: Vec[] = [
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+    ]; // → (6,5)
+    const b: Vec[] = [
+      { x: 6, y: 5 },
+      { x: 6, y: 6 },
+    ]; // occupies (6,5)
+    const clear: Vec[] = [
+      { x: 1, y: 15 },
+      { x: 0, y: 15 },
+    ]; // → (2,15), safe
+    const s = gs({ snakes: [a, b, clear], foods: [], cols: 40, rows: 40 });
+    const r = step(s, RIGHT);
+    expect(r.snakes).toHaveLength(1);
+    expect(r.snakes[0][0]).toEqual({ x: 2, y: 15 });
+    expect(r.over).toBe(false);
+  });
+
+  it('is over only once every snake is dead', () => {
+    const s = gs({
+      snakes: [[{ x: 19, y: 5 }], [{ x: 19, y: 10 }]],
+      cols: 20,
+      rows: 20,
+    });
+    const r = step(s, RIGHT); // both hit the right wall
+    expect(r.over).toBe(true);
   });
 });
