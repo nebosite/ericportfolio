@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
 import { attachGameInput, Vec } from '../input';
-import { GameState, initialState, addFood, step } from './snakeLogic';
+import { GameState, TICK_MS, CORPSE_LIFE, initialState, addFood, step } from './snakeLogic';
 import FeedbackPanel from '../../components/FeedbackPanel';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: tiny 8x8 sprites on a field that fills the screen.
 // Movement / collision / spawning rules live in snakeLogic.ts (unit tested);
-// CELL, TICK_MS, and the food cadence are presentation-only.
+// CELL and the food cadence are presentation-only.
 const CELL = 8;
-const TICK_MS = 70;
 const FOOD_EVERY_MS = 3000; // a new food drops in on this cadence
 
 type Phase = 'idle' | 'playing' | 'gameover' | 'saved';
@@ -45,6 +44,16 @@ const SPRITE_APPLE = [
   '...#....',
   '..##....',
   '.######.',
+  '########',
+  '########',
+  '########',
+  '.######.',
+  '..####..',
+];
+const SPRITE_ROCK = [
+  '..####..',
+  '.######.',
+  '########',
   '########',
   '########',
   '########',
@@ -100,6 +109,13 @@ export default function SnakeGame() {
 
     const state = stateRef.current;
     if (!state) return;
+
+    // Permanent deadly rocks, then dying segments fading bright-white → black.
+    for (const r of state.rocks) drawSprite(ctx, SPRITE_ROCK, r.x, r.y, '#6f6f82');
+    for (const c of state.corpses) {
+      const v = Math.round((255 * c.life) / CORPSE_LIFE); // life=full → white, 0 → black
+      drawSprite(ctx, SPRITE_BODY, c.x, c.y, `rgb(${v},${v},${v})`);
+    }
 
     for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, '#ff5757');
 

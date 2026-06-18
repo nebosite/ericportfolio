@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   START_LENGTH,
   POINTS_PER_APPLE,
+  CORPSE_LIFE,
   initialState,
   addFood,
   step,
@@ -12,8 +13,24 @@ import type { Vec } from '../input';
 const RIGHT: Vec = { x: 1, y: 0 };
 const UP: Vec = { x: 0, y: -1 };
 
+// A deterministic rng that walks through a fixed sequence (repeats the last).
+const seqRng = (seq: number[]) => {
+  let i = 0;
+  return () => seq[Math.min(i++, seq.length - 1)];
+};
+
 function gs(partial: Partial<GameState>): GameState {
-  return { cols: 20, rows: 20, snakes: [], foods: [], score: 0, over: false, ...partial };
+  return {
+    cols: 20,
+    rows: 20,
+    snakes: [],
+    foods: [],
+    corpses: [],
+    rocks: [],
+    score: 0,
+    over: false,
+    ...partial,
+  };
 }
 
 describe('initialState', () => {
@@ -30,11 +47,19 @@ describe('initialState', () => {
 });
 
 describe('addFood', () => {
-  it('adds one food on a free cell', () => {
+  it('adds a single food on a free cell', () => {
     const s = gs({ snakes: [[{ x: 5, y: 5 }]] });
-    const r = addFood(s, () => 0); // picks (0,0)
+    // cell (0,0) via rng 0,0; blob-check 0.9 (≥ 0.2 → no blob)
+    const r = addFood(s, seqRng([0, 0, 0.9]));
     expect(r.foods).toHaveLength(1);
     expect(r.foods[0]).toEqual({ x: 0, y: 0 });
+  });
+
+  it('drops a 3x3 blob of food ~20% of the time', () => {
+    const s = gs({ snakes: [[{ x: 0, y: 0 }]], cols: 20, rows: 20 });
+    // cell (10,10) via rng 0.5,0.5; blob-check 0.1 (< 0.2 → blob)
+    const r = addFood(s, seqRng([0.5, 0.5, 0.1]));
+    expect(r.foods).toHaveLength(9); // a full 3x3, all in-bounds and free
   });
 
   it('does nothing once the game is over', () => {
@@ -177,5 +202,53 @@ describe('step', () => {
     });
     const r = step(s, RIGHT); // both hit the right wall
     expect(r.over).toBe(true);
+  });
+});
+
+describe('corpses & rocks', () => {
+  it('turns a dead snake into fresh fading corpses', () => {
+    const snake: Vec[] = [
+      { x: 19, y: 5 },
+      { x: 18, y: 5 },
+    ];
+    const r = step(gs({ snakes: [snake] }), RIGHT, () => 1); // wall death, rng=1 → no rocks
+    expect(r.over).toBe(true);
+    expect(r.corpses).toHaveLength(2);
+    expect(r.corpses.every((c) => c.life === CORPSE_LIFE)).toBe(true);
+    expect(r.rocks).toHaveLength(0);
+  });
+
+  it('leaves a deadly rock for dying segments ~3% of the time', () => {
+    const snake: Vec[] = [
+      { x: 19, y: 5 },
+      { x: 18, y: 5 },
+      { x: 17, y: 5 },
+    ];
+    const r = step(gs({ snakes: [snake] }), RIGHT, () => 0); // rng=0 < 0.03 → every segment rocks
+    expect(r.rocks).toHaveLength(3);
+  });
+
+  it('ages corpses each tick and drops the fully-faded ones', () => {
+    const live = gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], corpses: [{ x: 0, y: 0, life: 5 }] });
+    expect(step(live, RIGHT, () => 1).corpses.find((c) => c.x === 0)?.life).toBe(4);
+
+    const dyingOut = gs({
+      snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]],
+      corpses: [{ x: 0, y: 0, life: 1 }],
+    });
+    expect(step(dyingOut, RIGHT, () => 1).corpses.find((c) => c.x === 0)).toBeUndefined();
+  });
+
+  it('kills a snake that runs into a corpse', () => {
+    const s = gs({
+      snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]],
+      corpses: [{ x: 6, y: 5, life: CORPSE_LIFE }],
+    });
+    expect(step(s, RIGHT, () => 1).over).toBe(true);
+  });
+
+  it('kills a snake that runs into a rock', () => {
+    const s = gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], rocks: [{ x: 6, y: 5 }] });
+    expect(step(s, RIGHT).over).toBe(true);
   });
 });
