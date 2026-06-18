@@ -1,10 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import styles from './PortraitStrip.module.css';
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import styles from "./PortraitStrip.module.css";
+
+// Hand-pinned vertical offset + rotation per slot index (frontispiece feel).
+const OFFSETS = [
+  { ty: "0px", rot: "-1.1deg" },
+  { ty: "2.8px", rot: "0.9deg" },
+  { ty: "-1.4px", rot: "-0.7deg" },
+  { ty: "1.8px", rot: "1.3deg" },
+  { ty: "-0.6px", rot: "-0.9deg" },
+];
 
 // The portrait pool is served by the API (src/media/Photos/squares) instead of
 // being bundled, so the browser only downloads the handful of images on screen.
 
-export function pickRandom(pool: readonly string[], exclude: ReadonlySet<string>): string | null {
+export function pickRandom(
+  pool: readonly string[],
+  exclude: ReadonlySet<string>,
+): string | null {
   const choices = pool.filter((p) => !exclude.has(p));
   if (choices.length === 0) return null;
   return choices[Math.floor(Math.random() * choices.length)];
@@ -35,7 +47,7 @@ export default function PortraitStrip() {
   // Load the available portraits once.
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/portraits')
+    fetch("/api/portraits")
       .then((res) => res.json())
       .then((urls: string[]) => {
         if (cancelled) return;
@@ -56,8 +68,8 @@ export default function PortraitStrip() {
   // Track mobile breakpoint
   useEffect(() => {
     const onResize = () => setMobile(window.innerWidth <= MOBILE_BP);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   // Reinitialize slots when crossing the mobile breakpoint
@@ -92,16 +104,25 @@ export default function PortraitStrip() {
 
   return (
     <div className={styles.strip}>
-      {slots.map((url, i) => (
-        <img
-          key={url}
-          src={url}
-          alt={`Portrait ${i + 1}`}
-          className={styles.portrait}
-          width={150}
-          height={150}
-        />
-      ))}
+      {slots.map((url, i) => {
+        const o = OFFSETS[i % OFFSETS.length];
+        return (
+          <div
+            key={i}
+            className={styles.slot}
+            style={{ "--ty": o.ty, "--rot": o.rot } as CSSProperties}
+          >
+            <img
+              key={url}
+              src={url}
+              alt={`Portrait ${i + 1}`}
+              className={styles.portrait}
+              width={120}
+              height={120}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

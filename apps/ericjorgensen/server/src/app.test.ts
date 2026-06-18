@@ -93,7 +93,7 @@ describe('GET /api/portraits', () => {
 
 describe('GET /api/media', () => {
   it('serves a gallery contents.json', async () => {
-    const res = await request(freshApp()).get('/api/media/Poetry/contents.json');
+    const res = await request(freshApp()).get('/api/media/writing/contents.json');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0]).toHaveProperty('title');
@@ -102,7 +102,7 @@ describe('GET /api/media', () => {
   });
 
   it('404s for a file that does not exist', async () => {
-    const res = await request(freshApp()).get('/api/media/Poetry/nope.json');
+    const res = await request(freshApp()).get('/api/media/writing/nope.json');
     expect(res.status).toBe(404);
   });
 });

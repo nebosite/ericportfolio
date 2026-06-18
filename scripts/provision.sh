@@ -26,6 +26,18 @@ echo "==> [2/11] Installing system packages"
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   build-essential python3 curl git nginx certbot python3-certbot-nginx
 
+# Ensure swap exists. This box is small (~1GB RAM); `npm ci` building native
+# modules (better-sqlite3 x3) + vite builds will OOM without it. 2G swapfile,
+# persisted across reboots.
+if ! swapon --show | grep -q '/swapfile'; then
+  echo "==> Creating 2G swapfile (low-RAM box would OOM during npm ci/build)"
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile >/dev/null
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
 echo "==> [3/11] Installing nvm + Node.js ${NODE_MAJOR} LTS (system-wide in ${NVM_DIR})"
 if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
   mkdir -p "${NVM_DIR}"

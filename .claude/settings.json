@@ -30,5 +30,8 @@
     "additionalDirectories": [
       "C:\\Users\\janet\\AppData\\Local\\claude-tools\\pw"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [{"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "npx tsc --noEmit && npx prettier --write ."}]}]
   }
 }

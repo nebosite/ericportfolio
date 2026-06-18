@@ -63,7 +63,14 @@ failure modes we've actually hit can't silently ship stale or broken code.
 - **`scripts/smoke-test.sh`** runs last and **fails the deploy** if any service
   is unhealthy: it hits `/api/health` on every PM2 service (ports 3001–3005) on
   localhost and confirms the feedback admin API rejects an unauthenticated
-  request (401).
+  request (401). It **retries each check for ~15s** so a just-reloaded service
+  that hasn't finished binding its port isn't reported as a false failure.
+
+**The VPS is RAM-constrained (~1GB).** `npm ci` compiling native modules
+(better-sqlite3 ×3) plus the vite builds will be **OOM-killed without swap**
+(seen in a real deploy: `Killed npm ci`). `provision.sh` creates a persistent
+2G swapfile; if you ever move to a fresh box, make sure swap exists before the
+first build (`free -h` should show non-zero Swap).
 
 **Rule:** when you add a service or a critical endpoint, add a check to
 `smoke-test.sh`; when you hit a new class of deploy failure, encode the guard in
