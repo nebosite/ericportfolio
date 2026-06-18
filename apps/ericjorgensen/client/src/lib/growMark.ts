@@ -19,16 +19,19 @@ export interface Segment {
   x2: number;
   y2: number;
   w: number;
+  gen: number; // generation from the base (0 = trunk) — drives grow-in order
 }
 export interface Bud {
   x: number;
   y: number;
+  gen: number;
 }
 export interface Mark {
   segments: Segment[];
   buds: Bud[];
   square: boolean; // true → buds render as squares (crystalline), else circles
   cap: "round" | "butt";
+  maxGen: number; // deepest generation, so the renderer can time the growth
 }
 
 interface StyleParams {
@@ -133,8 +136,9 @@ export function growMark(
     len: number,
     depth: number,
   ) => {
+    const gen = S.depth - depth; // 0 at the trunk, increasing toward the tips
     if (depth <= 0 || len < 3) {
-      buds.push({ x, y });
+      buds.push({ x, y, gen });
       return;
     }
     const rad = (ang * Math.PI) / 180;
@@ -146,6 +150,7 @@ export function growMark(
       x2,
       y2,
       w: Math.max(0.7, depth * 0.95) * strokeScale,
+      gen,
     });
 
     const geo = !!S.geometric || (!!S.graft && depth <= 2); // grafted: tips go geometric
@@ -173,10 +178,15 @@ export function growMark(
     S.len * (0.92 + r() * 0.18),
     S.depth,
   );
+  let maxGen = 0;
+  for (const s of segments) if (s.gen > maxGen) maxGen = s.gen;
+  for (const b of buds) if (b.gen > maxGen) maxGen = b.gen;
+
   return {
     segments,
     buds,
     square: !!S.geometric,
     cap: S.geometric ? "butt" : "round",
+    maxGen,
   };
 }

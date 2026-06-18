@@ -23,6 +23,18 @@ describe("growMark", () => {
     expect(m.buds.length).toBeGreaterThan(0);
   });
 
+  it("tags generations from the base (trunk = 0) so growth can be staggered", () => {
+    const m = growMark("seed", "wild");
+    expect(m.segments[0].gen).toBe(0); // trunk grows first
+    // maxGen is the deepest generation across segments and buds
+    const deepest = Math.max(
+      ...m.segments.map((s) => s.gen),
+      ...m.buds.map((b) => b.gen),
+    );
+    expect(m.maxGen).toBe(deepest);
+    expect(m.maxGen).toBeGreaterThan(0);
+  });
+
   it("renders crystalline buds as squares with butt caps, organic as round circles", () => {
     const crystal = growMark("x", "crystal");
     expect(crystal.square).toBe(true);

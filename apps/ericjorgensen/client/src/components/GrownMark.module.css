@@ -1,0 +1,57 @@
+/* Each branch "draws in" via stroke-dashoffset; buds pop at the tips. Timing
+   (delay/duration/length) is fed per-element through CSS custom properties. */
+
+.line {
+  /* Fully hidden until growth starts. visibility (not just a dash offset) is
+     used so the round line-cap doesn't render a dot at the tile a branch is
+     growing toward before it has started. */
+  visibility: hidden;
+  stroke-dashoffset: 0;
+  animation: growLine var(--gm-dur, 1s) ease-out var(--gm-delay, 0s) both;
+}
+
+@keyframes growLine {
+  0% {
+    visibility: hidden;
+    stroke-dashoffset: var(--gm-len, 0);
+  }
+  1% {
+    visibility: visible;
+  }
+  100% {
+    visibility: visible;
+    stroke-dashoffset: 0;
+  }
+}
+
+.bud {
+  opacity: 0; /* start hidden; pops in at the tip */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: popBud var(--gm-dur, 0.4s) ease-out var(--gm-delay, 0s) both;
+}
+
+@keyframes popBud {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Respect reduced-motion: show the finished tree, no growth animation. */
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    animation: none;
+    visibility: visible;
+    stroke-dashoffset: 0;
+  }
+  .bud {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
