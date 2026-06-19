@@ -35,14 +35,14 @@ describe('brushOffsets', () => {
 });
 
 describe('floodFill', () => {
-  // 4x4 grid: left half 'w', right half 'k'
+  // 4x4 indexed grid: left half index W, right half index K
   const cols = 4;
   const rows = 4;
-  const W = '#ffffff';
-  const K = '#000000';
-  const R = '#ff0000';
+  const W = 0; // white/blank index
+  const K = 12; // some other index
+  const R = 5; // the new fill index
   const grid = () => {
-    const g: string[] = [];
+    const g: number[] = [];
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) g.push(x < 2 ? W : K);
     return g;
   };

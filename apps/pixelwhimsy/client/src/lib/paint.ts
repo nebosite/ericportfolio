@@ -68,17 +68,18 @@ export function brushOffsets(brush: Brush): Array<[number, number]> {
 }
 
 /**
- * 4-connected flood fill. Returns the indices of every cell in the contiguous
- * same-color region containing (x, y) — i.e. the cells to recolor. Does not
- * mutate `grid`. Empty if the target is already `newColor`.
+ * 4-connected flood fill over the indexed pixel buffer. Returns the cell indices
+ * of the contiguous same-value region containing (x, y) — i.e. the cells to
+ * recolor. Does not mutate `grid`. Empty if the target is already `newColor`
+ * (pass a value no cell can hold, e.g. -1, to force a fill regardless).
  */
 export function floodFill(
-  grid: readonly string[],
+  grid: ArrayLike<number>,
   cols: number,
   rows: number,
   x: number,
   y: number,
-  newColor: string,
+  newColor: number,
 ): number[] {
   const start = y * cols + x;
   const target = grid[start];
