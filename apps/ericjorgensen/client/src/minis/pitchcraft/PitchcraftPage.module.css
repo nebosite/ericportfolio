@@ -1,0 +1,392 @@
+/* Pitchcraft — a near-black "studio" page that rhymes with the portfolio but
+   leans on amber + teal accents. Layout/responsiveness live here; the dynamic
+   colors (HUD pills, pitch-map cells, target glow) are set inline from state. */
+
+.page {
+  min-height: 100vh;
+  background: radial-gradient(
+    1200px 600px at 50% -10%,
+    #15171f 0%,
+    #0a0b0f 60%
+  );
+  color: #c9cdd6;
+  font-family: "Spectral", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 30px 40px 70px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.back {
+  text-decoration: none;
+  color: #6b7180;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.back:hover {
+  color: #c9cdd6;
+}
+
+.badge {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.badgeText {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6b7180;
+}
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f4b23e;
+  display: inline-block;
+}
+
+.title {
+  font-weight: 500;
+  font-size: 62px;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: #f3efe6;
+}
+.tagline {
+  font-style: italic;
+  font-weight: 300;
+  font-size: 19px;
+  color: #8a90a0;
+  margin: 10px 0 0;
+  max-width: 540px;
+}
+
+/* ---- intro ---- */
+.introGrid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: 1.18fr 0.82fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.card {
+  background: linear-gradient(180deg, #16181f, #101218);
+  border: 1px solid #23262f;
+  border-radius: 4px;
+  padding: 28px 30px 26px;
+}
+.cardFlat {
+  background: #101218;
+  border: 1px solid #23262f;
+  border-radius: 4px;
+  padding: 26px 24px;
+}
+
+.voiceGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.levelGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.opt {
+  border: 1px solid #23262f;
+  border-radius: 3px;
+  padding: 11px 13px;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.planBox {
+  margin-top: 20px;
+  padding: 12px 14px;
+  border: 1px dashed #2c2f3a;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  color: #8a90a0;
+  letter-spacing: 0.03em;
+}
+
+.startBtn {
+  margin-top: 18px;
+  appearance: none;
+  cursor: pointer;
+  border: none;
+  border-radius: 3px;
+  background: #f4b23e;
+  color: #0a0b0f;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 16px 22px;
+  width: 100%;
+  transition:
+    background 0.18s,
+    transform 0.12s;
+}
+.startBtn:hover {
+  background: #ffc659;
+  transform: translateY(-1px);
+}
+
+.err {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: #e8654a;
+  font-family: "Spline Sans Mono", monospace;
+  text-align: center;
+}
+.micNote {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #565c6a;
+  text-align: center;
+  font-weight: 300;
+}
+
+/* ---- progress card ---- */
+.statsRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.stat {
+  flex: 1;
+  background: #16181f;
+  border: 1px solid #23262f;
+  border-radius: 3px;
+  padding: 12px;
+}
+
+.map {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.cell {
+  width: 26px;
+  height: 26px;
+  border-radius: 2px;
+  border: 1px solid #23262f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 8px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #565c6a;
+}
+.legendBar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #1a1d25, #7a5a22, #f4b23e);
+}
+
+.spark {
+  width: 100%;
+  height: 46px;
+  display: block;
+}
+
+/* ---- playing ---- */
+.hudRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.stage {
+  position: relative;
+  border: 1px solid #23262f;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #0c0d12;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 460px;
+}
+
+.vibBadge {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(53, 196, 181, 0.15);
+  border: 1px solid #35c4b5;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #35c4b5;
+  animation: pc-pulse 0.7s infinite;
+}
+@keyframes pc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: #1a1d25;
+}
+.timerFill {
+  height: 100%;
+  transition: width 0.1s linear;
+}
+
+.playFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+}
+.hint {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  color: #565c6a;
+  letter-spacing: 0.06em;
+}
+.endBtn {
+  appearance: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #2c2f3a;
+  color: #8a90a0;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 16px;
+}
+.endBtn:hover {
+  border-color: #3a3f4a;
+  color: #c9cdd6;
+}
+
+/* ---- summary ---- */
+.summaryGrid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  align-items: start;
+}
+.bestBadge {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0a0b0f;
+  background: #f4b23e;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+.primaryBtn {
+  flex: 1;
+  appearance: none;
+  cursor: pointer;
+  border: none;
+  border-radius: 3px;
+  background: #f4b23e;
+  color: #0a0b0f;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px;
+  transition:
+    background 0.18s,
+    transform 0.12s;
+}
+.primaryBtn:hover {
+  background: #ffc659;
+  transform: translateY(-1px);
+}
+.ghostBtn {
+  flex: 1;
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid #2c2f3a;
+  background: none;
+  border-radius: 3px;
+  color: #8a90a0;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px;
+}
+.ghostBtn:hover {
+  border-color: #3a3f4a;
+  color: #c9cdd6;
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 22px 18px 50px;
+  }
+  .title {
+    font-size: 46px;
+  }
+  .introGrid,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,1568 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./support.js"></script>
+  </head>
+  <body>
+    <x-dc>
+      <helmet>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            margin: 0;
+            background: #0a0b0f;
+          }
+          ::selection {
+            background: #f4b23e;
+            color: #0a0b0f;
+          }
+          @keyframes pc-pulse {
+            0%,
+            100% {
+              opacity: 1;
+            }
+            50% {
+              opacity: 0.4;
+            }
+          }
+          .pc-btn {
+            transition:
+              background 0.18s,
+              color 0.18s,
+              border-color 0.18s,
+              transform 0.12s;
+          }
+          .pc-btn:hover {
+            transform: translateY(-1px);
+          }
+          .pc-opt {
+            transition:
+              background 0.15s,
+              border-color 0.15s,
+              color 0.15s;
+            cursor: pointer;
+          }
+        </style>
+      </helmet>
+
+      <div
+        style="
+          min-height: 100vh;
+          background: radial-gradient(
+            1200px 600px at 50% -10%,
+            #15171f 0%,
+            #0a0b0f 60%
+          );
+          color: #c9cdd6;
+          font-family: &quot;Spectral&quot;, Georgia, serif;
+          -webkit-font-smoothing: antialiased;
+        "
+      >
+        <div style="max-width: 1080px; margin: 0 auto; padding: 30px 40px 70px">
+          <!-- TOP BAR -->
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 20px;
+            "
+          >
+            <a
+              href="Portfolio.dc.html"
+              style="
+                text-decoration: none;
+                color: #6b7180;
+                font-family: &quot;Spline Sans Mono&quot;, monospace;
+                font-size: 11px;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+              "
+              >← Field Guide</a
+            >
+            <div style="display: flex; align-items: baseline; gap: 12px">
+              <span
+                style="
+                  font-family: &quot;Spline Sans Mono&quot;, monospace;
+                  font-size: 11px;
+                  letter-spacing: 0.2em;
+                  text-transform: uppercase;
+                  color: #6b7180;
+                "
+                >Pure AI Output</span
+              >
+              <span
+                style="
+                  width: 6px;
+                  height: 6px;
+                  border-radius: 50%;
+                  background: #f4b23e;
+                  display: inline-block;
+                "
+              ></span>
+            </div>
+          </div>
+
+          <!-- TITLE -->
+          <div style="margin-top: 14px">
+            <h1
+              style="
+                font-weight: 500;
+                font-size: 62px;
+                line-height: 0.92;
+                letter-spacing: -0.02em;
+                margin: 0;
+                color: #f3efe6;
+              "
+            >
+              Pitchcraft<span style="color: #f4b23e">.</span>
+            </h1>
+            <p
+              style="
+                font-style: italic;
+                font-weight: 300;
+                font-size: 19px;
+                color: #8a90a0;
+                margin: 10px 0 0;
+                max-width: 540px;
+              "
+            >
+              Hear the tone, then find it in your voice. A pitch-matching
+              trainer that meets you in your range.
+            </p>
+          </div>
+
+          <!-- ================= INTRO ================= -->
+          <sc-if value="{{ isIntro }}" hint-placeholder-val="{{ true }}">
+            <div
+              style="
+                margin-top: 28px;
+                display: grid;
+                grid-template-columns: 1.18fr 0.82fr;
+                gap: 22px;
+                align-items: start;
+              "
+            >
+              <!-- setup -->
+              <div
+                style="
+                  background: linear-gradient(180deg, #16181f, #101218);
+                  border: 1px solid #23262f;
+                  border-radius: 4px;
+                  padding: 28px 30px 26px;
+                "
+              >
+                <div
+                  style="
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: #6b7180;
+                  "
+                >
+                  Your voice
+                </div>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 8px;
+                    margin-top: 14px;
+                  "
+                >
+                  <sc-for list="{{ voices }}" as="v" hint-placeholder-count="6">
+                    <div
+                      class="pc-opt"
+                      onClick="{{ v.click }}"
+                      style="border:1px solid {{ v.border }}; background:{{ v.bg }}; border-radius:3px; padding:11px 13px;"
+                    >
+                      <div
+                        style="font-family:'Spectral',serif; font-size:17px; color:{{ v.fg }};"
+                      >
+                        {{ v.label }}
+                      </div>
+                      <div
+                        style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.04em; color:{{ v.sub }}; margin-top:3px;"
+                      >
+                        {{ v.detail }}
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div
+                  style="
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: #6b7180;
+                    margin-top: 24px;
+                  "
+                >
+                  Difficulty
+                </div>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr 1fr;
+                    gap: 8px;
+                    margin-top: 14px;
+                  "
+                >
+                  <sc-for
+                    list="{{ levels }}"
+                    as="lv"
+                    hint-placeholder-count="3"
+                  >
+                    <div
+                      class="pc-opt"
+                      onClick="{{ lv.click }}"
+                      style="border:1px solid {{ lv.border }}; background:{{ lv.bg }}; border-radius:3px; padding:12px 12px;"
+                    >
+                      <div
+                        style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.08em; color:{{ lv.numFg }};"
+                      >
+                        LV {{ lv.n }}
+                      </div>
+                      <div
+                        style="font-family:'Spectral',serif; font-size:16px; color:{{ lv.fg }}; margin-top:3px;"
+                      >
+                        {{ lv.title }}
+                      </div>
+                      <div
+                        style="font-family:'Spline Sans Mono',monospace; font-size:9.5px; letter-spacing:0.03em; color:{{ lv.sub }}; margin-top:4px; line-height:1.3;"
+                      >
+                        {{ lv.detail }}
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div
+                  style="
+                    margin-top: 20px;
+                    padding: 12px 14px;
+                    border: 1px dashed #2c2f3a;
+                    border-radius: 3px;
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 12px;
+                    color: #8a90a0;
+                    letter-spacing: 0.03em;
+                  "
+                >
+                  {{ planText }}
+                </div>
+
+                <button
+                  class="pc-btn"
+                  onClick="{{ startGame }}"
+                  style="
+                    margin-top: 18px;
+                    appearance: none;
+                    cursor: pointer;
+                    border: none;
+                    border-radius: 3px;
+                    background: #f4b23e;
+                    color: #0a0b0f;
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 13px;
+                    font-weight: 500;
+                    letter-spacing: 0.08em;
+                    text-transform: uppercase;
+                    padding: 16px 22px;
+                    width: 100%;
+                  "
+                >
+                  Enable microphone &amp; start
+                </button>
+                <sc-if
+                  value="{{ micError }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <p
+                    style="
+                      margin: 12px 0 0;
+                      font-size: 14px;
+                      color: #e8654a;
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      text-align: center;
+                    "
+                  >
+                    {{ micErrorMsg }}
+                  </p>
+                </sc-if>
+                <p
+                  style="
+                    margin: 12px 0 0;
+                    font-size: 12px;
+                    color: #565c6a;
+                    text-align: center;
+                    font-weight: 300;
+                  "
+                >
+                  Headphones recommended. Audio never leaves your device.
+                </p>
+              </div>
+
+              <!-- progress -->
+              <div
+                style="
+                  background: #101218;
+                  border: 1px solid #23262f;
+                  border-radius: 4px;
+                  padding: 26px 24px;
+                "
+              >
+                <div
+                  style="
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: #6b7180;
+                  "
+                >
+                  Your practice
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 18px">
+                  <div
+                    style="
+                      flex: 1;
+                      background: #16181f;
+                      border: 1px solid #23262f;
+                      border-radius: 3px;
+                      padding: 12px;
+                    "
+                  >
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 26px;
+                        color: #f3efe6;
+                      "
+                    >
+                      {{ statStreak }}
+                    </div>
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 9.5px;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        color: #6b7180;
+                        margin-top: 2px;
+                      "
+                    >
+                      day streak
+                    </div>
+                  </div>
+                  <div
+                    style="
+                      flex: 1;
+                      background: #16181f;
+                      border: 1px solid #23262f;
+                      border-radius: 3px;
+                      padding: 12px;
+                    "
+                  >
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 26px;
+                        color: #f3efe6;
+                      "
+                    >
+                      {{ statSessions }}
+                    </div>
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 9.5px;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        color: #6b7180;
+                        margin-top: 2px;
+                      "
+                    >
+                      sessions
+                    </div>
+                  </div>
+                  <div
+                    style="
+                      flex: 1;
+                      background: #16181f;
+                      border: 1px solid #23262f;
+                      border-radius: 3px;
+                      padding: 12px;
+                    "
+                  >
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 26px;
+                        color: #f4b23e;
+                      "
+                    >
+                      {{ statBest }}
+                    </div>
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 9.5px;
+                        letter-spacing: 0.1em;
+                        text-transform: uppercase;
+                        color: #6b7180;
+                        margin-top: 2px;
+                      "
+                    >
+                      best
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style="
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 10px;
+                    letter-spacing: 0.14em;
+                    text-transform: uppercase;
+                    color: #6b7180;
+                    margin: 22px 0 10px;
+                  "
+                >
+                  Pitch map · {{ mapRange }}
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 3px">
+                  <sc-for
+                    list="{{ pitchMap }}"
+                    as="cell"
+                    hint-placeholder-count="13"
+                  >
+                    <div
+                      title="{{ cell.title }}"
+                      style="width:26px; height:26px; border-radius:2px; background:{{ cell.bg }}; border:1px solid {{ cell.border }}; display:flex; align-items:center; justify-content:center; font-family:'Spline Sans Mono',monospace; font-size:8px; color:{{ cell.fg }};"
+                    >
+                      {{ cell.label }}
+                    </div>
+                  </sc-for>
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-top: 12px;
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 9px;
+                    letter-spacing: 0.08em;
+                    text-transform: uppercase;
+                    color: #565c6a;
+                  "
+                >
+                  <span>weak</span>
+                  <span
+                    style="
+                      flex: 1;
+                      height: 5px;
+                      border-radius: 3px;
+                      background: linear-gradient(
+                        90deg,
+                        #1a1d25,
+                        #7a5a22,
+                        #f4b23e
+                      );
+                    "
+                  ></span>
+                  <span>strong</span>
+                </div>
+
+                <sc-if
+                  value="{{ hasHistory }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 10px;
+                      letter-spacing: 0.14em;
+                      text-transform: uppercase;
+                      color: #6b7180;
+                      margin: 22px 0 8px;
+                    "
+                  >
+                    Recent scores
+                  </div>
+                  <svg
+                    viewBox="0 0 100 34"
+                    preserveAspectRatio="none"
+                    style="width: 100%; height: 46px; display: block"
+                  >
+                    <polyline
+                      points="{{ histPoints }}"
+                      fill="none"
+                      stroke="#35C4B5"
+                      stroke-width="1.4"
+                      stroke-linejoin="round"
+                      stroke-linecap="round"
+                      vector-effect="non-scaling-stroke"
+                    ></polyline>
+                  </svg>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ================= PLAYING ================= -->
+          <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 24px">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: flex-start;
+                  gap: 16px;
+                  margin-bottom: 14px;
+                "
+              >
+                <div style="min-width: 150px">
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 10px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: #6b7180;
+                    "
+                  >
+                    Score
+                  </div>
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 42px;
+                      line-height: 1;
+                      color: #f3efe6;
+                      margin-top: 4px;
+                    "
+                  >
+                    {{ hud.score }}
+                  </div>
+                  <div
+                    style="margin-top:8px; display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:20px; background:{{ hud.multBg }}; border:1px solid {{ hud.multBorder }};"
+                  >
+                    <span
+                      style="font-family:'Spline Sans Mono',monospace; font-size:13px; font-weight:500; color:{{ hud.multFg }};"
+                      >{{ hud.multLabel }}</span
+                    >
+                    <span
+                      style="font-family:'Spline Sans Mono',monospace; font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:{{ hud.multSub }};"
+                      >{{ hud.multNote }}</span
+                    >
+                  </div>
+                </div>
+                <div style="text-align: center; flex: 1">
+                  <div
+                    style="display:inline-flex; align-items:center; gap:8px; padding:3px 12px; border-radius:20px; background:{{ hud.phaseBg }}; border:1px solid {{ hud.phaseBorder }};"
+                  >
+                    <span
+                      style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:{{ hud.phaseColor }};"
+                      >{{ hud.phaseLabel }}</span
+                    >
+                  </div>
+                  <div
+                    style="font-family:'Spectral',serif; font-weight:500; font-size:58px; line-height:1; color:{{ hud.targetColor }}; margin-top:4px;"
+                  >
+                    {{ hud.targetName }}
+                  </div>
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 14px;
+                      color: #8a90a0;
+                      margin-top: 2px;
+                    "
+                  >
+                    {{ hud.targetHz }}<span style="color: #565c6a">
+                      · {{ hud.noteCount }}</span
+                    >
+                  </div>
+                </div>
+                <div style="min-width: 150px; text-align: right">
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 10px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: #6b7180;
+                    "
+                  >
+                    You
+                  </div>
+                  <div
+                    style="font-family:'Spline Sans Mono',monospace; font-size:42px; line-height:1; color:{{ hud.liveColor }}; margin-top:4px;"
+                  >
+                    {{ hud.liveName }}
+                  </div>
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 14px;
+                      color: #8a90a0;
+                      margin-top: 8px;
+                    "
+                  >
+                    {{ hud.liveCents }}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style="
+                  position: relative;
+                  border: 1px solid #23262f;
+                  border-radius: 5px;
+                  overflow: hidden;
+                  background: #0c0d12;
+                "
+              >
+                <canvas
+                  ref="{{ canvasRef }}"
+                  style="display: block; width: 100%; height: 460px"
+                ></canvas>
+                <sc-if
+                  value="{{ hud.vibrato }}"
+                  hint-placeholder-val="{{ false }}"
+                >
+                  <div
+                    style="
+                      position: absolute;
+                      top: 14px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      padding: 6px 16px;
+                      border-radius: 20px;
+                      background: rgba(53, 196, 181, 0.15);
+                      border: 1px solid #35c4b5;
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 12px;
+                      letter-spacing: 0.12em;
+                      text-transform: uppercase;
+                      color: #35c4b5;
+                      animation: pc-pulse 0.7s infinite;
+                    "
+                  >
+                    Vibrato ×10
+                  </div>
+                </sc-if>
+                <div
+                  style="
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    height: 3px;
+                    background: #1a1d25;
+                  "
+                >
+                  <div
+                    style="height:100%; width:{{ hud.timerPct }}; background:{{ hud.targetColor }}; transition:width .1s linear;"
+                  ></div>
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-top: 14px;
+                "
+              >
+                <div
+                  style="
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 11px;
+                    color: #565c6a;
+                    letter-spacing: 0.06em;
+                  "
+                >
+                  Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone
+                  ×1
+                </div>
+                <button
+                  class="pc-btn"
+                  onClick="{{ stopGame }}"
+                  style="
+                    appearance: none;
+                    cursor: pointer;
+                    background: none;
+                    border: 1px solid #2c2f3a;
+                    color: #8a90a0;
+                    border-radius: 3px;
+                    font-family: &quot;Spline Sans Mono&quot;, monospace;
+                    font-size: 11px;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    padding: 9px 16px;
+                  "
+                >
+                  End session
+                </button>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ================= SUMMARY ================= -->
+          <sc-if value="{{ isSummary }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 28px">
+              <div
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 22px"
+              >
+                <div
+                  style="
+                    background: linear-gradient(180deg, #16181f, #101218);
+                    border: 1px solid #23262f;
+                    border-radius: 4px;
+                    padding: 30px;
+                  "
+                >
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: #6b7180;
+                    "
+                  >
+                    Session complete
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      align-items: baseline;
+                      gap: 14px;
+                      margin-top: 14px;
+                    "
+                  >
+                    <div
+                      style="
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 58px;
+                        line-height: 1;
+                        color: #f4b23e;
+                      "
+                    >
+                      {{ summary.score }}
+                    </div>
+                    <sc-if
+                      value="{{ summary.isBest }}"
+                      hint-placeholder-val="{{ false }}"
+                      ><span
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 11px;
+                          letter-spacing: 0.12em;
+                          text-transform: uppercase;
+                          color: #0a0b0f;
+                          background: #f4b23e;
+                          padding: 3px 8px;
+                          border-radius: 3px;
+                        "
+                        >New best</span
+                      ></sc-if
+                    >
+                  </div>
+                  <div style="display: flex; gap: 26px; margin-top: 24px">
+                    <div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 24px;
+                          color: #f3efe6;
+                        "
+                      >
+                        {{ summary.accuracy }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9.5px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 3px;
+                        "
+                      >
+                        accuracy
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 24px;
+                          color: #35c4b5;
+                        "
+                      >
+                        {{ summary.vibrato }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9.5px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 3px;
+                        "
+                      >
+                        vibrato held
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style="
+                          font-family: &quot;Spectral&quot;, serif;
+                          font-size: 24px;
+                          color: #f3efe6;
+                        "
+                      >
+                        {{ summary.bestNote }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9.5px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 3px;
+                        "
+                      >
+                        strongest note
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 12px; margin-top: 32px">
+                    <button
+                      class="pc-btn"
+                      onClick="{{ again }}"
+                      style="
+                        flex: 1;
+                        appearance: none;
+                        cursor: pointer;
+                        border: none;
+                        border-radius: 3px;
+                        background: #f4b23e;
+                        color: #0a0b0f;
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 12px;
+                        font-weight: 500;
+                        letter-spacing: 0.08em;
+                        text-transform: uppercase;
+                        padding: 14px;
+                      "
+                    >
+                      Practice again
+                    </button>
+                    <button
+                      class="pc-btn"
+                      onClick="{{ toIntro }}"
+                      style="
+                        flex: 1;
+                        appearance: none;
+                        cursor: pointer;
+                        border: 1px solid #2c2f3a;
+                        background: none;
+                        border-radius: 3px;
+                        color: #8a90a0;
+                        font-family: &quot;Spline Sans Mono&quot;, monospace;
+                        font-size: 12px;
+                        letter-spacing: 0.08em;
+                        text-transform: uppercase;
+                        padding: 14px;
+                      "
+                    >
+                      Change range
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style="
+                    background: #101218;
+                    border: 1px solid #23262f;
+                    border-radius: 4px;
+                    padding: 26px 24px;
+                  "
+                >
+                  <div
+                    style="
+                      font-family: &quot;Spline Sans Mono&quot;, monospace;
+                      font-size: 11px;
+                      letter-spacing: 0.16em;
+                      text-transform: uppercase;
+                      color: #6b7180;
+                    "
+                  >
+                    Pitch map · {{ mapRange }}
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      flex-wrap: wrap;
+                      gap: 3px;
+                      margin-top: 16px;
+                    "
+                  >
+                    <sc-for
+                      list="{{ pitchMap }}"
+                      as="cell"
+                      hint-placeholder-count="13"
+                    >
+                      <div
+                        title="{{ cell.title }}"
+                        style="width:26px; height:26px; border-radius:2px; background:{{ cell.bg }}; border:1px solid {{ cell.border }}; display:flex; align-items:center; justify-content:center; font-family:'Spline Sans Mono',monospace; font-size:8px; color:{{ cell.fg }};"
+                      >
+                        {{ cell.label }}
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; gap: 18px; margin-top: 22px">
+                    <div style="flex: 1">
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 22px;
+                          color: #f3efe6;
+                        "
+                      >
+                        {{ statStreak }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 2px;
+                        "
+                      >
+                        day streak
+                      </div>
+                    </div>
+                    <div style="flex: 1">
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 22px;
+                          color: #f3efe6;
+                        "
+                      >
+                        {{ statSessions }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 2px;
+                        "
+                      >
+                        sessions
+                      </div>
+                    </div>
+                    <div style="flex: 1">
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 22px;
+                          color: #f4b23e;
+                        "
+                      >
+                        {{ statBest }}
+                      </div>
+                      <div
+                        style="
+                          font-family: &quot;Spline Sans Mono&quot;, monospace;
+                          font-size: 9px;
+                          letter-spacing: 0.1em;
+                          text-transform: uppercase;
+                          color: #6b7180;
+                          margin-top: 2px;
+                        "
+                      >
+                        best
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </x-dc>
+    <script
+      type="text/x-dc"
+      data-dc-script
+      data-props='{"$preview":{"width":1080,"height":880}}'
+    >
+      class Component extends DCLogic {
+        state = {
+          phase: 'intro',
+          micError: null,
+          statsVersion: 0,
+          summary: null,
+          voiceId: 'contralto',
+          difficulty: 1,
+          hud: this.blankHud(),
+        };
+
+        blankHud() {
+          return {
+            score: 0, multLabel: '×1', multNote: 'find it', multBg: 'transparent', multBorder: '#23262f', multFg: '#6b7180', multSub: '#565c6a',
+            phaseLabel: 'Ready', phaseColor: '#6b7180', phaseBg: 'transparent', phaseBorder: '#23262f',
+            targetName: '—', targetHz: '', noteCount: '', targetColor: '#6b7180',
+            liveName: '—', liveCents: '', liveColor: '#6b7180', vibrato: false, timerPct: '0%',
+          };
+        }
+
+        NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        ACCENT = '#F4B23E'; TEAL = '#35C4B5'; GRAY = '#4a5060';
+
+        // per-note cycle (seconds): rest, preview tone, prep silence, scoring
+        REST = 2; PREVIEW = 2; PREP = 2; SCORE = 5;
+        get CYCLE() { return this.REST + this.PREVIEW + this.PREP + this.SCORE; }
+
+        VOICES = [
+          { id: 'contralto', label: 'Contralto', detail: 'Low Female · F3–E5', lo: 53, hi: 76 },
+          { id: 'mezzo', label: 'Mezzo-Soprano', detail: 'Med Female · A3–F5', lo: 57, hi: 77 },
+          { id: 'soprano', label: 'Soprano', detail: 'High Female · C4–C6', lo: 60, hi: 84 },
+          { id: 'tenor', label: 'Tenor', detail: 'High Male · C3–E5', lo: 48, hi: 76 },
+          { id: 'baritone', label: 'Baritone', detail: 'Med Male · G2–E4', lo: 43, hi: 64 },
+          { id: 'bass', label: 'Bass', detail: 'Low Male · E2–E4', lo: 40, hi: 64 },
+        ];
+        LEVELS = [
+          { n: 1, title: 'Beginner', detail: 'One octave · sweet spot' },
+          { n: 2, title: 'Practiced', detail: 'Full chosen range' },
+          { n: 3, title: 'Advanced', detail: 'Range + 4 each end' },
+        ];
+
+        // ---------- note math ----------
+        midiName(m) { return this.NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+        midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+        hzMidi(hz) { return 69 + 12 * Math.log2(hz / 440); }
+
+        voice() { return this.VOICES.find(v => v.id === this.state.voiceId) || this.VOICES[0]; }
+        noteSet() {
+          const v = this.voice(); const lvl = this.state.difficulty;
+          let lo, hi;
+          if (lvl === 1) { const c = Math.round((v.lo + v.hi) / 2); lo = c - 6; hi = c + 6; }
+          else if (lvl === 2) { lo = v.lo; hi = v.hi; }
+          else { lo = v.lo - 4; hi = v.hi + 4; }
+          const set = []; for (let m = lo; m <= hi; m++) set.push(m);
+          return { lo, hi, set };
+        }
+        sequence(set) {
+          const asc = set.slice();
+          const desc = set.slice().reverse();
+          const rand = set.slice();
+          for (let i = rand.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rand[i], rand[j]] = [rand[j], rand[i]]; }
+          return asc.concat(desc, rand);
+        }
+
+        // ---------- lifecycle ----------
+        componentDidMount() {
+          this.stats = this.defaultStats(); this.history = [];
+          this.loadStats();
+          this._resize = () => this.sizeCanvas();
+          window.addEventListener('resize', this._resize);
+        }
+        componentWillUnmount() {
+          this.teardownAudio();
+          cancelAnimationFrame(this.raf);
+          window.removeEventListener('resize', this._resize);
+        }
+
+        setCanvas = (el) => {
+          if (el && el !== this.canvas) { this.canvas = el; this.ctx2d = el.getContext('2d'); this.sizeCanvas(); }
+        };
+        sizeCanvas() {
+          const el = this.canvas; if (!el) return;
+          const dpr = window.devicePixelRatio || 1;
+          const w = el.clientWidth, h = el.clientHeight;
+          el.width = Math.round(w * dpr); el.height = Math.round(h * dpr);
+          this.ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+          this.W = w; this.H = h;
+        }
+
+        // ---------- IndexedDB ----------
+        defaultStats() { return { sessions: 0, best: 0, streak: 0, lastDate: null, notes: {}, prefs: null }; }
+        openDB() {
+          return new Promise((res, rej) => {
+            if (!window.indexedDB) return rej(new Error('no idb'));
+            const r = indexedDB.open('pitchcraft', 1);
+            r.onupgradeneeded = () => {
+              const db = r.result;
+              if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+              if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+            };
+            r.onsuccess = () => res(r.result);
+            r.onerror = () => rej(r.error);
+          });
+        }
+        async loadStats() {
+          try {
+            const db = await this.openDB();
+            const stats = await new Promise((res) => { const rq = db.transaction('kv').objectStore('kv').get('stats'); rq.onsuccess = () => res(rq.result); rq.onerror = () => res(null); });
+            const hist = await new Promise((res) => { const rq = db.transaction('history').objectStore('history').getAll(); rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]); });
+            if (stats) this.stats = Object.assign(this.defaultStats(), stats);
+            this.history = hist;
+            const p = this.stats.prefs;
+            const patch = { statsVersion: this.state.statsVersion + 1 };
+            if (p && p.voiceId) patch.voiceId = p.voiceId;
+            if (p && p.difficulty) patch.difficulty = p.difficulty;
+            this.setState(patch);
+          } catch (e) { this.setState({ statsVersion: this.state.statsVersion + 1 }); }
+        }
+        async saveStats() {
+          try { const db = await this.openDB(); db.transaction('kv', 'readwrite').objectStore('kv').put(this.stats, 'stats'); } catch (e) {}
+        }
+        async addHistory(rec) {
+          this.history = (this.history || []).concat([rec]).slice(-200);
+          try { const db = await this.openDB(); db.transaction('history', 'readwrite').objectStore('history').add(rec); } catch (e) {}
+        }
+        // High scores belong on a server — prototype has none. Wire window.PITCHCRAFT_API in production.
+        submitHighScore(rec) {
+          try {
+            if (window.PITCHCRAFT_API) {
+              fetch(window.PITCHCRAFT_API.replace(/\/$/, '') + '/highscores', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec),
+              }).catch(() => {});
+            }
+          } catch (e) {}
+        }
+
+        persistPrefs() {
+          if (!this.stats) this.stats = this.defaultStats();
+          this.stats.prefs = { voiceId: this.state.voiceId, difficulty: this.state.difficulty };
+          this.saveStats();
+        }
+
+        // ---------- audio ----------
+        async start() {
+          this.setState({ micError: null });
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            const ctx = new Ctx();
+            await ctx.resume();
+            const src = ctx.createMediaStreamSource(stream);
+            const an = ctx.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0;
+            const fan = ctx.createAnalyser(); fan.fftSize = 1024; fan.smoothingTimeConstant = 0.78;
+            src.connect(an); src.connect(fan);
+            this.audio = { stream, ctx, an, fan, buf: new Float32Array(an.fftSize), freq: new Uint8Array(fan.frequencyBinCount) };
+            this.beginSession();
+          } catch (e) {
+            this.setState({ micError: e && e.name === 'NotAllowedError' ? 'denied' : 'error' });
+          }
+        }
+        teardownAudio() {
+          this.stopTone();
+          if (!this.audio) return;
+          try { this.audio.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+          try { this.audio.ctx.close(); } catch (e) {}
+          this.audio = null;
+        }
+        startTone(midi) {
+          if (!this.audio) return;
+          this.stopTone();
+          const ctx = this.audio.ctx, now = ctx.currentTime;
+          const osc = ctx.createOscillator(); const g = ctx.createGain();
+          osc.type = 'sine'; osc.frequency.value = this.midiHz(midi);
+          g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.16, now + 0.03);
+          osc.connect(g); g.connect(ctx.destination); osc.start();
+          this.tone = { osc, g };
+        }
+        stopTone() {
+          if (!this.tone) return;
+          try {
+            const ctx = this.audio.ctx, now = ctx.currentTime;
+            this.tone.g.gain.cancelScheduledValues(now);
+            this.tone.g.gain.setValueAtTime(this.tone.g.gain.value, now);
+            this.tone.g.gain.linearRampToValueAtTime(0, now + 0.05);
+            this.tone.osc.stop(now + 0.07);
+          } catch (e) {}
+          this.tone = null;
+        }
+
+        // ---------- gameplay ----------
+        beginSession() {
+          const { lo, hi, set } = this.noteSet();
+          const seq = this.sequence(set);
+          this.notes = seq.map((m, i) => ({ midi: m, cycle: i * this.CYCLE }));
+          this.dLow = lo - 1.5; this.dHigh = hi + 1.5;
+          this.t0 = performance.now() / 1000;
+          this.trail = []; this.vib = []; this.tickAcc = 0; this._lastNow = null; this._toneFor = -1;
+          this.cur = { hz: -1, midi: null, cents: null, q: 0, vibrato: false };
+          this.sess = { score: 0, ticks: 0, qSum: 0, vibTicks: 0, perNote: {} };
+          this.lastHud = 0;
+          this.setState({ phase: 'playing' });
+          cancelAnimationFrame(this.raf);
+          this.loop();
+        }
+
+        phaseOf(now, n) {
+          const r = now - n.cycle;
+          if (r < this.REST) return 'rest';
+          if (r < this.REST + this.PREVIEW) return 'preview';
+          if (r < this.REST + this.PREVIEW + this.PREP) return 'prep';
+          if (r < this.CYCLE) return 'score';
+          return 'done';
+        }
+        curNote(now) {
+          for (const n of this.notes) if (now >= n.cycle && now < n.cycle + this.CYCLE) return n;
+          return null;
+        }
+        scoreStart(n) { return n.cycle + this.REST + this.PREVIEW + this.PREP; }
+
+        autoCorrelate(buf, rate) {
+          const N = buf.length; let rms = 0;
+          for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
+          rms = Math.sqrt(rms / N);
+          if (rms < 0.012) return -1;
+          let r1 = 0, r2 = N - 1; const th = 0.2;
+          for (let i = 0; i < N / 2; i++) if (Math.abs(buf[i]) < th) { r1 = i; break; }
+          for (let i = 1; i < N / 2; i++) if (Math.abs(buf[N - i]) < th) { r2 = N - i; break; }
+          const b = buf.slice(r1, r2); const M = b.length;
+          const c = new Float32Array(M);
+          for (let i = 0; i < M; i++) { let s = 0; for (let j = 0; j < M - i; j++) s += b[j] * b[j + i]; c[i] = s; }
+          let d = 0; while (d < M - 1 && c[d] > c[d + 1]) d++;
+          let max = -1, pos = -1;
+          for (let i = d; i < M; i++) if (c[i] > max) { max = c[i]; pos = i; }
+          if (pos <= 0) return -1;
+          const x1 = c[pos - 1], x2 = c[pos], x3 = c[pos + 1] || x2;
+          const a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
+          let T = pos; if (a) T = pos - bb / (2 * a);
+          const f = rate / T;
+          return (f > 70 && f < 1200) ? f : -1;
+        }
+
+        loop = () => {
+          this.raf = requestAnimationFrame(this.loop);
+          if (!this.audio) return;
+          const now = performance.now() / 1000 - this.t0;
+          const a = this.audio;
+          a.an.getFloatTimeDomainData(a.buf);
+          const hz = this.autoCorrelate(a.buf, a.ctx.sampleRate);
+
+          const cn = this.curNote(now);
+          const ph = cn ? this.phaseOf(now, cn) : 'done';
+          const scoring = cn && ph === 'score' ? cn : null;
+
+          // preview tone
+          const wantTone = cn && ph === 'preview' ? cn : null;
+          if (wantTone && this._toneFor !== this.notes.indexOf(wantTone)) { this.startTone(wantTone.midi); this._toneFor = this.notes.indexOf(wantTone); }
+          else if (!wantTone && this._toneFor !== -1) { this.stopTone(); this._toneFor = -1; }
+
+          // current pitch
+          let cents = null, q = 0, midiF = null;
+          if (hz > 0) {
+            midiF = this.hzMidi(hz);
+            if (scoring) {
+              cents = 1200 * Math.log2(hz / this.midiHz(scoring.midi));
+              const ac = Math.abs(cents);
+              q = ac <= 25 ? 5 : ac <= 50 ? 2 : ac <= 100 ? 1 : 0;
+            }
+          }
+
+          if (scoring && cents !== null) this.vib.push({ t: now, c: cents });
+          else if (!scoring) this.vib.length = 0;
+          while (this.vib.length && now - this.vib[0].t > 1.15) this.vib.shift();
+          const vibrato = this.detectVibrato();
+
+          if (midiF !== null) this.trail.push({ t: now, m: midiF, q, vib: vibrato });
+          while (this.trail.length && now - this.trail[0].t > 2.4) this.trail.shift();
+
+          this.cur = { hz, midi: midiF, cents, q, vibrato };
+          this.scoreStep(now, scoring, q, vibrato);
+
+          const lastN = this.notes[this.notes.length - 1];
+          if (now > lastN.cycle + this.CYCLE + 0.3) { this.endSession(); return; }
+
+          this.draw(now, cn, ph);
+          this.pushHud(now, cn, ph, scoring, q, vibrato);
+        };
+
+        scoreStep(now, scoring, q, vibrato) {
+          if (this._lastNow == null) this._lastNow = now;
+          let dt = now - this._lastNow; this._lastNow = now;
+          if (dt < 0 || dt > 0.5) dt = 0;
+          if (!scoring) { this.tickAcc = 0; return; }
+          this.tickAcc += dt;
+          while (this.tickAcc >= 0.1) {
+            this.tickAcc -= 0.1;
+            const pts = q * (vibrato && q > 0 ? 10 : 1);
+            this.sess.score += pts; this.sess.ticks++;
+            const ratio = this.cur.cents == null ? 0 : Math.max(0, 1 - Math.abs(this.cur.cents) / 100);
+            this.sess.qSum += ratio;
+            if (vibrato && q > 0) this.sess.vibTicks++;
+            const pn = this.sess.perNote[scoring.midi] || (this.sess.perNote[scoring.midi] = { n: 0, rSum: 0, pts: 0 });
+            pn.n++; pn.rSum += ratio; pn.pts += pts;
+          }
+        }
+
+        detectVibrato() {
+          const v = this.vib; if (v.length < 8) return false;
+          const span = v[v.length - 1].t - v[0].t; if (span < 0.6) return false;
+          let cross = 0, mn = 1e9, mx = -1e9, sumAbs = 0;
+          for (let i = 0; i < v.length; i++) {
+            mn = Math.min(mn, v[i].c); mx = Math.max(mx, v[i].c); sumAbs += Math.abs(v[i].c);
+            if (i > 0 && Math.sign(v[i].c) !== Math.sign(v[i - 1].c) && Math.abs(v[i].c) > 4) cross++;
+          }
+          return (cross / span) >= 5 && (mx - mn) >= 30 && (mx - mn) <= 320 && (sumAbs / v.length) < 110;
+        }
+
+        // ---------- drawing ----------
+        yFor(m) { return this.H - (m - this.dLow) / (this.dHigh - this.dLow) * this.H; }
+
+        draw(now, cn, ph) {
+          const ctx = this.ctx2d; if (!ctx) return;
+          const W = this.W, H = this.H; const playX = W * 0.27;
+          const pps = (W * 0.72) / 7.0;
+          ctx.clearRect(0, 0, W, H);
+          ctx.fillStyle = '#0c0d12'; ctx.fillRect(0, 0, W, H);
+
+          const a = this.audio; a.fan.getByteFrequencyData(a.freq);
+          const bars = 110, bw = W / bars;
+          for (let i = 0; i < bars; i++) {
+            const v = a.freq[Math.floor(i / bars * a.freq.length * 0.5)] / 255;
+            const bh = v * 90;
+            ctx.fillStyle = 'rgba(244,178,62,' + (0.04 + v * 0.10) + ')';
+            ctx.fillRect(i * bw, H - bh, bw + 0.5, bh);
+          }
+
+          ctx.font = "10px 'Spline Sans Mono', monospace"; ctx.textBaseline = 'middle';
+          const loM = Math.ceil(this.dLow), hiM = Math.floor(this.dHigh);
+          for (let m = loM; m <= hiM; m++) {
+            const y = this.yFor(m); const sharp = this.NAMES[((m % 12) + 12) % 12].includes('#');
+            ctx.strokeStyle = sharp ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.06)';
+            ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+            if (!sharp) { ctx.fillStyle = m % 12 === 0 ? 'rgba(243,239,230,0.55)' : 'rgba(138,144,160,0.4)'; ctx.fillText(this.midiName(m), 8, y); }
+          }
+
+          const laneH = H / (this.dHigh - this.dLow);
+          for (const n of this.notes) {
+            const sStart = this.scoreStart(n);
+            const x1 = playX + (sStart - now) * pps;
+            const x2 = playX + (sStart + this.SCORE - now) * pps;
+            if (x2 < -40 || x1 > W) continue;
+            const y = this.yFor(n.midi); const h = Math.min(laneH * 0.82, 20);
+            const isScore = now >= sStart && now <= sStart + this.SCORE;
+            const isPrev = this.phaseOf(now, n) === 'preview';
+            if (isScore) { ctx.fillStyle = 'rgba(244,178,62,0.07)'; ctx.fillRect(0, y - laneH / 2, W, laneH); }
+            else if (isPrev) { ctx.fillStyle = 'rgba(53,196,181,0.06)'; ctx.fillRect(0, y - laneH / 2, W, laneH); }
+            ctx.fillStyle = isScore ? 'rgba(244,178,62,0.9)' : isPrev ? 'rgba(53,196,181,0.55)' : 'rgba(244,178,62,0.2)';
+            this.roundRect(ctx, Math.max(x1, -20), y - h / 2, Math.min(x2, W + 20) - Math.max(x1, -20), h, 4); ctx.fill();
+            if (isScore) {
+              ctx.fillStyle = '#0a0b0f'; ctx.font = "600 13px 'Spline Sans Mono', monospace";
+              ctx.fillText(this.midiName(n.midi), Math.max(x1, playX) + 8, y);
+              ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+              ctx.beginPath(); ctx.moveTo(playX, y); ctx.lineTo(W, y); ctx.stroke(); ctx.setLineDash([]);
+            } else if (isPrev) {
+              ctx.fillStyle = '#0a0b0f'; ctx.font = "12px 'Spline Sans Mono', monospace";
+              ctx.fillText('♪', Math.max(x1, 2) + 6, y);
+            }
+          }
+
+          if (this.trail.length > 1) {
+            ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
+            for (let i = 1; i < this.trail.length; i++) {
+              const p0 = this.trail[i - 1], p1 = this.trail[i];
+              const X0 = playX + (p0.t - now) * pps, X1 = playX + (p1.t - now) * pps;
+              if (X1 > playX) continue;
+              ctx.strokeStyle = this.qColor(p1.q, p1.vib); ctx.globalAlpha = 0.6;
+              ctx.beginPath(); ctx.moveTo(X0, this.yFor(p0.m)); ctx.lineTo(X1, this.yFor(p1.m)); ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+          }
+
+          if (this.cur.midi !== null) {
+            const y = this.yFor(this.cur.midi);
+            const ratio = this.cur.cents == null ? 0 : Math.max(0, 1 - Math.abs(this.cur.cents) / 100);
+            const col = this.cur.vibrato ? this.TEAL : this.ACCENT;
+            ctx.shadowColor = col; ctx.shadowBlur = 6 + ratio * 22;
+            ctx.fillStyle = ratio > 0.78 ? '#ffffff' : col;
+            ctx.beginPath(); ctx.arc(playX, y, 5 + ratio * 3.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+            if (ratio > 0.78) { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(playX, y, 9 + ratio * 4, 0, 7); ctx.stroke(); }
+          }
+
+          ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(playX, 0); ctx.lineTo(playX, H); ctx.stroke();
+        }
+
+        qColor(q, vib) { if (vib) return this.TEAL; if (q >= 5) return '#ffffff'; if (q >= 2) return this.ACCENT; if (q >= 1) return '#b9863a'; return this.GRAY; }
+        roundRect(ctx, x, y, w, h, r) {
+          r = Math.min(r, h / 2, Math.abs(w) / 2);
+          ctx.beginPath(); ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+        }
+
+        // ---------- HUD ----------
+        pushHud(now, cn, ph, scoring, q, vibrato) {
+          if (now - this.lastHud < 0.08) return; this.lastHud = now;
+          const idx = cn ? this.notes.indexOf(cn) + 1 : this.notes.length;
+
+          let mult = { multLabel: '×1', multNote: 'find it', multBg: 'transparent', multBorder: '#23262f', multFg: '#6b7180', multSub: '#565c6a' };
+          if (vibrato && q > 0) mult = { multLabel: '×10', multNote: 'vibrato', multBg: 'rgba(53,196,181,0.14)', multBorder: '#35C4B5', multFg: '#35C4B5', multSub: '#35C4B5' };
+          else if (q >= 5) mult = { multLabel: '×5', multNote: 'locked', multBg: 'rgba(244,178,62,0.16)', multBorder: '#F4B23E', multFg: '#F4B23E', multSub: '#b9863a' };
+          else if (q >= 2) mult = { multLabel: '×2', multNote: 'close', multBg: 'rgba(244,178,62,0.10)', multBorder: '#7a5a22', multFg: '#F4B23E', multSub: '#7a5a22' };
+          else if (q >= 1) mult = { multLabel: '×1', multNote: 'warm', multBg: 'rgba(244,178,62,0.05)', multBorder: '#3a3320', multFg: '#b9863a', multSub: '#565c6a' };
+
+          const phaseMap = {
+            rest: { phaseLabel: 'Breathe', phaseColor: '#6b7180', phaseBg: 'transparent', phaseBorder: '#23262f' },
+            preview: { phaseLabel: 'Listen', phaseColor: '#35C4B5', phaseBg: 'rgba(53,196,181,0.12)', phaseBorder: '#35C4B5' },
+            prep: { phaseLabel: 'Get ready', phaseColor: '#b9863a', phaseBg: 'rgba(244,178,62,0.06)', phaseBorder: '#3a3320' },
+            score: { phaseLabel: 'Sing', phaseColor: '#F4B23E', phaseBg: 'rgba(244,178,62,0.14)', phaseBorder: '#F4B23E' },
+            done: { phaseLabel: '—', phaseColor: '#6b7180', phaseBg: 'transparent', phaseBorder: '#23262f' },
+          };
+          const pm = phaseMap[ph] || phaseMap.done;
+
+          const c = this.cur;
+          const liveColor = c.midi == null ? '#565c6a' : (c.vibrato ? this.TEAL : q >= 2 ? this.ACCENT : '#8a90a0');
+          const liveName = c.midi == null ? '—' : this.midiName(Math.round(c.midi));
+          let liveCents = c.midi == null ? 'silent' : this.midiName(Math.round(c.midi));
+          if (c.midi != null && scoring) liveCents = c.cents == null ? '—' : (c.cents >= 0 ? '+' : '') + Math.round(c.cents) + '¢';
+
+          const timerPct = scoring ? Math.max(0, (1 - (now - this.scoreStart(scoring)) / this.SCORE)) * 100 : 0;
+          const targetColor = ph === 'preview' ? this.TEAL : ph === 'score' ? this.ACCENT : '#8a90a0';
+
+          this.setState({
+            hud: {
+              score: this.sess.score, ...mult, ...pm,
+              targetName: cn ? this.midiName(cn.midi) : '—',
+              targetHz: cn ? this.midiHz(cn.midi).toFixed(1) + ' Hz' : '',
+              noteCount: idx + ' / ' + this.notes.length,
+              targetColor,
+              liveName, liveCents, liveColor,
+              vibrato: !!(vibrato && q > 0),
+              timerPct: timerPct.toFixed(1) + '%',
+            },
+          });
+        }
+
+        // ---------- end ----------
+        endSession() {
+          cancelAnimationFrame(this.raf);
+          this.teardownAudio();
+          const s = this.sess;
+          const score = Math.round(s.score);
+          const accuracy = s.ticks ? Math.round(s.qSum / s.ticks * 100) : 0;
+          let bestNote = '—', bestR = -1;
+          for (const m in s.perNote) { const pn = s.perNote[m]; const r = pn.rSum / pn.n; if (r > bestR && pn.n > 3) { bestR = r; bestNote = this.midiName(+m); } }
+
+          const st = this.stats || (this.stats = this.defaultStats());
+          const today = new Date(); const dkey = today.toISOString().slice(0, 10);
+          if (st.lastDate !== dkey) {
+            const y = new Date(today); y.setDate(y.getDate() - 1);
+            st.streak = st.lastDate === y.toISOString().slice(0, 10) ? (st.streak || 0) + 1 : 1;
+            st.lastDate = dkey;
+          }
+          st.sessions = (st.sessions || 0) + 1;
+          const isBest = score > (st.best || 0);
+          if (isBest) st.best = score;
+          for (const m in s.perNote) {
+            const pn = s.perNote[m]; const ns = st.notes[m] || (st.notes[m] = { n: 0, rSum: 0, best: 0, pts: 0 });
+            ns.n += pn.n; ns.rSum += pn.rSum; ns.pts += pn.pts; ns.best = Math.max(ns.best, pn.rSum / pn.n);
+          }
+          st.prefs = { voiceId: this.state.voiceId, difficulty: this.state.difficulty };
+          this.saveStats();
+          const rec = { ts: Date.now(), d: dkey, score, accuracy, voice: this.state.voiceId, level: this.state.difficulty };
+          this.addHistory(rec);
+          this.submitHighScore(rec);
+
+          this.setState({
+            phase: 'summary',
+            statsVersion: this.state.statsVersion + 1,
+            summary: { score, accuracy: accuracy + '%', vibrato: s.vibTicks > 0 ? (s.vibTicks / 10).toFixed(1) + 's' : '0s', bestNote, isBest },
+          });
+        }
+
+        // ---------- render ----------
+        buildPitchMap() {
+          const { lo, hi } = this.noteSet();
+          const out = [];
+          for (let m = lo; m <= hi; m++) {
+            const ns = this.stats && this.stats.notes[m];
+            const mastery = ns && ns.n > 0 ? ns.rSum / ns.n : null;
+            const sharp = this.NAMES[((m % 12) + 12) % 12].includes('#');
+            let bg = '#16181f', fg = '#3a3f4a', border = '#23262f';
+            if (mastery != null) {
+              const al = 0.14 + 0.82 * mastery;
+              bg = 'rgba(244,178,62,' + al + ')'; fg = mastery > 0.45 ? '#0a0b0f' : '#8a90a0'; border = 'rgba(244,178,62,' + (al + 0.1) + ')';
+            }
+            out.push({ label: sharp ? '' : this.NAMES[((m % 12) + 12) % 12], title: this.midiName(m) + (mastery != null ? ' · ' + Math.round(mastery * 100) + '%' : ' · untried'), bg, fg, border });
+          }
+          return out;
+        }
+
+        setVoice(id) { this.setState({ voiceId: id }, () => this.persistPrefs()); }
+        setLevel(n) { this.setState({ difficulty: n }, () => this.persistPrefs()); }
+
+        renderVals() {
+          const st = this.stats || this.defaultStats();
+          const hist = this.history || [];
+          let histPoints = '';
+          if (hist.length > 1) {
+            const pts = hist.slice(-14); const max = Math.max(...pts.map(h => h.score), 1);
+            histPoints = pts.map((h, i) => { const x = pts.length === 1 ? 0 : (i / (pts.length - 1)) * 100; const y = 32 - (h.score / max) * 30; return x.toFixed(1) + ',' + y.toFixed(1); }).join(' ');
+          }
+
+          const onC = (bgA, bd, sel) => sel
+            ? { bg: 'rgba(244,178,62,0.14)', border: '#F4B23E', fg: '#f3efe6', sub: '#b9863a', numFg: '#F4B23E' }
+            : { bg: '#16181f', border: '#23262f', fg: '#b4b9c4', sub: '#565c6a', numFg: '#565c6a' };
+
+          const voices = this.VOICES.map(v => { const c = onC(0, 0, v.id === this.state.voiceId); return { label: v.label, detail: v.detail, bg: c.bg, border: c.border, fg: c.fg, sub: c.sub, click: () => this.setVoice(v.id) }; });
+          const levels = this.LEVELS.map(l => { const c = onC(0, 0, l.n === this.state.difficulty); return { n: l.n, title: l.title, detail: l.detail, bg: c.bg, border: c.border, fg: c.fg, sub: c.sub, numFg: c.numFg, click: () => this.setLevel(l.n) }; });
+
+          const { lo, hi, set } = this.noteSet();
+          const planText = 'LV ' + this.state.difficulty + ' · ' + this.midiName(lo) + '–' + this.midiName(hi) + ' · ' + set.length + ' notes × 3 passes (up · down · shuffle)';
+          const mapRange = this.midiName(lo) + '–' + this.midiName(hi);
+
+          const errMsg = this.state.micError === 'denied' ? 'Microphone blocked — allow mic access and retry.' : 'Could not start audio. Check your mic and retry.';
+
+          return {
+            isIntro: this.state.phase === 'intro', isPlaying: this.state.phase === 'playing', isSummary: this.state.phase === 'summary',
+            micError: !!this.state.micError, micErrorMsg: errMsg,
+            hud: this.state.hud,
+            summary: this.state.summary || { score: 0, accuracy: '0%', vibrato: '0s', bestNote: '—', isBest: false },
+            canvasRef: this.setCanvas,
+            startGame: () => this.start(), stopGame: () => this.endSession(), again: () => this.start(), toIntro: () => this.setState({ phase: 'intro' }),
+            voices, levels, planText, mapRange,
+            statStreak: st.streak || 0, statSessions: st.sessions || 0, statBest: st.best || 0,
+            pitchMap: this.buildPitchMap(), hasHistory: hist.length > 1, histPoints,
+          };
+        }
+      }
+    </script>
+  </body>
+</html>
