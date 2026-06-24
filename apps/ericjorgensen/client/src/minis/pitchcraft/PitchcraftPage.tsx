@@ -32,6 +32,16 @@ import styles from "./PitchcraftPage.module.css";
 const MONO = "'Spline Sans Mono', monospace";
 const SERIF = "'Spectral', Georgia, serif";
 
+// Female (col 1) highest→lowest, Male (col 2) highest→lowest, interleaved for the 2-col grid.
+const VOICE_DISPLAY_ORDER: VoiceId[] = [
+  "soprano",
+  "tenor",
+  "mezzo",
+  "baritone",
+  "contralto",
+  "bass",
+];
+
 type Phase = "intro" | "playing" | "summary";
 interface Summary {
   score: number;
@@ -242,7 +252,8 @@ export default function PitchcraftPage() {
             <div className={styles.card}>
               <div style={label}>Your voice</div>
               <div className={styles.voiceGrid}>
-                {VOICES.map((v) => {
+                {VOICE_DISPLAY_ORDER.map((vid) => {
+                  const v = VOICES.find((x) => x.id === vid)!;
                   const sel = v.id === voiceId;
                   return (
                     <button
