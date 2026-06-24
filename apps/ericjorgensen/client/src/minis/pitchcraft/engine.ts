@@ -285,7 +285,6 @@ export class PitchcraftEngine {
     this.raf = requestAnimationFrame(this.loop);
     if (!this.audio || !this.pitch) return;
     const now = performance.now() / 1000 - this.t0;
-    const hz = this.pitch.read();
 
     const cn = this.curNote(now);
     const ph: Phase = cn ? phaseOf(now - cn.cycle) : "done";
@@ -294,6 +293,11 @@ export class PitchcraftEngine {
     // Tone plays from Preview through the end of the Sing (score) phase.
     const wantTone =
       cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
+
+    // Read pitch; subtract the reference tone from the mic buffer first so it
+    // cannot be detected as the singer's pitch.
+    const hz = this.pitch.read(wantTone ? midiHz(wantTone.midi) : undefined);
+
     if (wantTone) {
       const idx = this.notes.indexOf(wantTone);
       if (this.toneFor !== idx) {

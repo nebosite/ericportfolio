@@ -62,6 +62,63 @@ export function autoCorrelate(buf: Float32Array, sampleRate: number): number {
   return f > 70 && f < 1200 ? f : -1;
 }
 
+/**
+ * Removes the sinusoidal component at `hz` from `buf` in-place.
+ *
+ * Uses a least-squares fit (solves the 2×2 Gram-matrix system) so the
+ * cancellation is exact even when the buffer doesn't contain a whole number
+ * of cycles at `hz` (i.e. the rectangular-window DFT bins don't align).
+ * A running phasor avoids per-sample trig. Because amplitude and phase are
+ * estimated from the mic signal itself, the cancellation is accurate
+ * regardless of acoustic delay — which makes it effective for removing a
+ * reference tone that has leaked back into the microphone.
+ */
+export function subtractTone(
+  buf: Float32Array,
+  sampleRate: number,
+  hz: number,
+): void {
+  const N = buf.length;
+  const omega = (2 * Math.PI * hz) / sampleRate;
+  const cosStep = Math.cos(omega);
+  const sinStep = Math.sin(omega);
+
+  // First pass: accumulate the 2×2 Gram matrix (C) and RHS (d).
+  let d1 = 0,
+    d2 = 0,
+    C11 = 0,
+    C12 = 0,
+    C22 = 0;
+  let c = 1,
+    s = 0;
+  for (let i = 0; i < N; i++) {
+    d1 += buf[i] * c;
+    d2 += buf[i] * s;
+    C11 += c * c;
+    C12 += c * s;
+    C22 += s * s;
+    const nc = c * cosStep - s * sinStep;
+    s = s * cosStep + c * sinStep;
+    c = nc;
+  }
+
+  // Solve [C11 C12; C12 C22] * [a; b] = [d1; d2].
+  const det = C11 * C22 - C12 * C12;
+  if (Math.abs(det) < 1e-10) return;
+  const a = (C22 * d1 - C12 * d2) / det;
+  const b = (-C12 * d1 + C11 * d2) / det;
+
+  // Second pass: subtract the LS-optimal sinusoidal fit.
+  c = 1;
+  s = 0;
+  for (let i = 0; i < N; i++) {
+    buf[i] -= a * c + b * s;
+    const nc = c * cosStep - s * sinStep;
+    s = s * cosStep + c * sinStep;
+    c = nc;
+  }
+}
+
 export class PitchAnalyser {
   readonly analyser: AnalyserNode;
   private buf: Float32Array<ArrayBuffer>;
@@ -74,9 +131,14 @@ export class PitchAnalyser {
     this.buf = new Float32Array(fftSize);
   }
 
-  /** Detected fundamental in Hz, or -1 when no clear pitch / silence. */
-  read(): number {
+  /**
+   * Detected fundamental in Hz, or -1 when no clear pitch / silence.
+   * Pass `cancelHz` to subtract a known reference tone before detection.
+   */
+  read(cancelHz?: number): number {
     this.analyser.getFloatTimeDomainData(this.buf);
+    if (cancelHz != null && cancelHz > 0)
+      subtractTone(this.buf, this.analyser.context.sampleRate, cancelHz);
     return autoCorrelate(this.buf, this.analyser.context.sampleRate);
   }
 }
