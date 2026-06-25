@@ -573,7 +573,7 @@ export default function PitchcraftPage() {
                 className={styles.endBtn}
                 onClick={endSession}
               >
-                End session
+                Quit round
               </button>
             </div>
           </div>

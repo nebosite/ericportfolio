@@ -247,7 +247,9 @@
 .canvas {
   display: block;
   width: 100%;
-  height: 460px;
+  /* Stretch the play grid to the browser's height, never below 600px.
+     The offset leaves room for the top bar, title, HUD row, and footer. */
+  height: max(600px, calc(100vh - 440px));
 }
 
 .vibBadge {

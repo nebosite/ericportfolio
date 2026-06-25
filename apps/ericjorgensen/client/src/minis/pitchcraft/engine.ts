@@ -142,6 +142,8 @@ export class PitchcraftEngine {
 
   private vib = new VibratoDetector();
   private trail: { t: number; m: number; q: number; vib: boolean }[] = [];
+  // Detected fundamental + next two harmonics, for the spectrum debug overlay.
+  private harm: { f: number[]; confident: boolean } | null = null;
   private cur = {
     hz: -1,
     midi: null as number | null,
@@ -208,10 +210,16 @@ export class PitchcraftEngine {
     const ctx = new Ctor();
     await ctx.resume();
     const src = ctx.createMediaStreamSource(stream);
-    this.pitch = new PitchAnalyser(ctx, src, 2048);
+    // 4096-sample (~93 ms) window: the AnalyserNode already slides this window
+    // every frame, so reads overlap ~80%. The longer window roughly halves the
+    // main-lobe width vs 2048, sharpening low-pitch harmonic separation and
+    // steadying peaks, at the cost of a little response/vibrato smearing.
+    this.pitch = new PitchAnalyser(ctx, src, 4096);
     this.tone = new TonePlayer(ctx);
     const fft = ctx.createAnalyser();
-    fft.fftSize = 1024;
+    // Large FFT so there's a real frequency bin behind every bar of the
+    // fine-grained 0–2400 Hz spectrum drawn along the canvas bottom.
+    fft.fftSize = 16384;
     fft.smoothingTimeConstant = 0.78;
     src.connect(fft);
     this.fft = fft;
@@ -228,6 +236,7 @@ export class PitchcraftEngine {
     this.dHigh = hi + 1.5;
     this.t0 = performance.now() / 1000;
     this.trail = [];
+    this.harm = null;
     this.vib.reset();
     this.tickAcc = 0;
     this.lastNow = null;
@@ -294,9 +303,11 @@ export class PitchcraftEngine {
     const wantTone =
       cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
 
-    // Read pitch; subtract the reference tone from the mic buffer first so it
-    // cannot be detected as the singer's pitch.
-    const hz = this.pitch.read(wantTone ? midiHz(wantTone.midi) : undefined);
+    // Read pitch. Tone subtraction is currently disabled — detection relies on
+    // the voice's harmonic structure to tell the singer apart from the tone.
+    const pr = this.pitch.read();
+    const hz = pr ? pr.f0 : -1;
+    this.harm = pr ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident } : null;
 
     if (wantTone) {
       const idx = this.notes.indexOf(wantTone);
@@ -434,17 +445,72 @@ export class PitchcraftEngine {
     ctx.fillStyle = "#0c0d12";
     ctx.fillRect(0, 0, W, H);
 
-    // Ambient FFT spectrum along the bottom.
+    // Ambient FFT spectrum along the bottom — fine-grained, capped at 2400 Hz.
     if (this.fft) {
       this.fft.getByteFrequencyData(this.freq);
-      const bars = 110;
+      const TOP_HZ = 2400;
+      const nyquist = this.fft.context.sampleRate / 2;
+      const topBin = Math.max(
+        1,
+        Math.min(
+          this.freq.length,
+          Math.round((TOP_HZ / nyquist) * this.freq.length),
+        ),
+      );
+      const bars = 880;
       const bw = W / bars;
       for (let i = 0; i < bars; i++) {
-        const v =
-          this.freq[Math.floor((i / bars) * this.freq.length * 0.5)] / 255;
+        const bin = Math.min(topBin - 1, Math.floor((i / bars) * topBin));
+        const v = this.freq[bin] / 255;
         const bh = v * 90;
         ctx.fillStyle = "rgba(244,178,62," + (0.04 + v * 0.1) + ")";
         ctx.fillRect(i * bw, H - bh, bw + 0.5, bh);
+      }
+
+      // Debug overlay: mark the detector's fundamental f₀ and the next two
+      // harmonics f₁/f₂ (the actual peaks it chose). If detection is right
+      // these land on real peaks above; a leaked off-pitch tone shows up as an
+      // UNmarked peak. Amber = best-guess fallback (no harmonic set found).
+      if (this.harm) {
+        const [m0, m1, m2] = this.harm.f;
+        const fundCol = this.harm.confident ? "#ffffff" : ACCENT;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        const marks: [number, string, boolean][] = [
+          [m0, "f₀", true],
+          [m1, "f₁", false],
+          [m2, "f₂", false],
+        ];
+        for (const [f, label, isFund] of marks) {
+          if (f <= 0 || f > TOP_HZ) continue;
+          const x = (f / TOP_HZ) * W;
+          const col = isFund ? fundCol : TEAL;
+          ctx.strokeStyle = col;
+          ctx.fillStyle = col;
+          ctx.globalAlpha = isFund ? 0.92 : 0.5;
+          ctx.lineWidth = isFund ? 2 : 1.4;
+          ctx.beginPath();
+          ctx.moveTo(x, H);
+          ctx.lineTo(x, H - 108);
+          ctx.stroke();
+          ctx.globalAlpha = isFund ? 1 : 0.7;
+          ctx.beginPath();
+          ctx.arc(x, H - 108, isFund ? 3.2 : 2.4, 0, 7);
+          ctx.fill();
+          ctx.font =
+            (isFund ? "600 11px " : "10px ") + "'Spline Sans Mono', monospace";
+          ctx.fillText(label, x, H - 116);
+        }
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = fundCol;
+        ctx.font = "10px 'Spline Sans Mono', monospace";
+        ctx.fillText(
+          Math.round(m0) + " Hz" + (this.harm.confident ? "" : " ?"),
+          (Math.min(m0, TOP_HZ) / TOP_HZ) * W,
+          H - 130,
+        );
+        ctx.restore();
       }
     }
 
