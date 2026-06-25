@@ -26,6 +26,7 @@ import {
   addHistory,
   applySession,
   submitHighScore,
+  bestFor,
 } from "./src/storage/history";
 import styles from "./PitchcraftPage.module.css";
 
@@ -63,7 +64,7 @@ interface MapCell {
 function buildPitchMap(
   stats: Stats,
   voiceId: VoiceId,
-  level: 1 | 2 | 3,
+  level: 1 | 2 | 3 | 4,
 ): MapCell[] {
   const { lo, hi } = noteSet(voiceId, level);
   const out: MapCell[] = [];
@@ -121,7 +122,7 @@ export default function PitchcraftPage() {
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [voiceId, setVoiceId] = useState<VoiceId>("contralto");
-  const [level, setLevel] = useState<1 | 2 | 3>(1);
+  const [level, setLevel] = useState<1 | 2 | 3 | 4>(1);
   const [stats, setStats] = useState<Stats>({ ...DEFAULT_STATS });
   const [history, setHistory] = useState<SessionRecord[]>([]);
   const [hud, setHud] = useState<Hud>(blankHud());
@@ -137,7 +138,7 @@ export default function PitchcraftPage() {
       setStats(s);
       setHistory(h);
       if (s.prefs?.voiceId) setVoiceId(s.prefs.voiceId as VoiceId);
-      if (s.prefs?.difficulty) setLevel(s.prefs.difficulty as 1 | 2 | 3);
+      if (s.prefs?.difficulty) setLevel(s.prefs.difficulty as 1 | 2 | 3 | 4);
     });
     return () => {
       alive = false;
@@ -145,7 +146,7 @@ export default function PitchcraftPage() {
     };
   }, []);
 
-  const persistPrefs = (vid: VoiceId, lvl: 1 | 2 | 3) => {
+  const persistPrefs = (vid: VoiceId, lvl: 1 | 2 | 3 | 4) => {
     const w = statsRef.current;
     w.prefs = { voiceId: vid, difficulty: lvl };
     void saveStats(w);
@@ -154,7 +155,7 @@ export default function PitchcraftPage() {
     setVoiceId(id);
     persistPrefs(id, level);
   };
-  const chooseLevel = (n: 1 | 2 | 3) => {
+  const chooseLevel = (n: 1 | 2 | 3 | 4) => {
     setLevel(n);
     persistPrefs(voiceId, n);
   };
@@ -216,7 +217,10 @@ export default function PitchcraftPage() {
   const endSession = () => engineRef.current?.stop();
 
   const { lo, hi, set } = noteSet(voiceId, level);
-  const planText = `LV ${level} · ${midiName(lo)}–${midiName(hi)} · ${set.length} notes × 3 passes (up · down · shuffle)`;
+  const planText =
+    level === 4
+      ? `LV 4 · 8 short tunes · 5 notes each · sing from memory, no guide tone`
+      : `LV ${level} · ${midiName(lo)}–${midiName(hi)} · ${set.length} notes × 3 passes (up · down · shuffle)`;
   const mapRange = `${midiName(lo)}–${midiName(hi)}`;
   const pitchMap = buildPitchMap(stats, voiceId, level);
   const spark = sparkPoints(history);
@@ -364,7 +368,7 @@ export default function PitchcraftPage() {
               <div className={styles.statsRow}>
                 <Stat n={stats.streak} l="day streak" />
                 <Stat n={stats.sessions} l="sessions" />
-                <Stat n={stats.best} l="best" accent />
+                <Stat n={bestFor(stats, voiceId, level)} l="best" accent />
               </div>
 
               <div
@@ -565,8 +569,9 @@ export default function PitchcraftPage() {
 
             <div className={styles.playFooter}>
               <div className={styles.hint}>
-                Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone
-                ×1
+                {level === 4
+                  ? "Hear the tune, then sing it back from memory · no guide tone"
+                  : "Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone ×1"}
               </div>
               <button
                 type="button"
@@ -644,7 +649,7 @@ export default function PitchcraftPage() {
               <div className={styles.statsRow} style={{ marginTop: 22 }}>
                 <Stat n={stats.streak} l="day streak" />
                 <Stat n={stats.sessions} l="sessions" />
-                <Stat n={stats.best} l="best" accent />
+                <Stat n={bestFor(stats, voiceId, level)} l="best" accent />
               </div>
             </div>
           </div>

@@ -19,7 +19,8 @@ export interface NoteStat {
 
 export interface Stats {
   sessions: number;
-  best: number;
+  best: number; // overall best (any voice/level), kept for back-compat
+  bests: Record<string, number>; // best per `${voiceId}:${level}`
   streak: number;
   lastDate: string | null;
   notes: Record<string, NoteStat>; // keyed by MIDI number → mastery = rSum/n
@@ -29,11 +30,22 @@ export interface Stats {
 export const DEFAULT_STATS: Stats = {
   sessions: 0,
   best: 0,
+  bests: {},
   streak: 0,
   lastDate: null,
   notes: {},
   prefs: null,
 };
+
+/** Key for a high score scoped to a specific voice type and level. */
+export function bestKey(voiceId: string, level: number): string {
+  return `${voiceId}:${level}`;
+}
+
+/** Best score recorded for a given voice + level (0 if none yet). */
+export function bestFor(stats: Stats, voiceId: string, level: number): number {
+  return (stats.bests && stats.bests[bestKey(voiceId, level)]) || 0;
+}
 
 const DB_NAME = "pitchcraft";
 const DB_VERSION = 1;
@@ -140,8 +152,12 @@ export function applySession(
     stats.lastDate = dkey;
   }
   stats.sessions = (stats.sessions || 0) + 1;
-  const isBest = opts.score > (stats.best || 0);
-  if (isBest) stats.best = opts.score;
+  // High scores are tracked per voice type + level; isBest is scoped to that.
+  if (!stats.bests) stats.bests = {};
+  const key = bestKey(opts.voiceId, opts.difficulty);
+  const isBest = opts.score > (stats.bests[key] || 0);
+  if (isBest) stats.bests[key] = opts.score;
+  stats.best = Math.max(stats.best || 0, opts.score);
   for (const m in opts.perNote) {
     const pn = opts.perNote[m];
     const ns =

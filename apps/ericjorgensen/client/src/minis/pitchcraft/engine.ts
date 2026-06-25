@@ -11,6 +11,9 @@ import {
   VoiceId,
   noteSet,
   buildSequence,
+  buildTunePlan,
+  PlayNote,
+  TUNE_COUNT,
   midiName,
   midiHz,
   hzMidi,
@@ -80,14 +83,9 @@ export interface SessionResult {
 
 export interface EngineOpts {
   voiceId: VoiceId;
-  level: 1 | 2 | 3;
+  level: 1 | 2 | 3 | 4;
   onHud: (hud: Hud) => void;
   onEnd: (result: SessionResult) => void;
-}
-
-interface Note {
-  midi: number;
-  cycle: number; // seconds from session start to this note's cycle start
 }
 
 export type MicError = "denied" | "error";
@@ -130,7 +128,9 @@ export class PitchcraftEngine {
   private fft: AnalyserNode | null = null;
   private freq = new Uint8Array(0);
 
-  private notes: Note[] = [];
+  private notes: PlayNote[] = [];
+  private mode: "scale" | "tune" = "scale";
+  private endAt = 0;
   private dLow = 0;
   private dHigh = 0;
   private t0 = 0;
@@ -229,11 +229,34 @@ export class PitchcraftEngine {
   }
 
   private beginSession(): void {
-    const { lo, hi, set } = noteSet(this.opts.voiceId, this.opts.level);
-    const seq = buildSequence(set);
-    this.notes = seq.map((m, i) => ({ midi: m, cycle: i * CYCLE_TOTAL }));
-    this.dLow = lo - 1.5;
-    this.dHigh = hi + 1.5;
+    if (this.opts.level === 4) {
+      // Level 4: a series of made-up tunes, sung from memory with no guide tone.
+      const plan = buildTunePlan(this.opts.voiceId, Math.random);
+      this.notes = plan.notes;
+      this.mode = "tune";
+      this.dLow = plan.lo - 1.5;
+      this.dHigh = plan.hi + 1.5;
+      this.endAt = plan.endAt;
+    } else {
+      const { lo, hi, set } = noteSet(this.opts.voiceId, this.opts.level);
+      const seq = buildSequence(set);
+      this.notes = seq.map((m, i) => {
+        const c = i * CYCLE_TOTAL;
+        return {
+          midi: m,
+          cycle: c,
+          scoreStart: c + SCORE_OFFSET,
+          scoreLen: CYCLE.SCORE,
+          toneStart: c + CYCLE.REST, // tone sounds Preview → end of Sing
+          toneEnd: c + CYCLE_TOTAL,
+          tune: 0,
+        };
+      });
+      this.mode = "scale";
+      this.dLow = lo - 1.5;
+      this.dHigh = hi + 1.5;
+      this.endAt = seq.length * CYCLE_TOTAL + 0.3;
+    }
     this.t0 = performance.now() / 1000;
     this.trail = [];
     this.harm = null;
@@ -280,14 +303,16 @@ export class PitchcraftEngine {
     this.fft = null;
   }
 
-  private curNote(now: number): Note | null {
+  private curNote(now: number): PlayNote | null {
     for (const n of this.notes)
       if (now >= n.cycle && now < n.cycle + CYCLE_TOTAL) return n;
     return null;
   }
 
-  private scoreStartOf(n: Note): number {
-    return n.cycle + SCORE_OFFSET;
+  /** Is this note's supporting/preview tone sounding right now? */
+  private isPreview(n: PlayNote, now: number): boolean {
+    if (this.mode === "scale") return phaseOf(now - n.cycle) === "preview";
+    return now >= n.toneStart && now < n.toneEnd;
   }
 
   private loop = (): void => {
@@ -295,13 +320,38 @@ export class PitchcraftEngine {
     if (!this.audio || !this.pitch) return;
     const now = performance.now() / 1000 - this.t0;
 
-    const cn = this.curNote(now);
-    const ph: Phase = cn ? phaseOf(now - cn.cycle) : "done";
-    const scoring = cn && ph === "score" ? cn : null;
-
-    // Tone plays from Preview through the end of the Sing (score) phase.
-    const wantTone =
-      cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
+    // Which note (if any) is being scored, which note's tone should sound, and
+    // the note + phase to show in the HUD. Scale mode runs each note through an
+    // 11s rest/preview/prep/sing cycle; tune mode plays the whole tune as guide
+    // tones up front, then scores the notes back-to-back with no tone.
+    let cn: PlayNote | null;
+    let ph: Phase;
+    let scoring: PlayNote | null;
+    let toneNote: PlayNote | null;
+    if (this.mode === "scale") {
+      cn = this.curNote(now);
+      ph = cn ? phaseOf(now - cn.cycle) : "done";
+      scoring = cn && ph === "score" ? cn : null;
+      toneNote =
+        cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
+    } else {
+      scoring = null;
+      toneNote = null;
+      for (const n of this.notes) {
+        if (now >= n.scoreStart && now < n.scoreStart + n.scoreLen) scoring = n;
+        if (now >= n.toneStart && now < n.toneEnd) toneNote = n;
+      }
+      if (scoring) {
+        cn = scoring;
+        ph = "score";
+      } else if (toneNote) {
+        cn = toneNote;
+        ph = "preview"; // "Listen" — the tune is playing
+      } else {
+        cn = this.notes.find((n) => n.scoreStart > now) ?? null;
+        ph = cn && cn.scoreStart - now <= CYCLE.PREP + 0.3 ? "prep" : "rest";
+      }
+    }
 
     // Read pitch. Tone subtraction is currently disabled — detection relies on
     // the voice's harmonic structure to tell the singer apart from the tone.
@@ -309,10 +359,10 @@ export class PitchcraftEngine {
     const hz = pr ? pr.f0 : -1;
     this.harm = pr ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident } : null;
 
-    if (wantTone) {
-      const idx = this.notes.indexOf(wantTone);
+    if (toneNote) {
+      const idx = this.notes.indexOf(toneNote);
       if (this.toneFor !== idx) {
-        this.tone?.play(wantTone.midi);
+        this.tone?.play(toneNote.midi);
         this.toneFor = idx;
       }
     } else if (this.toneFor !== -1) {
@@ -338,8 +388,7 @@ export class PitchcraftEngine {
     this.cur = { hz, midi: midiF, cents, q, vibrato };
     this.scoreStep(now, scoring, vibrato);
 
-    const lastN = this.notes[this.notes.length - 1];
-    if (now > lastN.cycle + CYCLE_TOTAL + 0.3) {
+    if (now > this.endAt) {
       this.endSession();
       return;
     }
@@ -348,7 +397,7 @@ export class PitchcraftEngine {
     this.pushHud(now, cn, ph, scoring, q, vibrato);
   };
 
-  private scoreStep(now: number, scoring: Note | null, vibrato: boolean): void {
+  private scoreStep(now: number, scoring: PlayNote | null, vibrato: boolean): void {
     if (this.lastNow == null) this.lastNow = now;
     let dt = now - this.lastNow;
     this.lastNow = now;
@@ -540,14 +589,14 @@ export class PitchcraftEngine {
     // Target blocks scrolling right→left.
     const laneH = H / (this.dHigh - this.dLow);
     for (const n of this.notes) {
-      const sStart = this.scoreStartOf(n);
+      const sStart = n.scoreStart;
       const x1 = playX + (sStart - now) * pps;
-      const x2 = playX + (sStart + CYCLE.SCORE - now) * pps;
+      const x2 = playX + (sStart + n.scoreLen - now) * pps;
       if (x2 < -40 || x1 > W) continue;
       const y = this.yFor(n.midi);
       const h = Math.min(laneH * 0.82, 20);
-      const isScore = now >= sStart && now <= sStart + CYCLE.SCORE;
-      const isPrev = phaseOf(now - n.cycle) === "preview";
+      const isScore = now >= sStart && now <= sStart + n.scoreLen;
+      const isPrev = this.isPreview(n, now);
       if (isScore) {
         ctx.fillStyle = "rgba(244,178,62,0.07)";
         ctx.fillRect(0, y - laneH / 2, W, laneH);
@@ -638,15 +687,22 @@ export class PitchcraftEngine {
   // ---------- HUD ----------
   private pushHud(
     now: number,
-    cn: Note | null,
+    cn: PlayNote | null,
     ph: Phase,
-    scoring: Note | null,
+    scoring: PlayNote | null,
     q: number,
     vibrato: boolean,
   ): void {
     if (now - this.lastHud < 0.08) return;
     this.lastHud = now;
-    const idx = cn ? this.notes.indexOf(cn) + 1 : this.notes.length;
+    const noteCount =
+      this.mode === "tune"
+        ? cn
+          ? `Tune ${cn.tune + 1} / ${TUNE_COUNT}`
+          : ""
+        : (cn ? this.notes.indexOf(cn) + 1 : this.notes.length) +
+          " / " +
+          this.notes.length;
 
     let mult = {
       multLabel: "×1",
@@ -753,7 +809,7 @@ export class PitchcraftEngine {
           : (c.cents >= 0 ? "+" : "") + Math.round(c.cents) + "¢";
 
     const timerPct = scoring
-      ? Math.max(0, 1 - (now - this.scoreStartOf(scoring)) / CYCLE.SCORE) * 100
+      ? Math.max(0, 1 - (now - scoring.scoreStart) / scoring.scoreLen) * 100
       : 0;
     const targetColor =
       ph === "preview" ? TEAL : ph === "score" ? ACCENT : "#8a90a0";
@@ -764,7 +820,7 @@ export class PitchcraftEngine {
       ...pm,
       targetName: cn ? midiName(cn.midi) : "—",
       targetHz: cn ? midiHz(cn.midi).toFixed(1) + " Hz" : "",
-      noteCount: idx + " / " + this.notes.length,
+      noteCount,
       targetColor,
       liveName,
       liveCents,
