@@ -5,8 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // The admin feedback console talks to the shared feedback service (3005);
-      // everything else on this site is served by the ericjorgensen API (3001).
+      // The public feedback panel and the admin console both talk to the shared
+      // feedback service (3005); everything else is the ericjorgensen API (3001).
+      "/api/feedback": "http://localhost:3005",
       "/api/admin": "http://localhost:3005",
       "/api": "http://localhost:3001",
     },

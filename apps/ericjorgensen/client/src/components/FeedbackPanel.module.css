@@ -1,0 +1,143 @@
+/* Theme-agnostic feedback panel: inherits text color, uses translucent surfaces
+   so it sits comfortably on the dark Pitchcraft studio (and elsewhere). Kept in
+   sync with the copies in the other client apps. */
+.panel {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(420px, 90vw);
+  text-align: left;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.action,
+.back {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  border: 2px solid currentColor;
+}
+
+.action {
+  position: relative;
+  background: rgba(127, 127, 127, 0.18);
+  color: inherit;
+}
+
+.action:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.32);
+}
+
+.back {
+  background: transparent;
+}
+
+.back:hover {
+  background: rgba(127, 127, 127, 0.15);
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.textarea {
+  font: inherit;
+  resize: vertical;
+  min-height: 5rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 2px solid rgba(127, 127, 127, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+}
+
+.counter {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  align-self: flex-end;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.vote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.voteItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.upvote {
+  font: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+  min-width: 3.2rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 2px solid currentColor;
+  background: transparent;
+  color: inherit;
+}
+
+.upvote:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.25);
+}
+
+.upvote:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.voteText {
+  flex: 1;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.muted {
+  opacity: 0.75;
+}
+
+.error {
+  color: #e0564b;
+  font-size: 0.85rem;
+  margin: 0;
+}

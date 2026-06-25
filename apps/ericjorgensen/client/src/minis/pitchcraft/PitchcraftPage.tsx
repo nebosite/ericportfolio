@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
+import FeedbackPanel from "../../components/FeedbackPanel";
 import {
   PitchcraftEngine,
   Hud,
@@ -418,6 +419,13 @@ export default function PitchcraftPage() {
                 </>
               )}
             </div>
+          </div>
+        )}
+
+        {phase === "intro" && (
+          <div className={styles.feedbackWrap}>
+            <div className={styles.feedbackHeading}>Help shape Pitchcraft</div>
+            <FeedbackPanel entity="pitchcraft" />
           </div>
         )}
 
