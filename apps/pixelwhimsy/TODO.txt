@@ -1,0 +1,21 @@
+
+
+
+## NEW ##################
+    [ ] Test on mobile
+    [ ] Mobile password entry does not work
+    [ ] Parental/sandbox physical protections
+        [ ] Disable all gestures on touchscreens - pull-to-refresh, long-press, pinch, swipe, etc
+        [ ] Lock current screen orientation on start
+        [ ] On start, go to fullscreen/kisok mode so it hides browser headers
+            and disables pull to refresh on mobile
+        [ ] Hijack back button to prevent exiting
+        [ ] Wrap any text/images that might look clickable in pointer-events: none to prevent accidental link clicks
+        [ ] Prevent screen sloop
+        [ ] hide virtual keyboard
+        [ ] Disiplay in standalone mode to hide bottom navigation and status bar controls
+    [ ] Pixelwhimsy: multiversal drawing. Every 10 seconds a snapshot is recorded.
+            If you want to undo, pan through your timeline and select where you want to revert to:
+            doing so will create a new branch on the timeline. You could also merge two
+            snapshots to create a new branch. Merging would be an interesting mechanic...
+            maybe larger bodies of adjacent matching color pixels are selected in the merge.
