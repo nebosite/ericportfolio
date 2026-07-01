@@ -30,12 +30,7 @@ export function isSharp(m: number): boolean {
 }
 
 export type VoiceId =
-  | "contralto"
-  | "mezzo"
-  | "soprano"
-  | "tenor"
-  | "baritone"
-  | "bass";
+  "contralto" | "mezzo" | "soprano" | "tenor" | "baritone" | "bass";
 
 export interface Voice {
   id: VoiceId;

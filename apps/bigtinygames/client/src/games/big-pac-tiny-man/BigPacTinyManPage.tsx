@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BigPacEngine } from './engine';
 import FeedbackPanel from '../../components/FeedbackPanel';
+import { trackEvent } from '../../lib/analytics';
 import styles from './BigPacTinyMan.module.css';
 
 export default function BigPacTinyManPage() {
@@ -58,6 +59,7 @@ export default function BigPacTinyManPage() {
   const handleStart = () => {
     const engine = engineRef.current;
     if (!engine) return;
+    trackEvent('game_start', { game: 'big-pac-tiny-man' });
     engine.start();
     setStarted(true);
   };

@@ -77,6 +77,22 @@ first build (`free -h` should show non-zero Swap).
 `preflight.sh`. Turn every one-off deploy fix into a permanent pre-flight check
 rather than a thing to remember.
 
+## Standard feature: Google Analytics
+
+Every client app in the portfolio is instrumented with GA4 (Measurement ID
+`G-2L0X305YFT`). The gtag snippet lives in each app's `index.html` and fires
+automatic page_view events via GA4 Enhanced Measurement.
+
+**For new pages / apps:**
+- Add the gtag snippet to the new app's `index.html` (copy from any existing app).
+- Key interactions should fire custom events via the app's `src/lib/analytics.ts`
+  helper (`trackEvent(name, params)`). Follow the existing pattern:
+  - Games: `game_start`, `game_over` (with `score`), `score_submitted`
+  - Feedback: `feedback_submitted`, `feedback_voted` (already in FeedbackPanel)
+  - External links: `outbound_link` (already in ericjorgensen's HomePage)
+- No need to track internal React Router navigation — GA4 Enhanced Measurement
+  detects `pushState` changes automatically.
+
 ## Standard feature: per-entity feedback
 
 Every Big Tiny game and the PixelWhimsy app carries a **standard feedback

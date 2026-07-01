@@ -145,9 +145,9 @@ describe("FeedbackPanel — vote on feedback", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/feedback/11/vote", {
       method: "POST",
     });
-    expect(JSON.parse(localStorage.getItem("feedback_voted") ?? "[]")).toContain(
-      11,
-    );
+    expect(
+      JSON.parse(localStorage.getItem("feedback_voted") ?? "[]"),
+    ).toContain(11);
   });
 
   it("does not offer a vote for an item already voted in a previous session", async () => {

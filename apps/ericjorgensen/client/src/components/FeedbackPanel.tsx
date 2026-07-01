@@ -72,13 +72,7 @@ export default function FeedbackPanel({ entity }: { entity: string }) {
   );
 }
 
-function LeaveForm({
-  entity,
-  onDone,
-}: {
-  entity: string;
-  onDone: () => void;
-}) {
+function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<
     "editing" | "submitting" | "done" | "error"

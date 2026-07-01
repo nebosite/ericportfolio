@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PortraitStrip from "../components/PortraitStrip";
 import GrownMark from "../components/GrownMark";
 import { GrowthStyle } from "../lib/growMark";
+import { trackEvent } from "../lib/analytics";
 import styles from "./HomePage.module.css";
 
 // "A Field Guide to a Body of Work" — every project is a living specimen grown
@@ -147,7 +148,13 @@ function ItemName({ item }: { item: ViewItem }) {
     );
   if (item.href)
     return (
-      <a href={item.href} className={styles.itemName}>
+      <a
+        href={item.href}
+        className={styles.itemName}
+        onClick={() =>
+          trackEvent("outbound_link", { url: item.href, name: item.name })
+        }
+      >
         {item.name}
       </a>
     );
