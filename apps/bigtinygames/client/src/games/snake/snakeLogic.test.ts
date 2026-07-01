@@ -48,15 +48,43 @@ function gs(partial: Partial<GameState>): GameState {
 const ghostAt = (cells: Vec[]): Ghost => ({ hx: cells[0].x, hy: cells[0].y, dx: 1, dy: 0, trail: cells });
 
 describe('initialState', () => {
-  it('starts with one centered snake and a single food', () => {
-    const s = initialState(20, 20, () => 0);
+  // rng sequence: rockCount=3 (first 0), then three free cells (0,0),(1,0),(2,0)
+  const openingRng = () => seqRng([0, 0, 0, 0.05, 0, 0.1, 0]);
+
+  it('starts one snake heading right with a 3x3 food cluster dead ahead', () => {
+    const s = initialState(20, 20, openingRng());
     expect(s.snakes).toHaveLength(1);
     expect(s.snakes[0]).toHaveLength(START_LENGTH);
-    expect(s.snakes[0][0]).toEqual({ x: 10, y: 10 });
-    expect(s.foods).toHaveLength(1);
+    // head sits left of center so the cluster fits ahead on the same row
+    const head = s.snakes[0][0];
+    expect(head).toEqual({ x: 5, y: 10 });
+    // a full 3x3 cluster, all on the head's row ±1 and ahead of the head
+    expect(s.foods).toHaveLength(9);
+    expect(s.foods.every((f) => f.x > head.x && Math.abs(f.y - head.y) <= 1)).toBe(true);
+    // the cluster is centered on the head's row so the snake drives into it
+    expect(s.foods.filter((f) => f.y === head.y)).toHaveLength(3);
     expect(s.over).toBe(false);
-    expect(s.cols).toBe(20);
-    expect(s.rows).toBe(20);
+  });
+
+  it('starts with 3-4 rocks, none in the snake or the opening lane', () => {
+    const s = initialState(20, 20, openingRng());
+    expect(s.rocks.length).toBeGreaterThanOrEqual(3);
+    expect(s.rocks.length).toBeLessThanOrEqual(4);
+    const head = s.snakes[0][0];
+    const foodCx = Math.min(20 - 2, head.x + 24);
+    for (const r of s.rocks) {
+      // not on a snake cell
+      expect(s.snakes[0].some((c) => c.x === r.x && c.y === r.y)).toBe(false);
+      // not in the corridor the snake travels to reach its first meal
+      const inLane = r.y === head.y && r.x >= head.x && r.x <= foodCx + 1;
+      expect(inLane).toBe(false);
+    }
+  });
+
+  it('varies the rock count with rng (4 when the count roll is high)', () => {
+    // first roll 0.9 → 3 + floor(0.9*2)=4 rocks, then four distinct free cells
+    const s = initialState(20, 20, seqRng([0.9, 0, 0, 0.05, 0, 0.1, 0, 0.15, 0]));
+    expect(s.rocks).toHaveLength(4);
   });
 });
 

@@ -172,17 +172,52 @@ export function advanceGhost(g: Ghost, cols: number, rows: number): Ghost | null
   return { hx, hy, dx: g.dx, dy: g.dy, trail };
 }
 
-/** A new game: one snake in the center heading right, plus a single food. */
+/**
+ * A new game, staged so the twists land in the first couple of seconds: one
+ * snake heading right straight at a 3×3 food cluster dead ahead (so the very
+ * first bite multiplies the flock), plus 3–4 rocks already on the board so the
+ * hazard reads immediately.
+ */
 export function initialState(cols: number, rows: number, rng: () => number = Math.random): GameState {
-  const snake = makeSnake(Math.floor(cols / 2), Math.floor(rows / 2), { x: 1, y: 0 });
-  const food = randomFreeCell(cols, rows, occupied([snake]), rng);
+  const cy = Math.floor(rows / 2);
+  const headX = Math.max(START_LENGTH - 1, Math.floor(cols / 2) - 5);
+  const snake = makeSnake(headX, cy, { x: 1, y: 0 });
+  const snakeCells = occupied([snake]);
+
+  // A 3×3 food cluster directly ahead on the head's row.
+  const foodCx = Math.min(cols - 2, headX + 24);
+  const foods: Vec[] = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = foodCx + dx;
+      const y = cy + dy;
+      if (inBounds({ x, y }, cols, rows) && !snakeCells.has(ck(x, y))) foods.push({ x, y });
+    }
+  }
+
+  // Block the snake, the cluster, and the corridor between them so no opening
+  // rock lands in the lane and makes the first move a death.
+  const blocked = new Set(snakeCells);
+  for (const f of foods) blocked.add(ck(f.x, f.y));
+  for (let x = headX; x <= foodCx + 1; x++) blocked.add(ck(x, cy));
+
+  // 3–4 starting rocks scattered clear of that lane.
+  const rocks: Vec[] = [];
+  const rockCount = 3 + Math.floor(rng() * 2);
+  for (let i = 0; i < rockCount; i++) {
+    const cell = randomFreeCell(cols, rows, blocked, rng);
+    if (!cell) break;
+    rocks.push(cell);
+    blocked.add(ck(cell.x, cell.y));
+  }
+
   return {
     cols,
     rows,
     snakes: [snake],
-    foods: food ? [food] : [],
+    foods,
     corpses: [],
-    rocks: [],
+    rocks,
     ghosts: [],
     ghostPowerup: null,
     buffs: [0],

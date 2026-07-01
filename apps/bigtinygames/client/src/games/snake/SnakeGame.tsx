@@ -20,7 +20,7 @@ import styles from './SnakeGame.module.css';
 // CELL and the timers are presentation-only.
 const CELL = 12;
 const FOOD_EVERY_MS = 3000; // a new food drops in on this cadence
-const GHOST_POWERUP_FIRST_MS = 4000; // first Ghost powerup appears ~4s into a game
+const GHOST_POWERUP_FIRST_MS = 2000; // first Ghost powerup appears ~2s into a game
 const GHOST_POWERUP_EVERY_MS = 20000; // and then roughly every ~20s
 // Driven off the game loop (in ticks) rather than a wall-clock timer, so it
 // always fires while the loop is running.
@@ -80,17 +80,18 @@ const SPRITE_APPLE = [
   '..########..',
   '...######...',
 ];
+// A few missing interior pixels give the rock a pebbled, shaded look.
 const SPRITE_ROCK = [
   '...######...',
   '..########..',
-  '.##########.',
+  '.##.#######.',
+  '#######.####',
   '############',
+  '####.#######',
   '############',
+  '#########.##',
   '############',
-  '############',
-  '############',
-  '############',
-  '.##########.',
+  '.#####.####.',
   '..########..',
   '...######...',
 ];
@@ -160,14 +161,25 @@ export default function SnakeGame() {
     const state = stateRef.current;
     if (!state) return;
 
-    // Permanent deadly rocks, then dying segments fading bright-white → black.
-    for (const r of state.rocks) drawSprite(ctx, SPRITE_ROCK, r.x, r.y, '#6f6f82');
+    // Rocks are normally gray and deadly, but while any snake is ghost-rushing
+    // they're edible — pulse them blue↔green to signal that.
+    const rushing = state.buffs.some((b) => b > 0);
+    let rockColor = '#6f6f82';
+    if (rushing) {
+      const pulse = 0.5 + 0.5 * Math.sin(((Date.now() % 600) / 600) * Math.PI * 2);
+      const rr = Math.round(60 + (61 - 60) * pulse);
+      const gg = Math.round(120 + (191 - 120) * pulse);
+      const bb = Math.round(230 + (94 - 230) * pulse);
+      rockColor = `rgb(${rr},${gg},${bb})`;
+    }
+    for (const r of state.rocks) drawSprite(ctx, SPRITE_ROCK, r.x, r.y, rockColor);
     for (const c of state.corpses) {
       const v = Math.round((255 * c.life) / CORPSE_LIFE); // life=full → white, 0 → black
       drawSprite(ctx, SPRITE_BODY, c.x, c.y, `rgb(${v},${v},${v})`);
     }
 
-    for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, '#ff5757');
+    // Food is lime-green (green = edible, matching the rush-time rocks).
+    for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, '#7CFC00');
 
     // The Ghost powerup throbs between blue and white.
     if (state.ghostPowerup) {
@@ -261,7 +273,7 @@ export default function SnakeGame() {
 
       let next = step(stateRef.current!, dirRef.current);
 
-      // Drop a Ghost powerup on a cadence measured in ticks (first ~4s, then
+      // Drop a Ghost powerup on a cadence measured in ticks (first ~2s, then
       // ~20s). addGhostPowerup is a no-op while one is already on the field.
       tickRef.current += 1;
       if (

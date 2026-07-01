@@ -44,8 +44,10 @@ further):
 - **Escalation.** A run should get wilder the longer it goes, not just harder.
 - **Stay legible in the chaos.** No matter how much is happening, the player must
   read the board at a glance. Honor the established color language: green = your
-  snakes, **blue** = ghost-rushing, red = food, gray = rock, white→midnight-blue =
-  ghost trail, white→black = dying corpse, throbbing blue/white = Ghost powerup.
+  snakes, **blue** = ghost-rushing, **lime-green = food** (green reads as
+  "edible"), gray = rock — **pulsing blue↔green while any snake is ghost-rushing,
+  when rocks are edible**, white→midnight-blue = ghost trail, white→black = dying
+  corpse, throbbing blue/white = Ghost powerup.
 - **Tiny on huge.** Keep the signature look: 12px code-drawn sprites on a field
   that **fills the viewport**.
 
