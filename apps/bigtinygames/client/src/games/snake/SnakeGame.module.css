@@ -40,6 +40,11 @@
   display: block;
   background: #0d0d14;
   image-rendering: pixelated;
+  /* Touch drives the game directly: no scroll, zoom, long-press or selection. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .overlay {

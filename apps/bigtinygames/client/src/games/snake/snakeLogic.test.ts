@@ -11,6 +11,8 @@ import {
   addGhostPowerup,
   advanceGhost,
   step,
+  swipeDirection,
+  tapTurn,
   type GameState,
   type Ghost,
 } from './snakeLogic';
@@ -392,6 +394,38 @@ describe('ghost rush (buff)', () => {
   it('still kills an unbuffed snake on a rock', () => {
     const r = step(gs({ snakes: [[{ x: 5, y: 5 }, { x: 4, y: 5 }]], rocks: [{ x: 6, y: 5 }] }), RIGHT);
     expect(r.over).toBe(true);
+  });
+});
+
+describe('touch steering', () => {
+  it('resolves a swipe to its dominant axis', () => {
+    expect(swipeDirection(50, 5)).toEqual({ x: 1, y: 0 }); // right
+    expect(swipeDirection(-50, 5)).toEqual({ x: -1, y: 0 }); // left
+    expect(swipeDirection(5, 50)).toEqual({ x: 0, y: 1 }); // down
+    expect(swipeDirection(5, -50)).toEqual({ x: 0, y: -1 }); // up
+  });
+
+  it('ties on the horizontal axis', () => {
+    expect(swipeDirection(30, 30)).toEqual({ x: 1, y: 0 });
+    expect(swipeDirection(-30, -30)).toEqual({ x: -1, y: 0 });
+  });
+
+  it('turns toward a tap perpendicular to a horizontal heading', () => {
+    const head = { x: 10, y: 10 };
+    expect(tapTurn(RIGHT, head, { x: 15, y: 3 })).toEqual({ x: 0, y: -1 }); // tap above → up
+    expect(tapTurn(RIGHT, head, { x: 2, y: 18 })).toEqual({ x: 0, y: 1 }); // tap below → down
+  });
+
+  it('turns toward a tap perpendicular to a vertical heading', () => {
+    const head = { x: 10, y: 10 };
+    expect(tapTurn(UP, head, { x: 3, y: 4 })).toEqual({ x: -1, y: 0 }); // tap left → left
+    expect(tapTurn(UP, head, { x: 18, y: 4 })).toEqual({ x: 1, y: 0 }); // tap right → right
+  });
+
+  it('returns null when the tap is aligned with the heading axis', () => {
+    const head = { x: 10, y: 10 };
+    expect(tapTurn(RIGHT, head, { x: 15, y: 10 })).toBeNull(); // dead ahead, same row
+    expect(tapTurn(UP, head, { x: 10, y: 2 })).toBeNull(); // dead ahead, same column
   });
 });
 

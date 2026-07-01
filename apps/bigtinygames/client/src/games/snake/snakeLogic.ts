@@ -172,6 +172,32 @@ export function advanceGhost(g: Ghost, cols: number, rows: number): Ghost | null
   return { hx, hy, dx: g.dx, dy: g.dy, trail };
 }
 
+/** Turn a swipe delta (px or cells) into a 4-way heading by its dominant axis. */
+export function swipeDirection(dx: number, dy: number): Vec {
+  return Math.abs(dx) >= Math.abs(dy)
+    ? { x: dx < 0 ? -1 : 1, y: 0 }
+    : { x: 0, y: dy < 0 ? -1 : 1 };
+}
+
+/**
+ * Steer toward a tapped cell. A snake can't reverse or "turn" the way it's
+ * already heading, so we turn on the axis perpendicular to the current heading,
+ * toward the tap. Returns null when the tap is aligned with the heading axis and
+ * gives no unambiguous turn.
+ */
+export function tapTurn(cur: Vec, head: Vec, tap: Vec): Vec | null {
+  if (cur.y === 0) {
+    // moving horizontally → steer vertically toward the tap
+    if (tap.y < head.y) return { x: 0, y: -1 };
+    if (tap.y > head.y) return { x: 0, y: 1 };
+    return null;
+  }
+  // moving vertically → steer horizontally toward the tap
+  if (tap.x < head.x) return { x: -1, y: 0 };
+  if (tap.x > head.x) return { x: 1, y: 0 };
+  return null;
+}
+
 /**
  * A new game, staged so the twists land in the first couple of seconds: one
  * snake heading right straight at a 3×3 food cluster dead ahead (so the very

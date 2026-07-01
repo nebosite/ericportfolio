@@ -1,5 +1,10 @@
 .page {
-  min-height: 100vh;
+  /* Fill exactly the viewport (dvh tracks mobile browser chrome) and never
+     scroll — the play field flexes to whatever space is left. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
   display: flex;
   flex-direction: column;
 }
@@ -38,6 +43,7 @@
 
 .main {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -55,4 +61,34 @@
 
 .footer p {
   margin: 0;
+}
+
+/* Mobile: trim the chrome so the play field fills the screen without scrolling. */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0.5rem 0.75rem 0.35rem;
+    gap: 0.5rem;
+  }
+
+  .title {
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+  }
+
+  .backLink {
+    font-size: 0.8rem;
+  }
+
+  .spacer {
+    width: 3rem;
+  }
+
+  .main {
+    padding: 0.5rem;
+  }
+
+  .footer {
+    padding: 0.5rem;
+    font-size: 0.7rem;
+  }
 }

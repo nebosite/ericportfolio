@@ -10,6 +10,8 @@ import {
   addFood,
   addGhostPowerup,
   step,
+  swipeDirection,
+  tapTurn,
 } from './snakeLogic';
 import FeedbackPanel from '../../components/FeedbackPanel';
 import { trackEvent } from '../../lib/analytics';
@@ -245,24 +247,75 @@ export default function SnakeGame() {
   // Redraw whenever the phase changes (e.g. to show the cleared field).
   useEffect(draw, [draw, phase]);
 
-  // Keyboard + gamepad via the shared input module. One heading steers every
-  // snake. Queue turns so quick double-taps can't reverse within a single tick.
+  // Queue a turn, shared by every input source (keys, gamepad, touch). One
+  // heading steers every snake; queuing lets quick inputs land on later ticks
+  // without ever reversing within a single tick.
+  const queueDir = useCallback((dir: Vec) => {
+    const queue = dirQueueRef.current;
+    const last = queue.length > 0 ? queue[queue.length - 1] : dirRef.current;
+    if (dir.x === -last.x && dir.y === -last.y) return; // no 180° turns
+    if (dir.x === last.x && dir.y === last.y) return; // already heading there
+    if (queue.length < 3) queue.push(dir);
+  }, []);
+
+  // Keyboard + gamepad via the shared input module.
   useEffect(() => {
     if (phase === 'playing') {
-      return attachGameInput({
-        onDirection: (dir) => {
-          const queue = dirQueueRef.current;
-          const last = queue.length > 0 ? queue[queue.length - 1] : dirRef.current;
-          if (dir.x === -last.x && dir.y === -last.y) return; // no 180° turns
-          if (dir.x === last.x && dir.y === last.y) return;
-          if (queue.length < 3) queue.push(dir);
-        },
-      });
+      return attachGameInput({ onDirection: queueDir });
     }
     if (phase === 'idle' || phase === 'saved') {
       return attachGameInput({ onConfirm: startGame });
     }
-  }, [phase, startGame]);
+  }, [phase, startGame, queueDir]);
+
+  // Touch (mobile): swipe to steer by dominant axis; a tap turns the snake
+  // toward the tapped cell. Bound to the canvas so page scroll never fires.
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const SWIPE_MIN = 24; // px of travel that counts as a swipe rather than a tap
+    let sx = 0;
+    let sy = 0;
+
+    const onStart = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      sx = t.clientX;
+      sy = t.clientY;
+      e.preventDefault();
+    };
+    const onMove = (e: TouchEvent) => e.preventDefault();
+    const onEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (Math.abs(dx) > SWIPE_MIN || Math.abs(dy) > SWIPE_MIN) {
+        queueDir(swipeDirection(dx, dy));
+        return;
+      }
+      // A tap: steer the reference snake (snakes share one heading) toward it.
+      const state = stateRef.current;
+      if (!state || state.snakes.length === 0) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const tap = {
+        x: Math.floor(((t.clientX - rect.left) * (canvas.width / rect.width)) / CELL),
+        y: Math.floor(((t.clientY - rect.top) * (canvas.height / rect.height)) / CELL),
+      };
+      const dir = tapTurn(dirRef.current, state.snakes[0][0], tap);
+      if (dir) queueDir(dir);
+    };
+
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove', onMove, { passive: false });
+    canvas.addEventListener('touchend', onEnd, { passive: false });
+    return () => {
+      canvas.removeEventListener('touchstart', onStart);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onEnd);
+    };
+  }, [phase, queueDir]);
 
   // Main game loop.
   useEffect(() => {
@@ -346,7 +399,7 @@ export default function SnakeGame() {
         <span>SCORE: {score.toString().padStart(6, '0')}</span>
         <span>SNAKES ×{alive}</span>
         {ghosts > 0 && <span className={styles.ghostCount}>GHOSTS ×{ghosts}</span>}
-        <span>ARROWS / WASD / PAD</span>
+        <span>SWIPE · TAP · KEYS · PAD</span>
       </div>
 
       <div ref={stageRef} className={styles.stage}>
@@ -357,6 +410,7 @@ export default function SnakeGame() {
             <p className={styles.overlayTitle}>BIG TINY SNAKE</p>
             <p>One field, one heading, ever more snakes. Eat to multiply — keep them all alive.</p>
             <p>Grab the throbbing 👻 Ghost for a wild burst — but beware its sweeping trails.</p>
+            <p>Swipe or tap to steer · arrows / WASD / gamepad also work.</p>
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
             </button>
