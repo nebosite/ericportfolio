@@ -354,8 +354,7 @@ export function detectVoicePitch(
 
   // Magnitude spectrum over the search band (plus one guard bin each side).
   const mag = new Float32Array(maxK + 2);
-  for (let k = minK - 1; k <= maxK + 1; k++)
-    mag[k] = Math.hypot(re[k], im[k]);
+  for (let k = minK - 1; k <= maxK + 1; k++) mag[k] = Math.hypot(re[k], im[k]);
 
   // Noise floor = median magnitude (robust to a few dominant peaks).
   const slice = Array.from(mag.slice(minK, maxK + 1)).sort((a, b) => a - b);

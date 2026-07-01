@@ -357,7 +357,9 @@ export class PitchcraftEngine {
     // the voice's harmonic structure to tell the singer apart from the tone.
     const pr = this.pitch.read();
     const hz = pr ? pr.f0 : -1;
-    this.harm = pr ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident } : null;
+    this.harm = pr
+      ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident }
+      : null;
 
     if (toneNote) {
       const idx = this.notes.indexOf(toneNote);
@@ -397,7 +399,11 @@ export class PitchcraftEngine {
     this.pushHud(now, cn, ph, scoring, q, vibrato);
   };
 
-  private scoreStep(now: number, scoring: PlayNote | null, vibrato: boolean): void {
+  private scoreStep(
+    now: number,
+    scoring: PlayNote | null,
+    vibrato: boolean,
+  ): void {
     if (this.lastNow == null) this.lastNow = now;
     let dt = now - this.lastNow;
     this.lastNow = now;

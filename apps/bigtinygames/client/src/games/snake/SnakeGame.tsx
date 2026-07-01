@@ -12,6 +12,7 @@ import {
   step,
 } from './snakeLogic';
 import FeedbackPanel from '../../components/FeedbackPanel';
+import { trackEvent } from '../../lib/analytics';
 import styles from './SnakeGame.module.css';
 
 // The Big Tiny aesthetic: tiny 8x8 sprites on a field that fills the screen.
@@ -256,6 +257,7 @@ export default function SnakeGame() {
       setAlive(next.snakes.length);
       setGhosts(next.ghosts.length);
       if (next.over) {
+        trackEvent('game_over', { game: 'snake', score: next.score });
         setPhase('gameover');
         return;
       }
@@ -286,6 +288,7 @@ export default function SnakeGame() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initials: clean, score }),
       });
+      trackEvent('score_submitted', { game: 'snake', score, initials: clean });
       loadLeaderboard();
     } finally {
       setPhase('saved');

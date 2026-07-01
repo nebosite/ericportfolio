@@ -1,4 +1,5 @@
 import { useEffect, useState, FormEvent } from 'react';
+import { trackEvent } from '../lib/analytics';
 import styles from './FeedbackPanel.module.css';
 
 // Standard per-entity feedback feature: two buttons on a title screen that let
@@ -77,6 +78,7 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setStatus('done');
+      trackEvent('feedback_submitted', { entity, text_length: trimmed.length });
     } catch {
       setStatus('error');
     }
@@ -153,6 +155,7 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { votes } = (await res.json()) as { votes: number };
       rememberVote(item.id);
+      trackEvent('feedback_voted', { entity, feedback_id: item.id, votes });
       setVoted(readVoted());
       setItems((cur) => (cur ? cur.map((i) => (i.id === item.id ? { ...i, votes } : i)) : cur));
     } catch {

@@ -118,8 +118,7 @@ export async function addHistory(rec: SessionRecord): Promise<void> {
  */
 export function submitHighScore(rec: SessionRecord): void {
   const base = (import.meta as any)?.env?.VITE_PITCHCRAFT_API as
-    | string
-    | undefined;
+    string | undefined;
   if (!base) return;
   fetch(base.replace(/\/$/, "") + "/highscores", {
     method: "POST",
