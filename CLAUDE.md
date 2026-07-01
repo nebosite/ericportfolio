@@ -80,7 +80,7 @@ rather than a thing to remember.
 ## Standard feature: Google Analytics
 
 Every client app in the portfolio is instrumented with GA4 (Measurement ID
-`G-2L0X305YFT`). The gtag snippet lives in each app's `index.html` and fires
+`G-1BKFJPXQYE`). The gtag snippet lives in each app's `index.html` and fires
 automatic page_view events via GA4 Enhanced Measurement.
 
 **For new pages / apps:**
