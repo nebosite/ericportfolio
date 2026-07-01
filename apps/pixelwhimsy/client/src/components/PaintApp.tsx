@@ -209,26 +209,6 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     return () => window.clearInterval(id);
   }, []);
 
-  // Containment: the mouse's back/forward side buttons must never navigate away
-  // from the toy — swallow them everywhere.
-  useEffect(() => {
-    const blockNav = (e: MouseEvent) => {
-      if (e.button === 3 || e.button === 4) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    const opts = { capture: true } as const;
-    window.addEventListener("mousedown", blockNav, opts);
-    window.addEventListener("mouseup", blockNav, opts);
-    window.addEventListener("auxclick", blockNav, opts);
-    return () => {
-      window.removeEventListener("mousedown", blockNav, opts);
-      window.removeEventListener("mouseup", blockNav, opts);
-      window.removeEventListener("auxclick", blockNav, opts);
-    };
-  }, []);
-
   // Client coords → fractional toy-pixel-cell position (may be off-canvas).
   const toCell = (clientX: number, clientY: number): Pt | null => {
     const canvas = canvasRef.current;

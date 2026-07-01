@@ -76,19 +76,6 @@ describe('PaintApp', () => {
     expect(screen.getByRole('button', { name: 'Clear screen' })).toBeInTheDocument();
   });
 
-  it('swallows the mouse back and forward side buttons', () => {
-    render(<PaintApp onExit={vi.fn()} />);
-    for (const button of [3, 4]) {
-      const ev = new MouseEvent('mousedown', { button, cancelable: true, bubbles: true });
-      window.dispatchEvent(ev);
-      expect(ev.defaultPrevented).toBe(true);
-    }
-    // a normal left click is left alone
-    const left = new MouseEvent('mousedown', { button: 0, cancelable: true, bubbles: true });
-    window.dispatchEvent(left);
-    expect(left.defaultPrevented).toBe(false);
-  });
-
   it('exits only after the math gate is solved', () => {
     const onExit = vi.fn();
     render(<PaintApp onExit={onExit} />);
