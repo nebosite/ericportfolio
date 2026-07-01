@@ -25,15 +25,20 @@ export const BLANK_INDEX = 0;
 export const ANIM_BASE = 128; // high-bit colors start here
 export const GROUP_SIZE = 8;
 export const GROUP_COUNT = (PALETTE_SIZE - ANIM_BASE) / GROUP_SIZE; // 16
-const ANIM_WHITE = '#ffffff';
+const WHITE = '#ffffff';
+const BLACK = '#000000';
 
-// Static colors: index 0 is blank/white, then the crayons at 1..16.
+// Static colors: index 0 is blank (the mode's background), then crayons at 1..16.
 export const STATIC_COLORS: readonly string[] = [BLANK, ...CRAYONS];
 
-// One base color per animated group — vivid crayons (white can't animate against
-// a white background), wrapping if there are more groups than colors.
+// One base color per animated group — vivid crayons only. White and black are
+// excluded: an animated color has to read against BOTH the light (white) and
+// dark (black) backgrounds, and each of those vanishes on one of them.
 export const GROUP_COLORS: readonly string[] = (() => {
-  const vivid = CRAYONS.filter((c) => c.toLowerCase() !== ANIM_WHITE);
+  const vivid = CRAYONS.filter((c) => {
+    const l = c.toLowerCase();
+    return l !== WHITE && l !== BLACK;
+  });
   return Array.from({ length: GROUP_COUNT }, (_, g) => vivid[g % vivid.length]);
 })();
 
@@ -63,44 +68,55 @@ function ringDist(a: number, b: number, n: number): number {
   return Math.min(d, n - d);
 }
 
-/** Halfway between a "#rrggbb" color and white — a softened tint. */
-function halfToWhite(hex: string): string {
+/** Halfway between a "#rrggbb" color and a target ("#ffffff" or "#000000"). */
+function halfTo(hex: string, target: string): string {
   const mid = (i: number) =>
-    Math.round((parseInt(hex.slice(i, i + 2), 16) + 255) / 2)
+    Math.round(
+      (parseInt(hex.slice(i, i + 2), 16) + parseInt(target.slice(i, i + 2), 16)) /
+        2,
+    )
       .toString(16)
       .padStart(2, "0");
   return `#${mid(1)}${mid(3)}${mid(5)}`;
 }
 
-// Feathered shoulders: each step away from the lit slot fades halfway toward
-// white. Three shoulders on each side, then the farthest slot (the "rest") gets
-// one more half-step — never pure white, so the whole group stays gently tinted.
-export const GROUP_HALF: readonly string[] = GROUP_COLORS.map(halfToWhite);
-export const GROUP_FAINT: readonly string[] = GROUP_HALF.map(halfToWhite);
-export const GROUP_FAINTER: readonly string[] = GROUP_FAINT.map(halfToWhite);
-export const GROUP_REST: readonly string[] = GROUP_FAINTER.map(halfToWhite);
+// Feathered shoulders: each step away from the lit slot fades halfway toward the
+// background. Three shoulders on each side, then the farthest slot (the "rest")
+// gets one more half-step — never reaching the background, so the whole group
+// stays gently tinted. Two ladders: toward white (light mode) and black (dark).
+function buildLadder(target: string): readonly (readonly string[])[] {
+  const half = GROUP_COLORS.map((c) => halfTo(c, target));
+  const faint = half.map((c) => halfTo(c, target));
+  const fainter = faint.map((c) => halfTo(c, target));
+  const rest = fainter.map((c) => halfTo(c, target));
+  return [GROUP_COLORS, half, faint, fainter, rest];
+}
 
-// Indexed by min(ring distance, 4): full color, three shoulders, then the rest.
-const SHADES: readonly (readonly string[])[] = [
-  GROUP_COLORS,
-  GROUP_HALF,
-  GROUP_FAINT,
-  GROUP_FAINTER,
-  GROUP_REST,
-];
+const SHADES_LIGHT = buildLadder(WHITE);
+const SHADES_DARK = buildLadder(BLACK);
+
+// Backward-compatible light-mode shade exports (indexed by ring distance).
+export const GROUP_HALF: readonly string[] = SHADES_LIGHT[1];
+export const GROUP_FAINT: readonly string[] = SHADES_LIGHT[2];
+export const GROUP_FAINTER: readonly string[] = SHADES_LIGHT[3];
+export const GROUP_REST: readonly string[] = SHADES_LIGHT[4];
 
 /**
- * The color string an index resolves to at a given animation phase. The lit slot
- * shows the full group color; each step away fades one shade toward white (three
- * shoulders on each side), and the farthest slot is the faint "rest" tint —
- * never pure white, so the whole group stays gently colored.
+ * The color string an index resolves to at a given animation phase and mode. The
+ * lit slot shows the full group color; each step away fades one shade toward the
+ * background (white in light mode, black in dark), down to the faint "rest" tint
+ * — never the background itself, so the group stays gently colored.
  */
-export function colorAt(index: number, phase: number): string {
-  if (index < ANIM_BASE) return STATIC_COLORS[index] ?? BLANK;
+export function colorAt(index: number, phase: number, dark = false): string {
+  if (index < ANIM_BASE) {
+    if (index === BLANK_INDEX) return dark ? BLACK : WHITE;
+    return STATIC_COLORS[index] ?? (dark ? BLACK : WHITE);
+  }
+  const shades = dark ? SHADES_DARK : SHADES_LIGHT;
   const g = groupOf(index);
   const slot = (index - ANIM_BASE) % GROUP_SIZE;
   const d = ringDist(slot, litSlot(phase), GROUP_SIZE);
-  return SHADES[Math.min(d, SHADES.length - 1)][g];
+  return shades[Math.min(d, shades.length - 1)][g];
 }
 
 /** Pack "#rrggbb" into a little-endian RGBA word for canvas ImageData. */
@@ -112,26 +128,36 @@ export function hexToRgba32(hex: string): number {
 }
 
 const STATIC_RGBA = STATIC_COLORS.map(hexToRgba32);
-const WHITE_RGBA = hexToRgba32(ANIM_WHITE);
-// Per-shade RGBA tables, parallel to SHADES, for the render loop.
-const SHADE_RGBA: number[][] = SHADES.map((arr) => arr.map(hexToRgba32));
+const WHITE_RGBA = hexToRgba32(WHITE);
+const BLACK_RGBA = hexToRgba32(BLACK);
+// Per-shade RGBA tables for the render loop, one set per background mode.
+const SHADE_RGBA_LIGHT: number[][] = SHADES_LIGHT.map((arr) => arr.map(hexToRgba32));
+const SHADE_RGBA_DARK: number[][] = SHADES_DARK.map((arr) => arr.map(hexToRgba32));
 
 /**
- * Build the 256-entry index→RGBA lookup for the given animation phase, into
- * `out` (reused across frames to avoid allocation). Static entries are constant;
- * within each high-bit group the lit slot carries the full color and each step
- * away fades a shade toward white (down to the faint "rest" tint).
+ * Build the 256-entry index→RGBA lookup for the given animation phase and mode,
+ * into `out` (reused across frames to avoid allocation). Static crayons are
+ * constant; the blank background (index 0) follows the mode (white/black), and
+ * within each high-bit group the lit slot carries the full color while each step
+ * away fades a shade toward the background (down to the faint "rest" tint).
  */
-export function buildPalette32(phase: number, out: Uint32Array = new Uint32Array(PALETTE_SIZE)): Uint32Array {
+export function buildPalette32(
+  phase: number,
+  out: Uint32Array = new Uint32Array(PALETTE_SIZE),
+  dark = false,
+): Uint32Array {
+  const base = dark ? BLACK_RGBA : WHITE_RGBA;
+  const shadeRGBA = dark ? SHADE_RGBA_DARK : SHADE_RGBA_LIGHT;
   for (let i = 0; i < ANIM_BASE; i++) {
-    out[i] = i < STATIC_RGBA.length ? STATIC_RGBA[i] : WHITE_RGBA;
+    out[i] = i < STATIC_RGBA.length ? STATIC_RGBA[i] : base;
   }
+  out[BLANK_INDEX] = base; // the blank background follows the mode
   const lit = litSlot(phase);
   for (let g = 0; g < GROUP_COUNT; g++) {
-    const base = ANIM_BASE + g * GROUP_SIZE;
+    const b = ANIM_BASE + g * GROUP_SIZE;
     for (let s = 0; s < GROUP_SIZE; s++) {
       const d = ringDist(s, lit, GROUP_SIZE);
-      out[base + s] = SHADE_RGBA[Math.min(d, SHADE_RGBA.length - 1)][g];
+      out[b + s] = shadeRGBA[Math.min(d, shadeRGBA.length - 1)][g];
     }
   }
   return out;

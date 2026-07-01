@@ -6,7 +6,6 @@ import {
 } from "react";
 import {
   PALETTE,
-  BLANK,
   CELL,
   TOOLBAR,
   Brush,
@@ -16,9 +15,9 @@ import {
 } from "../lib/paint";
 import {
   ANIM_BASE,
+  BLANK_INDEX,
   GROUP_SIZE,
   GROUP_COUNT,
-  STATIC_COLORS,
   GROUP_COLORS,
   animIndex,
   groupOf,
@@ -86,11 +85,16 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
 
+  // Dark mode: the blank background is black and animated colors fade to black.
+  const [dark, setDark] = useState(false);
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
+
   // The current paint as one solid color, for the brush icons (white stays
   // visible thanks to the icon outline). Animated paint shows its vivid base.
   const currentColor =
     paint.kind === "static"
-      ? (STATIC_COLORS[paint.index] ?? BLANK)
+      ? colorAt(paint.index, swatchPhase, dark)
       : GROUP_COLORS[paint.group];
 
   const [gateOpen, setGateOpen] = useState(false);
@@ -198,11 +202,31 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     const id = window.setInterval(() => {
       phaseRef.current += 1;
-      buildPalette32(phaseRef.current, paletteRef.current);
+      buildPalette32(phaseRef.current, paletteRef.current, darkRef.current);
       setSwatchPhase(phaseRef.current);
       if (hasAnimatedRef.current) requestRender();
     }, ANIM_MS);
     return () => window.clearInterval(id);
+  }, []);
+
+  // Containment: the mouse's back/forward side buttons must never navigate away
+  // from the toy — swallow them everywhere.
+  useEffect(() => {
+    const blockNav = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    const opts = { capture: true } as const;
+    window.addEventListener("mousedown", blockNav, opts);
+    window.addEventListener("mouseup", blockNav, opts);
+    window.addEventListener("auxclick", blockNav, opts);
+    return () => {
+      window.removeEventListener("mousedown", blockNav, opts);
+      window.removeEventListener("mouseup", blockNav, opts);
+      window.removeEventListener("auxclick", blockNav, opts);
+    };
   }, []);
 
   // Client coords → fractional toy-pixel-cell position (may be off-canvas).
@@ -275,6 +299,24 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     const w = 360;
     setDialogPos({ x: Math.max(8, (window.innerWidth - w) / 2), y: 64 });
     setDialogOpen(true);
+  };
+
+  // Wipe the canvas back to the (mode's) blank background. Clearing is blessed
+  // as playful by the North Star, so it needs no gate.
+  const clearScreen = () => {
+    idxRef.current.fill(BLANK_INDEX);
+    hasAnimatedRef.current = false;
+    requestRender();
+  };
+
+  // Flip light/dark. Rebuild the palette immediately so the switch is instant
+  // even when nothing animated is on screen to trigger the next tick.
+  const toggleDark = () => {
+    const next = !darkRef.current;
+    darkRef.current = next;
+    setDark(next);
+    buildPalette32(phaseRef.current, paletteRef.current, next);
+    requestRender();
   };
 
   // Drag the palette dialog by its handle (pointer-captured, clamped on-screen).
@@ -380,6 +422,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     <div
       ref={playRef}
       className={dialogOpen ? `${styles.play} ${styles.eyedrop}` : styles.play}
+      style={{ background: dark ? "#000" : "#fff" }}
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
     >
@@ -427,6 +470,25 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
             )}
           </button>
         ))}
+
+        <button
+          type="button"
+          aria-label="Clear screen"
+          className={styles.tool}
+          onClick={clearScreen}
+        >
+          <span className={styles.toolEmoji}>🧹</span>
+        </button>
+
+        <button
+          type="button"
+          aria-label={dark ? "Light mode" : "Dark mode"}
+          aria-pressed={dark}
+          className={styles.tool}
+          onClick={toggleDark}
+        >
+          <span className={styles.toolEmoji}>{dark ? "☀️" : "🌙"}</span>
+        </button>
       </div>
 
       {/* Drawing canvas — one toy pixel = 10x10 real pixels */}
@@ -496,6 +558,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
                       backgroundColor: colorAt(
                         ANIM_BASE + g * GROUP_SIZE + s,
                         swatchPhase,
+                        dark,
                       ),
                     }}
                   />

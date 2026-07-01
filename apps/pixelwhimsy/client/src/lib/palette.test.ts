@@ -123,4 +123,28 @@ describe('buildPalette32', () => {
     const buf = new Uint32Array(256);
     expect(buildPalette32(0, buf)).toBe(buf);
   });
+
+  it('bases on white in light mode and black in dark mode', () => {
+    expect(buildPalette32(0)[0]).toBe(hexToRgba32('#ffffff'));
+    expect(buildPalette32(0, undefined, true)[0]).toBe(hexToRgba32('#000000'));
+  });
+});
+
+describe('dark mode', () => {
+  it('fades animated shoulders toward black, not white', () => {
+    const g = 0;
+    const rest = ANIM_BASE + g * GROUP_SIZE + 4; // farthest slot from a lit slot 0
+    const dark = colorAt(rest, 0, true);
+    const light = colorAt(rest, 0, false);
+    expect(dark).not.toBe(light);
+    expect(dark).not.toBe('#000000'); // never reaches the background
+    expect(colorAt(ANIM_BASE + g * GROUP_SIZE, 0, true)).toBe(GROUP_COLORS[g]); // lit slot is full color in both modes
+  });
+
+  it('animated groups avoid white and black so they show on both backgrounds', () => {
+    for (const c of GROUP_COLORS) {
+      expect(c.toLowerCase()).not.toBe('#ffffff');
+      expect(c.toLowerCase()).not.toBe('#000000');
+    }
+  });
 });

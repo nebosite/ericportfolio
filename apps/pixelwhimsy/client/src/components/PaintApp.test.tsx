@@ -22,11 +22,6 @@ describe('PaintApp', () => {
     }
   });
 
-  it('has no clear button', () => {
-    render(<PaintApp onExit={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-  });
-
   it('has no always-on color strip; colors live behind the palette button', () => {
     render(<PaintApp onExit={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Color palette' })).toBeInTheDocument();
@@ -59,6 +54,39 @@ describe('PaintApp', () => {
     expect(
       screen.queryByRole('button', { name: 'Close colors' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('offers clear and dark-mode buttons in the toolbar', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Clear screen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dark mode' })).toBeInTheDocument();
+  });
+
+  it('toggles between dark and light mode', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Dark mode' }));
+    expect(screen.getByRole('button', { name: 'Light mode' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Light mode' }));
+    expect(screen.getByRole('button', { name: 'Dark mode' })).toBeInTheDocument();
+  });
+
+  it('clear screen button is clickable without error', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear screen' }));
+    expect(screen.getByRole('button', { name: 'Clear screen' })).toBeInTheDocument();
+  });
+
+  it('swallows the mouse back and forward side buttons', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    for (const button of [3, 4]) {
+      const ev = new MouseEvent('mousedown', { button, cancelable: true, bubbles: true });
+      window.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+    }
+    // a normal left click is left alone
+    const left = new MouseEvent('mousedown', { button: 0, cancelable: true, bubbles: true });
+    window.dispatchEvent(left);
+    expect(left.defaultPrevented).toBe(false);
   });
 
   it('exits only after the math gate is solved', () => {
