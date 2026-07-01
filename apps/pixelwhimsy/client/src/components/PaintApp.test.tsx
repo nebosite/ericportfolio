@@ -81,14 +81,14 @@ describe('PaintApp', () => {
     render(<PaintApp onExit={onExit} />);
     fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
     expect(onExit).not.toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: '4' }); // 2 × 2 = 4
+    fireEvent.change(screen.getByLabelText('Answer'), { target: { value: '4' } }); // 2 × 2 = 4
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
   it('locks the exit with a countdown after a wrong answer', () => {
     render(<PaintApp onExit={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
-    fireEvent.keyDown(window, { key: '9' }); // wrong → lock
+    fireEvent.change(screen.getByLabelText('Answer'), { target: { value: '9' } }); // wrong → lock
     const locked = screen.getByRole('button', { name: /exit locked for \d+ seconds/i });
     expect(locked).toBeDisabled();
   });

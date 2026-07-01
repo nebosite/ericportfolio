@@ -3,8 +3,12 @@ import { makeProblem, evaluateAnswer, Problem } from '../lib/exitChallenge';
 import styles from './ExitGate.module.css';
 
 // A grown-up-only gate: solve a small multiplication problem to leave. Digits
-// are evaluated on every keypress (no Enter). A wrong answer bails out and tells
+// are evaluated as they're typed (no Enter). A wrong answer bails out and tells
 // the parent to lock the exit for a while; tapping outside just keeps painting.
+//
+// The answer is a focused numeric input (inputMode="numeric") so phones/tablets
+// pop the on-screen number keypad; a physical keyboard types into it just the
+// same.
 
 export default function ExitGate({
   onSolved,
@@ -19,35 +23,46 @@ export default function ExitGate({
 }) {
   const [problem] = useState<Problem>(() => injected ?? makeProblem());
   const [typed, setTyped] = useState('');
-  const typedRef = useRef('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Focus on open so a physical keyboard works immediately and mobile has the
+  // best chance of raising the keypad without an extra tap.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key < '0' || e.key > '9' || e.key.length !== 1) return;
-      e.preventDefault();
-      const next = typedRef.current + e.key;
-      const state = evaluateAnswer(problem.answer, next);
-      if (state === 'correct') {
-        onSolved();
-        return;
-      }
-      if (state === 'wrong') {
-        onWrong();
-        return;
-      }
-      typedRef.current = next;
-      setTyped(next);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [problem, onSolved, onWrong]);
+    inputRef.current?.focus();
+  }, []);
+
+  const handle = (raw: string) => {
+    const digits = raw.replace(/\D/g, ''); // ignore anything but digits
+    const state = evaluateAnswer(problem.answer, digits);
+    if (state === 'correct') {
+      onSolved();
+      return;
+    }
+    if (state === 'wrong') {
+      onWrong();
+      return;
+    }
+    setTyped(digits);
+  };
 
   return (
     <div className={styles.backdrop} onPointerDown={onCancel}>
       <div className={styles.box} onPointerDown={(e) => e.stopPropagation()}>
         <p className={styles.prompt}>A grown-up question to leave:</p>
         <p className={styles.problem}>
-          {problem.a} × {problem.b} = <span className={styles.typed}>{typed || '?'}</span>
+          {problem.a} × {problem.b} ={' '}
+          <input
+            ref={inputRef}
+            className={styles.answer}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="off"
+            aria-label="Answer"
+            placeholder="?"
+            value={typed}
+            onChange={(e) => handle(e.target.value)}
+          />
         </p>
         <p className={styles.hint}>Type the answer · tap outside to keep painting</p>
       </div>

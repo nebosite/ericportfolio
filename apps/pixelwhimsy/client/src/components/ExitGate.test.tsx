@@ -20,28 +20,34 @@ function renderGate(answer: number, handlers: Partial<Record<'onSolved' | 'onWro
 }
 
 describe('ExitGate', () => {
-  it('solves on the exact answer, evaluated per keypress (no Enter)', () => {
+  it('solves on the exact answer, evaluated as it is typed (no Enter)', () => {
     const { onSolved } = renderGate(56);
-    fireEvent.keyDown(window, { key: '5' });
+    const input = screen.getByLabelText('Answer');
+    fireEvent.change(input, { target: { value: '5' } });
     expect(onSolved).not.toHaveBeenCalled(); // 5 is just a prefix of 56
-    fireEvent.keyDown(window, { key: '6' });
+    fireEvent.change(input, { target: { value: '56' } });
     expect(onSolved).toHaveBeenCalledTimes(1);
   });
 
-  it('fails fast on a wrong digit', () => {
+  it('fails fast on a wrong answer', () => {
     const { onWrong, onSolved } = renderGate(6);
-    fireEvent.keyDown(window, { key: '7' });
+    fireEvent.change(screen.getByLabelText('Answer'), { target: { value: '7' } });
     expect(onWrong).toHaveBeenCalledTimes(1);
     expect(onSolved).not.toHaveBeenCalled();
   });
 
-  it('ignores non-digit keys', () => {
-    const { container, onSolved, onWrong } = renderGate(20);
-    fireEvent.keyDown(window, { key: 'a' });
-    fireEvent.keyDown(window, { key: 'Enter' });
+  it('ignores non-digit input', () => {
+    const { onSolved, onWrong } = renderGate(20);
+    const input = screen.getByLabelText('Answer') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'abc' } });
     expect(onSolved).not.toHaveBeenCalled();
     expect(onWrong).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('?'); // nothing typed yet
+    expect(input.value).toBe(''); // stripped to nothing typed
+  });
+
+  it('offers a numeric input so mobile shows the number keypad', () => {
+    renderGate(12);
+    expect(screen.getByLabelText('Answer')).toHaveAttribute('inputmode', 'numeric');
   });
 
   it('keeps painting (cancels) when the backdrop is tapped', () => {

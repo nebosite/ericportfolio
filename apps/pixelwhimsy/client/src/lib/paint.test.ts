@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gridSize, brushOffsets, floodFill, CELL } from './paint';
+import { gridSize, brushOffsets, brushRadius, floodFill, CELL } from './paint';
 
 describe('gridSize', () => {
   it('fills the viewport minus the tool/color strips, in 10px cells', () => {
@@ -9,28 +9,37 @@ describe('gridSize', () => {
   it('floors partial cells and never goes below 1', () => {
     expect(gridSize(57, 57)).toEqual({ cols: 1, rows: 1, cellSize: CELL }); // (7/10) floored, min 1
   });
+  it('honors a custom (mobile) cell size', () => {
+    // (650-50)/6 = 100, 350/6 = 58.3 → 58
+    expect(gridSize(650, 350, 50, 0, 6)).toEqual({ cols: 100, rows: 58, cellSize: 6 });
+  });
 });
 
 describe('brushOffsets', () => {
   it('single and fill touch just the cursor cell', () => {
-    expect(brushOffsets('single')).toEqual([[0, 0]]);
-    expect(brushOffsets('fill')).toEqual([[0, 0]]);
+    expect(brushOffsets('single', 200, 100)).toEqual([[0, 0]]);
+    expect(brushOffsets('fill', 200, 100)).toEqual([[0, 0]]);
   });
-  it('round5 is a 5-wide disc with the corners rounded off', () => {
-    const o = brushOffsets('round5');
-    const xs = o.map(([dx]) => dx);
-    expect(Math.min(...xs)).toBe(-2);
-    expect(Math.max(...xs)).toBe(2);
-    // corner (2,2) is distance ~2.83 > 2.5 → excluded
-    expect(o).not.toContainEqual([2, 2]);
+  it('scales round brushes to a fraction of the longest edge (as diameter)', () => {
+    // longest edge 200 → big ~10% (radius 10), medium ~5% (radius 5)
+    expect(brushRadius('round20', 200, 100)).toBe(10);
+    expect(brushRadius('round5', 200, 100)).toBe(5);
+    const big = brushOffsets('round20', 200, 100).map(([dx]) => dx);
+    expect(Math.min(...big)).toBe(-10);
+    expect(Math.max(...big)).toBe(10);
+    const med = brushOffsets('round5', 200, 100).map(([dx]) => dx);
+    expect(Math.min(...med)).toBe(-5);
+    expect(Math.max(...med)).toBe(5);
+  });
+  it('rounds the disc corners off and keeps the center', () => {
+    const o = brushOffsets('round5', 200, 100); // radius 5
     expect(o).toContainEqual([0, 0]);
-    expect(o).toContainEqual([2, 0]);
+    expect(o).toContainEqual([5, 0]);
+    expect(o).not.toContainEqual([5, 5]); // corner distance ~7.07 > 5.5
   });
-  it('round20 spans roughly 20 cells across', () => {
-    const o = brushOffsets('round20');
-    const xs = o.map(([dx]) => dx);
-    expect(Math.min(...xs)).toBe(-10);
-    expect(Math.max(...xs)).toBe(10);
+  it('never drops below radius 1 on a tiny grid', () => {
+    expect(brushRadius('round5', 4, 4)).toBe(1);
+    expect(brushRadius('round20', 4, 4)).toBe(1);
   });
 });
 

@@ -7,6 +7,7 @@ import {
 import {
   PALETTE,
   CELL,
+  CELL_MOBILE,
   TOOLBAR,
   Brush,
   gridSize,
@@ -52,6 +53,13 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   const playRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dimsRef = useRef({ cols: 0, rows: 0 });
+  // Smaller toy pixels on touch devices so more fit on a phone/tablet screen.
+  const cellRef = useRef(
+    typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)").matches
+      ? CELL_MOBILE
+      : CELL,
+  );
   const paintingRef = useRef(false);
   const ptsRef = useRef<Pt[]>([]); // recent cursor samples that feed the spline
   const dirtyRef = useRef(false); // true once the child has painted — lock the size
@@ -167,11 +175,18 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
       if (!host || !canvas || dirtyRef.current) return;
       // No top color strip any more, so the canvas fills the full height right
       // of the tool column.
-      const { cols, rows } = gridSize(host.clientWidth, host.clientHeight, TOOLBAR, 0);
+      const cell = cellRef.current;
+      const { cols, rows } = gridSize(
+        host.clientWidth,
+        host.clientHeight,
+        TOOLBAR,
+        0,
+        cell,
+      );
       if (cols === dimsRef.current.cols && rows === dimsRef.current.rows) return;
       dimsRef.current = { cols, rows };
-      canvas.width = cols * CELL;
-      canvas.height = rows * CELL;
+      canvas.width = cols * cell;
+      canvas.height = rows * cell;
       idxRef.current = new Uint8Array(cols * rows); // 0 = blank (white)
       const small = document.createElement("canvas");
       small.width = cols;
@@ -214,7 +229,8 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    return { x: (clientX - rect.left) / CELL, y: (clientY - rect.top) / CELL };
+    const cell = cellRef.current;
+    return { x: (clientX - rect.left) / cell, y: (clientY - rect.top) / cell };
   };
 
   // The palette index for the next brush stamp: fixed for a static color, or the
@@ -233,7 +249,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     const { cols, rows } = dimsRef.current;
     const buf = idxRef.current;
     let changed = false;
-    for (const [dx, dy] of brushOffsets(brushRef.current)) {
+    for (const [dx, dy] of brushOffsets(brushRef.current, cols, rows)) {
       const x = cx + dx;
       const y = cy + dy;
       if (x < 0 || y < 0 || x >= cols || y >= rows) continue;

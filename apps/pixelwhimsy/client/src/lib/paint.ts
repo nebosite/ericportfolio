@@ -25,9 +25,17 @@ export const PALETTE = [
 
 export type Brush = 'single' | 'round5' | 'round20' | 'fill';
 
-export const CELL = 10; // one toy pixel = 10x10 real pixels
+export const CELL = 10; // one toy pixel = 10x10 real pixels (desktop)
+export const CELL_MOBILE = 6; // smaller toy pixels on phones/tablets
 export const TOOLBAR = 50; // left strip reserved for tool icons
 export const COLORBAR = 50; // top strip reserved for color picking
+
+// Brush diameters as a fraction of the grid's longest edge: the big brush spans
+// ~10% of the screen, the medium ~5% — so both stay proportional to the canvas.
+const BRUSH_DIAMETER_FRAC: Partial<Record<Brush, number>> = {
+  round20: 0.1,
+  round5: 0.05,
+};
 
 export interface GridDims {
   cols: number;
@@ -51,12 +59,28 @@ export function gridSize(
 }
 
 /**
- * Cell offsets (relative to the cursor cell) a brush paints. Round brushes
- * include every cell whose center is within the brush radius.
+ * Brush radius in cells, scaled to the grid. Round brushes span a fraction of
+ * the longest edge (big ~10%, medium ~5%) as their diameter, so they stay
+ * proportional to the screen; single/fill are a single cell. Never below 1.
  */
-export function brushOffsets(brush: Brush): Array<[number, number]> {
-  if (brush === 'single' || brush === 'fill') return [[0, 0]];
-  const r = brush === 'round5' ? 2 : 10; // 5x5 ≈ d5, 20x20 ≈ d21
+export function brushRadius(brush: Brush, cols = 0, rows = 0): number {
+  const frac = BRUSH_DIAMETER_FRAC[brush];
+  if (!frac) return 0; // single / fill
+  const longest = Math.max(cols, rows);
+  return Math.max(1, Math.round((longest * frac) / 2));
+}
+
+/**
+ * Cell offsets (relative to the cursor cell) a brush paints. Round brushes
+ * include every cell whose center is within the brush radius (see brushRadius).
+ */
+export function brushOffsets(
+  brush: Brush,
+  cols = 0,
+  rows = 0,
+): Array<[number, number]> {
+  const r = brushRadius(brush, cols, rows);
+  if (r <= 0) return [[0, 0]];
   const limit = (r + 0.5) * (r + 0.5);
   const out: Array<[number, number]> = [];
   for (let dy = -r; dy <= r; dy++) {
