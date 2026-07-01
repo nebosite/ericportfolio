@@ -27,6 +27,40 @@ describe('PaintApp', () => {
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
   });
 
+  it('has no always-on color strip; colors live behind the palette button', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Color palette' })).toBeInTheDocument();
+    // no crayon swatch is shown until the palette is opened
+    expect(
+      screen.queryByRole('button', { name: 'Paint with #ff3b3b' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the color palette dialog and closes it with the ✕', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Color palette' }));
+    // all the colors are offered — a crayon and an animated color
+    expect(
+      screen.getByRole('button', { name: 'Paint with #ff3b3b' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Animated color 1' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close colors' }));
+    expect(
+      screen.queryByRole('button', { name: 'Paint with #ff3b3b' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('picking a color from the dialog dismisses it', () => {
+    render(<PaintApp onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Color palette' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Paint with #7b5ee6' }));
+    expect(
+      screen.queryByRole('button', { name: 'Close colors' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('exits only after the math gate is solved', () => {
     const onExit = vi.fn();
     render(<PaintApp onExit={onExit} />);

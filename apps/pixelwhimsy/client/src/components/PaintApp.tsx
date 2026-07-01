@@ -4,12 +4,24 @@ import {
   useState,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import { PALETTE, CELL, Brush, gridSize, brushOffsets, floodFill } from "../lib/paint";
+import {
+  PALETTE,
+  BLANK,
+  CELL,
+  TOOLBAR,
+  Brush,
+  gridSize,
+  brushOffsets,
+  floodFill,
+} from "../lib/paint";
 import {
   ANIM_BASE,
   GROUP_SIZE,
   GROUP_COUNT,
+  STATIC_COLORS,
+  GROUP_COLORS,
   animIndex,
+  groupOf,
   colorAt,
   buildPalette32,
 } from "../lib/palette";
@@ -65,6 +77,21 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   const brushRef = useRef(brush);
   paintRef.current = paint;
   brushRef.current = brush;
+
+  // The color palette is a draggable dialog summoned by the palette button.
+  // While it's open the cursor is an eyedropper that can sample a color from a
+  // swatch OR straight from the drawing; picking either way closes it.
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogPos, setDialogPos] = useState({ x: 0, y: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+
+  // The current paint as one solid color, for the brush icons (white stays
+  // visible thanks to the icon outline). Animated paint shows its vivid base.
+  const currentColor =
+    paint.kind === "static"
+      ? (STATIC_COLORS[paint.index] ?? BLANK)
+      : GROUP_COLORS[paint.group];
 
   const [gateOpen, setGateOpen] = useState(false);
   const [lockUntil, setLockUntil] = useState(0);
@@ -134,7 +161,9 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
       const host = playRef.current;
       const canvas = canvasRef.current;
       if (!host || !canvas || dirtyRef.current) return;
-      const { cols, rows } = gridSize(host.clientWidth, host.clientHeight);
+      // No top color strip any more, so the canvas fills the full height right
+      // of the tool column.
+      const { cols, rows } = gridSize(host.clientWidth, host.clientHeight, TOOLBAR, 0);
       if (cols === dimsRef.current.cols && rows === dimsRef.current.rows) return;
       dimsRef.current = { cols, rows };
       canvas.width = cols * CELL;
@@ -235,10 +264,55 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     requestRender();
   };
 
+  // Eyedropper result → set the active paint to a palette index, dismiss dialog.
+  const pickIndex = (index: number) => {
+    if (index >= ANIM_BASE) setPaint({ kind: "anim", group: groupOf(index) });
+    else setPaint({ kind: "static", index });
+    setDialogOpen(false);
+  };
+
+  const openDialog = () => {
+    const w = 360;
+    setDialogPos({ x: Math.max(8, (window.innerWidth - w) / 2), y: 64 });
+    setDialogOpen(true);
+  };
+
+  // Drag the palette dialog by its handle (pointer-captured, clamped on-screen).
+  const onHandleDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragRef.current = { dx: e.clientX - dialogPos.x, dy: e.clientY - dialogPos.y };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onHandleMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const panel = panelRef.current;
+    const pw = panel?.offsetWidth ?? 360;
+    const ph = panel?.offsetHeight ?? 240;
+    const x = Math.min(Math.max(0, e.clientX - d.dx), Math.max(0, window.innerWidth - pw));
+    const y = Math.min(Math.max(0, e.clientY - d.dy), Math.max(0, window.innerHeight - ph));
+    setDialogPos({ x, y });
+  };
+  const onHandleUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    dragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  };
+
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const pt = toCell(e.clientX, e.clientY);
     if (!pt) return;
+
+    // Palette open → the canvas acts as an eyedropper: sample the pixel under
+    // the cursor and adopt its color, instead of painting.
+    if (dialogOpen) {
+      const { cols, rows } = dimsRef.current;
+      const cx = Math.floor(pt.x);
+      const cy = Math.floor(pt.y);
+      if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return;
+      pickIndex(idxRef.current[cy * cols + cx]);
+      return;
+    }
 
     if (brushRef.current === "fill") {
       const { cols, rows } = dimsRef.current;
@@ -305,53 +379,22 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   return (
     <div
       ref={playRef}
-      className={styles.play}
+      className={dialogOpen ? `${styles.play} ${styles.eyedrop}` : styles.play}
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* Top strip — color picking: fixed crayons, then animated colors */}
-      <div className={styles.colorbar}>
-        {PALETTE.map((c, i) => {
-          const index = i + 1; // static colors live at indices 1..16
-          const active = paint.kind === "static" && paint.index === index;
-          return (
-            <button
-              key={c}
-              type="button"
-              aria-label={`Paint with ${c}`}
-              className={active ? styles.swatchActive : styles.swatch}
-              style={{ backgroundColor: c }}
-              onClick={() => setPaint({ kind: "static", index })}
-            />
-          );
-        })}
-
-        <span className={styles.swatchSep} aria-hidden="true" />
-
-        {Array.from({ length: GROUP_COUNT }, (_, g) => {
-          const active = paint.kind === "anim" && paint.group === g;
-          return (
-            <button
-              key={`anim-${g}`}
-              type="button"
-              aria-label={`Animated color ${g + 1}`}
-              className={active ? styles.animSwatchActive : styles.animSwatch}
-              onClick={() => setPaint({ kind: "anim", group: g })}
-            >
-              {Array.from({ length: GROUP_SIZE }, (_, s) => (
-                <span
-                  key={s}
-                  className={styles.animSlot}
-                  style={{ backgroundColor: colorAt(ANIM_BASE + g * GROUP_SIZE + s, swatchPhase) }}
-                />
-              ))}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Left strip — tools */}
+      {/* Left strip — the color palette button, then the brush tools */}
       <div className={styles.toolbar}>
+        <button
+          type="button"
+          aria-label="Color palette"
+          aria-pressed={dialogOpen}
+          className={dialogOpen ? styles.toolActive : styles.tool}
+          onClick={openDialog}
+        >
+          <span className={styles.toolEmoji}>🎨</span>
+        </button>
+
         {TOOLS.map((t) => (
           <button
             key={t.id}
@@ -364,13 +407,22 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
             {t.emoji ? (
               <span className={styles.toolEmoji}>{t.emoji}</span>
             ) : (
+              // Brush dots paint-preview the current color; a faint outline keeps
+              // a white (eraser) brush visible on the white button.
               <svg
                 viewBox="0 0 40 40"
                 width="100%"
                 height="100%"
                 aria-hidden="true"
               >
-                <circle cx="20" cy="20" r={t.r} fill="currentColor" />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r={t.r}
+                  fill={currentColor}
+                  stroke="rgba(58,46,79,0.45)"
+                  strokeWidth="1.5"
+                />
               </svg>
             )}
           </button>
@@ -384,6 +436,75 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
       />
+
+      {/* Color palette dialog — draggable by its handle, eyedropper picks from
+          a swatch or from the drawing; either choice closes it. */}
+      {dialogOpen && (
+        <div
+          ref={panelRef}
+          className={styles.dialog}
+          style={{ left: dialogPos.x, top: dialogPos.y }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div
+            className={styles.dialogHandle}
+            onPointerDown={onHandleDown}
+            onPointerMove={onHandleMove}
+            onPointerUp={onHandleUp}
+            onPointerCancel={onHandleUp}
+          >
+            <span className={styles.dialogGrip} aria-hidden="true">
+              ⠿
+            </span>
+            <button
+              type="button"
+              className={styles.dialogClose}
+              aria-label="Close colors"
+              onClick={() => setDialogOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className={styles.dialogColors}>
+            {PALETTE.map((c, i) => {
+              const index = i + 1; // static colors live at indices 1..16
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Paint with ${c}`}
+                  className={styles.dialogSwatch}
+                  style={{ backgroundColor: c }}
+                  onClick={() => pickIndex(index)}
+                />
+              );
+            })}
+            {Array.from({ length: GROUP_COUNT }, (_, g) => (
+              <button
+                key={`anim-${g}`}
+                type="button"
+                aria-label={`Animated color ${g + 1}`}
+                className={styles.dialogAnim}
+                onClick={() => pickIndex(ANIM_BASE + g * GROUP_SIZE)}
+              >
+                {Array.from({ length: GROUP_SIZE }, (_, s) => (
+                  <span
+                    key={s}
+                    className={styles.animSlot}
+                    style={{
+                      backgroundColor: colorAt(
+                        ANIM_BASE + g * GROUP_SIZE + s,
+                        swatchPhase,
+                      ),
+                    }}
+                  />
+                ))}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Exit corner — small, buffered, math-gated */}
       <div className={styles.exitCorner}>
