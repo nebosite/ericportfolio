@@ -15,10 +15,10 @@ import FeedbackPanel from '../../components/FeedbackPanel';
 import { trackEvent } from '../../lib/analytics';
 import styles from './SnakeGame.module.css';
 
-// The Big Tiny aesthetic: tiny 8x8 sprites on a field that fills the screen.
+// The Big Tiny aesthetic: tiny 12x12 sprites on a field that fills the screen.
 // Movement / collision / spawning rules live in snakeLogic.ts (unit tested);
 // CELL and the timers are presentation-only.
-const CELL = 8;
+const CELL = 12;
 const FOOD_EVERY_MS = 3000; // a new food drops in on this cadence
 const GHOST_POWERUP_FIRST_MS = 4000; // first Ghost powerup appears ~4s into a game
 const GHOST_POWERUP_EVERY_MS = 20000; // and then roughly every ~20s
@@ -37,56 +37,76 @@ interface ScoreRow {
   created_at: string;
 }
 
-// SPRITES — 8x8 one-bit patterns drawn in code so they're easy to tweak later.
+// SPRITES — 12x12 one-bit patterns drawn in code so they're easy to tweak later.
 const SPRITE_HEAD = [
-  '.######.',
-  '########',
-  '##.##.##',
-  '########',
-  '########',
-  '#.####.#',
-  '########',
-  '.######.',
+  '..########..',
+  '.##########.',
+  '############',
+  '###.####.###',
+  '###.####.###',
+  '############',
+  '############',
+  '############',
+  '##.######.##',
+  '############',
+  '.##########.',
+  '..########..',
 ];
 const SPRITE_BODY = [
-  '.######.',
-  '########',
-  '##.##.##',
-  '########',
-  '##.##.##',
-  '########',
-  '########',
-  '.######.',
+  '..########..',
+  '.##########.',
+  '############',
+  '###.####.###',
+  '############',
+  '###.####.###',
+  '############',
+  '###.####.###',
+  '############',
+  '############',
+  '.##########.',
+  '..########..',
 ];
 const SPRITE_APPLE = [
-  '...#....',
-  '..##....',
-  '.######.',
-  '########',
-  '########',
-  '########',
-  '.######.',
-  '..####..',
+  '.....#......',
+  '....##......',
+  '...####.....',
+  '..########..',
+  '.##########.',
+  '############',
+  '############',
+  '############',
+  '############',
+  '.##########.',
+  '..########..',
+  '...######...',
 ];
 const SPRITE_ROCK = [
-  '..####..',
-  '.######.',
-  '########',
-  '########',
-  '########',
-  '########',
-  '.######.',
-  '..####..',
+  '...######...',
+  '..########..',
+  '.##########.',
+  '############',
+  '############',
+  '############',
+  '############',
+  '############',
+  '############',
+  '.##########.',
+  '..########..',
+  '...######...',
 ];
 const SPRITE_GHOST = [
-  '..####..',
-  '.######.',
-  '##.##.##',
-  '##.##.##',
-  '########',
-  '########',
-  '########',
-  '#.#..#.#',
+  '...######...',
+  '..########..',
+  '.##########.',
+  '############',
+  '###..##..###',
+  '###..##..###',
+  '############',
+  '############',
+  '############',
+  '############',
+  '############',
+  '#.#.#..#.#.#',
 ];
 
 function drawSprite(
@@ -97,8 +117,8 @@ function drawSprite(
   color: string,
 ) {
   ctx.fillStyle = color;
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
+  for (let row = 0; row < 12; row++) {
+    for (let col = 0; col < 12; col++) {
       if (pattern[row][col] === '#') {
         ctx.fillRect(cellX * CELL + col, cellY * CELL + row, 1, 1);
       }

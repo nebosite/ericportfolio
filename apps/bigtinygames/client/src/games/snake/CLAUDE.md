@@ -46,7 +46,7 @@ further):
   read the board at a glance. Honor the established color language: green = your
   snakes, **blue** = ghost-rushing, red = food, gray = rock, white→midnight-blue =
   ghost trail, white→black = dying corpse, throbbing blue/white = Ghost powerup.
-- **Tiny on huge.** Keep the signature look: 8px code-drawn sprites on a field
+- **Tiny on huge.** Keep the signature look: 12px code-drawn sprites on a field
   that **fills the viewport**.
 
 ## Architecture / where things live
@@ -70,7 +70,7 @@ component.** New rules go in the logic module with tests in the same change.
 - `snakeLogic.test.ts` — the unit tests for all of the above (the safety net;
   extend it for every rule change). Uses a `seqRng` helper for determinism.
 - `SnakeGame.tsx` — the **render + loop** layer: the `setInterval` game loop at
-  `TICK_MS`, canvas 2D drawing of the 8×8 code sprites, the HUD, the
+  `TICK_MS`, canvas 2D drawing of the 12×12 code sprites, the HUD, the
   idle/gameover/saved overlays, and the high-score flow (`GET`/`POST
 /api/leaderboard`). Input comes through the shared `../input`
   `attachGameInput` (arrows / WASD / gamepad → a `Vec`; Enter/Space → confirm).
