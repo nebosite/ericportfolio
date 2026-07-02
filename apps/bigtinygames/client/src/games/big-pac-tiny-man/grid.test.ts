@@ -4,6 +4,8 @@ import {
   torusDist,
   DIRS,
   bfsDistances,
+  bfsPath,
+  firstOpenBelow,
   gradientStep,
   bestTowardTarget,
   chooseSpacedTiles,
@@ -100,6 +102,84 @@ describe('gradientStep', () => {
   it('returns null when no option lands on a known tile', () => {
     const step = gradientStep(DIRS.slice(), 2, 2, COLS, ROWS, new Map());
     expect(step).toBeNull();
+  });
+});
+
+describe('bfsPath', () => {
+  const walk = (sx: number, sy: number, dirs: { x: number; y: number }[]) => {
+    let x = sx;
+    let y = sy;
+    for (const d of dirs) {
+      x = wrap(x + d.x, COLS);
+      y = wrap(y + d.y, ROWS);
+    }
+    return { x, y };
+  };
+
+  it('returns the step directions of a shortest path', () => {
+    const dirs = bfsPath(openGrid(), COLS, ROWS, idx(2, 2), idx(0, 2), new Set(), 20);
+    expect(dirs).toHaveLength(2);
+    expect(walk(2, 2, dirs)).toEqual({ x: 0, y: 2 });
+  });
+
+  it('is empty when start equals target', () => {
+    expect(bfsPath(openGrid(), COLS, ROWS, idx(2, 2), idx(2, 2), new Set(), 20)).toEqual([]);
+  });
+
+  it('routes around grid walls and never steps on one', () => {
+    const grid = openGrid();
+    grid[idx(1, 2)] = 0; // wall straight between start and target
+    const dirs = bfsPath(grid, COLS, ROWS, idx(2, 2), idx(0, 2), new Set(), 20);
+    expect(dirs.length).toBeGreaterThan(2); // forced to detour
+    expect(walk(2, 2, dirs)).toEqual({ x: 0, y: 2 });
+    let x = 2;
+    let y = 2;
+    for (const d of dirs) {
+      x = wrap(x + d.x, COLS);
+      y = wrap(y + d.y, ROWS);
+      expect(grid[idx(x, y)]).toBe(1);
+    }
+  });
+
+  it('wraps toroidally for the shorter path', () => {
+    const dirs = bfsPath(openGrid(), COLS, ROWS, idx(0, 0), idx(4, 0), new Set(), 20);
+    expect(dirs).toEqual([{ x: -1, y: 0 }]); // one step across the seam
+  });
+
+  it('returns empty when the target is unreachable', () => {
+    const grid = openGrid();
+    for (const [x, y] of [[1, 0], [4, 0], [0, 1], [0, 4]]) grid[idx(x, y)] = 0; // seal (0,0)
+    expect(bfsPath(grid, COLS, ROWS, idx(2, 2), idx(0, 0), new Set(), 20)).toEqual([]);
+  });
+
+  it('gives up past the step budget', () => {
+    // (0,0) is 4 steps from (2,2); a budget of 2 can't reach it.
+    expect(bfsPath(openGrid(), COLS, ROWS, idx(2, 2), idx(0, 0), new Set(), 2)).toEqual([]);
+  });
+});
+
+describe('firstOpenBelow', () => {
+  it('finds the first open tile scanning downward', () => {
+    const grid = new Uint8Array(COLS * ROWS); // all wall
+    grid[idx(2, 3)] = 1;
+    expect(firstOpenBelow(grid, COLS, ROWS, 2, 0, new Set())).toBe(idx(2, 3));
+  });
+
+  it('skips blocked tiles', () => {
+    const grid = new Uint8Array(COLS * ROWS).fill(1);
+    const blocked = new Set([idx(2, 1), idx(2, 2)]);
+    expect(firstOpenBelow(grid, COLS, ROWS, 2, 1, blocked)).toBe(idx(2, 3));
+  });
+
+  it('wraps around the bottom edge', () => {
+    const grid = new Uint8Array(COLS * ROWS); // all wall
+    grid[idx(2, 1)] = 1;
+    expect(firstOpenBelow(grid, COLS, ROWS, 2, 3, new Set())).toBe(idx(2, 1));
+  });
+
+  it('returns -1 when the whole column is closed', () => {
+    const grid = new Uint8Array(COLS * ROWS); // all wall
+    expect(firstOpenBelow(grid, COLS, ROWS, 2, 0, new Set())).toBe(-1);
   });
 });
 

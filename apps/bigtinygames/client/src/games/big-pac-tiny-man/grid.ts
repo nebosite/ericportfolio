@@ -96,6 +96,81 @@ export function gradientStep(
 }
 
 /**
+ * Shortest toroidal path from `startIdx` to `targetIdx` across walkable tiles
+ * (grid value 1 and not in `blocked`), returned as the list of step directions
+ * to walk it. BFS is bounded to `maxSteps` deep; returns an empty array when the
+ * target isn't reachable within that many steps (or start === target).
+ */
+export function bfsPath(
+  grid: Uint8Array,
+  cols: number,
+  rows: number,
+  startIdx: number,
+  targetIdx: number,
+  blocked: ReadonlySet<number>,
+  maxSteps: number,
+): Vec[] {
+  if (startIdx === targetIdx) return [];
+  const cameFrom = new Map<number, number>(); // tile -> tile we reached it from
+  const stepDir = new Map<number, Vec>(); // tile -> dir taken to reach it
+  const seen = new Set<number>([startIdx]);
+  let frontier = [startIdx];
+  let found = false;
+  for (let depth = 0; depth < maxSteps && frontier.length > 0 && !found; depth++) {
+    const next: number[] = [];
+    for (const idx of frontier) {
+      const x = idx % cols;
+      const y = (idx - x) / cols;
+      for (const d of DIRS) {
+        const nx = wrap(x + d.x, cols);
+        const ny = wrap(y + d.y, rows);
+        const nidx = ny * cols + nx;
+        if (seen.has(nidx) || grid[nidx] !== 1 || blocked.has(nidx)) continue;
+        seen.add(nidx);
+        cameFrom.set(nidx, idx);
+        stepDir.set(nidx, d);
+        if (nidx === targetIdx) {
+          found = true;
+          break;
+        }
+        next.push(nidx);
+      }
+      if (found) break;
+    }
+    frontier = next;
+  }
+  if (!found) return [];
+  const dirs: Vec[] = [];
+  for (let cur = targetIdx; cur !== startIdx; cur = cameFrom.get(cur)!) {
+    dirs.push(stepDir.get(cur)!);
+  }
+  dirs.reverse();
+  return dirs;
+}
+
+/**
+ * Scan straight down column `x` from row `startY` (toroidal), returning the
+ * index of the first walkable tile (grid value 1) that isn't in `blocked`, or
+ * -1 if the whole column is walled/blocked. Used to drop fruit into the first
+ * open spot beneath a ghost lair's entrance.
+ */
+export function firstOpenBelow(
+  grid: Uint8Array,
+  cols: number,
+  rows: number,
+  x: number,
+  startY: number,
+  blocked: ReadonlySet<number>,
+): number {
+  for (let step = 0; step < rows; step++) {
+    const y = wrap(startY + step, rows);
+    const idx = y * cols + x;
+    if (grid[idx] === 1 && !blocked.has(idx)) return idx;
+  }
+  return -1;
+}
+
+/**
  * Of the given options, the move that minimizes (or, when `flee`, maximizes)
  * toroidal distance to the target tile.
  */

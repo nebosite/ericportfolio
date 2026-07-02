@@ -142,24 +142,11 @@ export function generateMaze(plan: WorldPlan): Maze {
     }
   }
 
-  // Wrap-around tunnels: a scaled handful of corridor rows/cols carved
-  // edge-to-edge (including the border tiles), so walking off one side
-  // reappears on the other. The engine treats movement as toroidal, and only
-  // these rows/cols have open border tiles, so wrapping happens only here.
+  // Wrap-around exits used to be whole corridor rows/cols carved edge-to-edge —
+  // straight shortcuts across the maze. They're now punched in at the very end
+  // (after connectivity) as border-only openings, so the interior stays maze.
   const tunnelRows: number[] = [];
   const tunnelCols: number[] = [];
-  const spacingRows = Math.max(1, Math.round(cellRows / Math.max(1, Math.round(rows / 38))));
-  const spacingCols = Math.max(1, Math.round(cellCols / Math.max(1, Math.round(cols / 38))));
-  for (let cy = Math.floor(spacingRows / 2); cy < cellRows; cy += spacingRows) {
-    const ty = 2 * cy + 1;
-    for (let x = 0; x < cols; x++) carve(x, ty);
-    tunnelRows.push(ty);
-  }
-  for (let cx = Math.floor(spacingCols / 2); cx < cellCols; cx += spacingCols) {
-    const tx = 2 * cx + 1;
-    for (let y = 0; y < rows; y++) carve(tx, y);
-    tunnelCols.push(tx);
-  }
 
   // Ghost boxes: walled rooms spread across the maze, each nudged by a random
   // jitter so they don't sit on a rigid grid. The box border is forced to
@@ -297,6 +284,34 @@ export function generateMaze(plan: WorldPlan): Maze {
       }
     }
     if (!carved) break; // converged (or nothing left to connect)
+  }
+
+  // Wrap-around exits: open ONLY the two border tiles of a scaled set of
+  // corridor rows/cols where the tile just inside each edge is already open.
+  // Each exit is then a clean two-neighbour passage — the border tile, its
+  // inward corridor, and the toroidal wrap to the matching tile on the far
+  // edge — so walking off one side reappears on the other WITHOUT a straight
+  // corridor spanning the maze. Done last, so no repair pass can erode them.
+  // Target ~twice the old edge-to-edge tunnel density (was ~one per 38 tiles).
+  const wantRows = Math.max(1, Math.round(rows / 19));
+  const wantCols = Math.max(1, Math.round(cols / 19));
+  const rowStride = Math.max(1, Math.round(cellRows / wantRows));
+  const colStride = Math.max(1, Math.round(cellCols / wantCols));
+  for (let cy = Math.floor(rowStride / 2); cy < cellRows; cy += rowStride) {
+    const ty = 2 * cy + 1;
+    if (grid[at(1, ty)] === 1 && grid[at(cols - 2, ty)] === 1) {
+      carve(0, ty);
+      carve(cols - 1, ty);
+      tunnelRows.push(ty);
+    }
+  }
+  for (let cx = Math.floor(colStride / 2); cx < cellCols; cx += colStride) {
+    const tx = 2 * cx + 1;
+    if (grid[at(tx, 1)] === 1 && grid[at(tx, rows - 2)] === 1) {
+      carve(tx, 0);
+      carve(tx, rows - 1);
+      tunnelCols.push(tx);
+    }
   }
 
   return {

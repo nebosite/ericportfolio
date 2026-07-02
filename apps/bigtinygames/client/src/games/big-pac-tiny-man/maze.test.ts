@@ -114,24 +114,41 @@ describe('generateMaze', () => {
     }
   });
 
-  it('carves wrap tunnels edge-to-edge (except where a ghost box overlaps)', () => {
-    const maze = generateMaze(planWorld(1280, 720));
-    expect(maze.tunnelRows.length).toBeGreaterThan(0);
-    expect(maze.tunnelCols.length).toBeGreaterThan(0);
-    // Ghost boxes are stamped after the tunnels, so a box footprint may wall off
-    // a few tunnel tiles; everywhere else the tunnel line is open border-to-border.
-    for (const ty of maze.tunnelRows) {
-      for (let x = 0; x < maze.cols; x++) {
-        if (inAnyBox(maze, x, ty)) continue;
-        expect(maze.grid[ty * maze.cols + x]).toBe(1);
+  it('opens wrap exits at the borders WITHOUT a straight corridor across', () => {
+    // Exits are now just the two border tiles of a row/col (plus the toroidal
+    // wrap between them); the interior stays maze, so there is no edge-to-edge
+    // shortcut. Use a large maze so a coincidentally all-open row is impossible.
+    for (let run = 0; run < 4; run++) {
+      const maze = generateMaze(planWorld(1920, 1080));
+      const { cols, rows, grid } = maze;
+      expect(maze.tunnelRows.length).toBeGreaterThan(0);
+      expect(maze.tunnelCols.length).toBeGreaterThan(0);
+
+      for (const ty of maze.tunnelRows) {
+        // both border ends open, so the wrap is walkable
+        expect(grid[ty * cols + 0]).toBe(1);
+        expect(grid[ty * cols + (cols - 1)]).toBe(1);
+        // ...but the row is NOT a straight corridor: it still has interior walls
+        let walls = 0;
+        for (let x = 1; x < cols - 1; x++) if (grid[ty * cols + x] === 0) walls++;
+        expect(walls).toBeGreaterThan(0);
+      }
+      for (const tx of maze.tunnelCols) {
+        expect(grid[0 * cols + tx]).toBe(1);
+        expect(grid[(rows - 1) * cols + tx]).toBe(1);
+        let walls = 0;
+        for (let y = 1; y < rows - 1; y++) if (grid[y * cols + tx] === 0) walls++;
+        expect(walls).toBeGreaterThan(0);
       }
     }
-    for (const tx of maze.tunnelCols) {
-      for (let y = 0; y < maze.rows; y++) {
-        if (inAnyBox(maze, tx, y)) continue;
-        expect(maze.grid[y * maze.cols + tx]).toBe(1);
-      }
-    }
+  });
+
+  it('roughly doubles the exit density versus the old ~one-per-38-tiles', () => {
+    // Old density was ≈ round(dim/38); the new target ≈ round(dim/19), so the
+    // counts should clear the old formula even if a box swallows an exit or two.
+    const maze = generateMaze(planWorld(1920, 1080));
+    expect(maze.tunnelRows.length).toBeGreaterThan(Math.max(1, Math.round(maze.rows / 38)));
+    expect(maze.tunnelCols.length).toBeGreaterThan(Math.max(1, Math.round(maze.cols / 38)));
   });
 
   it('keeps every open tile reachable from Pac spawn (full connectivity)', () => {
