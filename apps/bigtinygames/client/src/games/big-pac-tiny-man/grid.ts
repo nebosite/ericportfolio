@@ -41,6 +41,36 @@ export function torusHypot(
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+/** Turn a swipe delta (px or cells) into a 4-way heading by its dominant axis. */
+export function swipeDirection(dx: number, dy: number): Vec {
+  return Math.abs(dx) >= Math.abs(dy)
+    ? { x: dx < 0 ? -1 : 1, y: 0 }
+    : { x: 0, y: dy < 0 ? -1 : 1 };
+}
+
+/**
+ * Steer toward a tapped cell. When already moving, turn on the axis
+ * perpendicular to the current heading toward the tap (steer around corners);
+ * when stopped, head toward the tap by its dominant axis. Returns null when the
+ * tap gives no unambiguous turn.
+ */
+export function tapTurn(cur: Vec, from: { x: number; y: number }, tap: { x: number; y: number }): Vec | null {
+  if (cur.x === 0 && cur.y === 0) {
+    if (tap.x === from.x && tap.y === from.y) return null;
+    return swipeDirection(tap.x - from.x, tap.y - from.y);
+  }
+  if (cur.y === 0) {
+    // moving horizontally → steer vertically toward the tap
+    if (tap.y < from.y) return { x: 0, y: -1 };
+    if (tap.y > from.y) return { x: 0, y: 1 };
+    return null;
+  }
+  // moving vertically → steer horizontally toward the tap
+  if (tap.x < from.x) return { x: -1, y: 0 };
+  if (tap.x > from.x) return { x: 1, y: 0 };
+  return null;
+}
+
 /** The four cardinal moves. */
 export const DIRS: Vec[] = [
   { x: 1, y: 0 },

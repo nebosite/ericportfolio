@@ -3,6 +3,8 @@ import {
   wrap,
   torusDist,
   torusHypot,
+  swipeDirection,
+  tapTurn,
   DIRS,
   aStarPath,
   bfsDistances,
@@ -44,6 +46,36 @@ describe('torusHypot', () => {
   it('takes the wrap-around path when it is shorter', () => {
     expect(torusHypot(0, 0, 9, 0, 10, 10)).toBe(1); // one step across the seam
     expect(torusHypot(0, 0, 9, 9, 10, 10)).toBeCloseTo(Math.SQRT2); // diagonal across both seams
+  });
+});
+
+describe('swipeDirection', () => {
+  it('resolves a swipe to its dominant axis', () => {
+    expect(swipeDirection(50, 5)).toEqual({ x: 1, y: 0 });
+    expect(swipeDirection(-50, 5)).toEqual({ x: -1, y: 0 });
+    expect(swipeDirection(5, 50)).toEqual({ x: 0, y: 1 });
+    expect(swipeDirection(5, -50)).toEqual({ x: 0, y: -1 });
+    expect(swipeDirection(30, 30)).toEqual({ x: 1, y: 0 }); // ties go horizontal
+  });
+});
+
+describe('tapTurn', () => {
+  const head = { x: 10, y: 10 };
+  it('steers perpendicular to a horizontal heading', () => {
+    expect(tapTurn({ x: 1, y: 0 }, head, { x: 15, y: 3 })).toEqual({ x: 0, y: -1 });
+    expect(tapTurn({ x: 1, y: 0 }, head, { x: 2, y: 18 })).toEqual({ x: 0, y: 1 });
+  });
+  it('steers perpendicular to a vertical heading', () => {
+    expect(tapTurn({ x: 0, y: -1 }, head, { x: 3, y: 4 })).toEqual({ x: -1, y: 0 });
+    expect(tapTurn({ x: 0, y: -1 }, head, { x: 18, y: 4 })).toEqual({ x: 1, y: 0 });
+  });
+  it('heads toward the tap by dominant axis when stopped', () => {
+    expect(tapTurn({ x: 0, y: 0 }, head, { x: 20, y: 12 })).toEqual({ x: 1, y: 0 });
+    expect(tapTurn({ x: 0, y: 0 }, head, { x: 9, y: 2 })).toEqual({ x: 0, y: -1 });
+  });
+  it('returns null when the tap is on the heading axis (no turn)', () => {
+    expect(tapTurn({ x: 1, y: 0 }, head, { x: 15, y: 10 })).toBeNull();
+    expect(tapTurn({ x: 0, y: 0 }, head, { x: 10, y: 10 })).toBeNull();
   });
 });
 

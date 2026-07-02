@@ -58,10 +58,32 @@ describe('leaderboard', () => {
       (await request(app).post('/api/leaderboard').send({ initials: 'AB', score: 1.5 })).status,
     ).toBe(400);
     expect(
-      (await request(app).post('/api/leaderboard').send({ initials: 'AB', score: 9_999_999 })).status,
+      (await request(app).post('/api/leaderboard').send({ initials: 'AB', score: 100_000_001 })).status,
     ).toBe(400);
     expect(
       (await request(app).post('/api/leaderboard').send({ initials: 'AB', score: 'lots' })).status,
+    ).toBe(400);
+  });
+
+  it('keeps each game’s scores separate', async () => {
+    const app = freshApp();
+    await request(app).post('/api/leaderboard').send({ initials: 'SNK', score: 50 }); // default: snake
+    await request(app)
+      .post('/api/leaderboard')
+      .send({ initials: 'PAC', score: 900, game: 'big-pac-tiny-man' });
+
+    const snake = await request(app).get('/api/leaderboard'); // defaults to snake
+    expect(snake.body.map((r: { initials: string }) => r.initials)).toEqual(['SNK']);
+
+    const pac = await request(app).get('/api/leaderboard').query({ game: 'big-pac-tiny-man' });
+    expect(pac.body.map((r: { initials: string }) => r.initials)).toEqual(['PAC']);
+  });
+
+  it('rejects an invalid game slug', async () => {
+    const app = freshApp();
+    expect(
+      (await request(app).post('/api/leaderboard').send({ initials: 'AB', score: 1, game: 'Bad Game!' }))
+        .status,
     ).toBe(400);
   });
 });

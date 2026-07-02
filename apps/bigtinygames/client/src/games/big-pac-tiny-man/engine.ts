@@ -8,6 +8,8 @@ import {
   bfsPath,
   chooseSpacedTiles,
   firstOpenBelow,
+  swipeDirection,
+  tapTurn,
   torusDist,
   torusHypot,
   wrap,
@@ -19,12 +21,17 @@ const BG_COLOR = 0x05050c;
 const MAX_W = 3840; // cap the playfield at 4K
 const MAX_H = 2160;
 const PAC_SPEED = 150; // px/sec (~9 tiles/sec at the 16px tile)
-const GHOST_SPEED = 60; // ghosts amble at less than half Pac's speed
+const GHOST_SPEED = 60; // base ghost speed at level 1 (< half Pac's); +25%/level
 const EYES_SPEED = 150; // eaten ghosts hurry home
 const CHUNK = 32; // dots batched into one Graphics per 32x32-tile chunk
 
+// Per-level scaling: ghosts hunt from farther, move faster, and fruit is worth
+// more the deeper you get.
+const chaseRadiusFor = (level: number) => 5 + 10 * level; // grid units
+const ghostSpeedFor = (level: number) => GHOST_SPEED * Math.pow(1.25, level - 1);
+const fruitPointsFor = (level: number) => 100 * level * level;
+
 // AI tuning, all in grid squares.
-const CHASE_RADIUS = 30; // path-hunt Pac when within this many tiles
 const LEASH = 30; // wander no further than this from home before drifting back
 const FRIGHT_MS = 8000; // how long fright lasts if the ghost isn't eaten
 const FRIGHT_FLASH_MS = 3000; // flash blue<->white for the final stretch of fright
@@ -32,10 +39,13 @@ const PATH_RECOMPUTE_MS = 2000; // commit to a fresh path to Pac this often
 const PATH_MAX_STEPS = 60; // BFS depth cap when pathing to Pac (winding paths)
 const POWERUP_MIN_GAP = 10; // no two power pellets closer than this
 
+// Hitpoints (hearts): touching a regular ghost costs one, a fruit restores one,
+// and the game ends at zero.
+const START_HP = 5;
+
 // Scoring.
 const DOT_POINTS = 10;
 const PELLET_POINTS = 50;
-const FRUIT_POINTS = 100;
 const GHOST_POINTS = 200;
 
 // Fruit spawning: one fruit per ghost lair, dropped below its entrance and
@@ -96,12 +106,26 @@ interface Popup {
   y: number;
 }
 
+/** Carried-over run state when (re)building a world for a given level. */
+export interface StartOpts {
+  level: number;
+  score: number;
+  hitpoints: number;
+}
+
 export class BigPacEngine {
   /**
    * Sizes the canvas to the host's PHYSICAL pixels (CSS size x devicePixelRatio,
    * capped at 4K) so one world unit is one device pixel.
    */
-  static async create(host: HTMLElement, onScore: (score: number) => void): Promise<BigPacEngine> {
+  static async create(
+    host: HTMLElement,
+    onScore: (score: number) => void,
+    onHitpoints: (hp: number, max: number) => void,
+    onGameOver: () => void,
+    onLevelComplete: (level: number) => void,
+    opts: StartOpts = { level: 1, score: 0, hitpoints: START_HP },
+  ): Promise<BigPacEngine> {
     const dpr = window.devicePixelRatio || 1;
     const pxW = Math.min(Math.round(host.clientWidth * dpr), MAX_W);
     const pxH = Math.min(Math.round(host.clientHeight * dpr), MAX_H);
@@ -111,6 +135,7 @@ export class BigPacEngine {
     app.canvas.style.width = `${pxW / dpr}px`;
     app.canvas.style.height = `${pxH / dpr}px`;
     app.canvas.style.setProperty('image-rendering', 'pixelated');
+    app.canvas.style.setProperty('touch-action', 'none'); // touch drives the game
     host.appendChild(app.canvas);
 
     // Sprites (PNG) and sounds (MP3) load up front so the first frame is ready.
@@ -118,11 +143,33 @@ export class BigPacEngine {
     const sfx = new Sfx();
     sfx.load();
 
-    return new BigPacEngine(app, pxW, pxH, onScore, textures, sfx);
+    return new BigPacEngine(
+      app,
+      pxW,
+      pxH,
+      onScore,
+      onHitpoints,
+      onGameOver,
+      onLevelComplete,
+      opts,
+      textures,
+      sfx,
+    );
   }
 
   private app: Application;
   private onScore: (score: number) => void;
+  private onHitpoints: (hp: number, max: number) => void;
+  private onGameOver: () => void;
+  private onLevelComplete: (level: number) => void;
+  private level: number;
+  private chaseRadius: number;
+  private ghostSpeed: number;
+  private fruitPoints: number;
+  private worldX = 0;
+  private worldY = 0;
+  private levelComplete = false;
+  private detachTouch: () => void = () => {};
   private tex: SpriteTextures;
   private sfx: Sfx;
   private plan: WorldPlan;
@@ -153,6 +200,8 @@ export class BigPacEngine {
   /** Ghosts eaten so far in the current fright phase; doubles their value. */
   private ghostChain = 0;
   private frightActive = false;
+  private hitpoints = START_HP;
+  private gameOver = false;
   private detachInput: () => void = () => {};
 
   /** True once the player has pressed Start; the world is locked in. */
@@ -165,13 +214,27 @@ export class BigPacEngine {
     pxW: number,
     pxH: number,
     onScore: (score: number) => void,
+    onHitpoints: (hp: number, max: number) => void,
+    onGameOver: () => void,
+    onLevelComplete: (level: number) => void,
+    opts: StartOpts,
     textures: SpriteTextures,
     sfx: Sfx,
   ) {
     this.app = app;
     this.onScore = onScore;
+    this.onHitpoints = onHitpoints;
+    this.onGameOver = onGameOver;
+    this.onLevelComplete = onLevelComplete;
     this.tex = textures;
     this.sfx = sfx;
+    // Carry the run forward and scale difficulty to the level.
+    this.level = opts.level;
+    this.score = opts.score;
+    this.hitpoints = opts.hitpoints;
+    this.chaseRadius = chaseRadiusFor(this.level);
+    this.ghostSpeed = ghostSpeedFor(this.level);
+    this.fruitPoints = fruitPointsFor(this.level);
     this.plan = planWorld(pxW, pxH);
     this.maze = generateMaze(this.plan);
     const { cols, rows, grid } = this.maze;
@@ -180,6 +243,8 @@ export class BigPacEngine {
     const world = new Container();
     world.x = Math.floor((pxW - cols * TILE) / 2);
     world.y = Math.floor((pxH - rows * TILE) / 2);
+    this.worldX = world.x;
+    this.worldY = world.y;
     app.stage.addChild(world);
 
     // Walls drawn with a rounded outline (classic maze look): the wall union is
@@ -340,6 +405,7 @@ export class BigPacEngine {
     for (const m of [this.pac, ...this.ghosts]) this.place(m);
     app.ticker.add(this.update, this);
     this.pushScore();
+    this.pushHitpoints();
   }
 
   /**
@@ -356,10 +422,61 @@ export class BigPacEngine {
         this.desiredDir = dir;
       },
     });
+    this.attachTouch();
+  }
+
+  /**
+   * Mobile controls (mirroring Big Tiny Snake): a swipe steers by its dominant
+   * axis; a tap turns Pac toward the tapped cell. Bound to the canvas with
+   * touch-action:none so gestures never scroll or zoom the page.
+   */
+  private attachTouch() {
+    const canvas = this.app.canvas;
+    const SWIPE_MIN = 24; // px of travel that counts as a swipe rather than a tap
+    let sx = 0;
+    let sy = 0;
+
+    const onStart = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      sx = t.clientX;
+      sy = t.clientY;
+      e.preventDefault();
+    };
+    const onMove = (e: TouchEvent) => e.preventDefault();
+    const onEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (Math.abs(dx) > SWIPE_MIN || Math.abs(dy) > SWIPE_MIN) {
+        this.desiredDir = swipeDirection(dx, dy);
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const deviceX = (t.clientX - rect.left) * (canvas.width / rect.width);
+      const deviceY = (t.clientY - rect.top) * (canvas.height / rect.height);
+      const tap = {
+        x: Math.floor((deviceX - this.worldX) / TILE),
+        y: Math.floor((deviceY - this.worldY) / TILE),
+      };
+      const dir = tapTurn(this.pac.dir, { x: this.pac.tx, y: this.pac.ty }, tap);
+      if (dir) this.desiredDir = dir;
+    };
+
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove', onMove, { passive: false });
+    canvas.addEventListener('touchend', onEnd, { passive: false });
+    this.detachTouch = () => {
+      canvas.removeEventListener('touchstart', onStart);
+      canvas.removeEventListener('touchmove', onMove);
+      canvas.removeEventListener('touchend', onEnd);
+    };
   }
 
   destroy() {
     this.detachInput();
+    this.detachTouch();
     this.sfx.destroy();
     this.app.ticker.remove(this.update, this);
     this.app.destroy(true, { children: true, texture: true });
@@ -368,7 +485,8 @@ export class BigPacEngine {
   // ---- main loop -----------------------------------------------------------
 
   private update(ticker: Ticker) {
-    if (!this.started) return; // frozen until the first control input
+    // Frozen pre-start, after death, and once the level is cleared.
+    if (!this.started || this.gameOver || this.levelComplete) return;
 
     const dt = Math.min(ticker.deltaMS, 50) / 1000;
     this.elapsed += ticker.deltaMS;
@@ -402,7 +520,7 @@ export class BigPacEngine {
         ghost.repathAt = this.elapsed + PATH_RECOMPUTE_MS;
         ghost.repathDue = true;
       }
-      const speed = ghost.state === 'eyes' ? EYES_SPEED : GHOST_SPEED;
+      const speed = ghost.state === 'eyes' ? EYES_SPEED : this.ghostSpeed;
       this.advance(ghost, speed * dt, (m) => this.chooseGhostDir(m as Ghost));
       if (
         ghost.state === 'eyes' &&
@@ -461,8 +579,8 @@ export class BigPacEngine {
       this.ghostChain = 0;
     }
 
-    // Touching a REGULAR ghost sets off a blast: every ghost within
-    // EXPLOSION_RADIUS is knocked out (sent home as eyes), for no points.
+    // Touching a REGULAR ghost costs a hitpoint and sets off a blast: every
+    // ghost within EXPLOSION_RADIUS is knocked out (sent home as eyes), no points.
     for (const ghost of this.ghosts) {
       if (ghost.state !== 'normal') continue;
       if (
@@ -470,9 +588,11 @@ export class BigPacEngine {
         Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
       ) {
         this.explode(pac.tx, pac.ty, pac.sprite.x, pac.sprite.y);
+        this.loseHitpoint();
         break;
       }
     }
+    if (this.gameOver) return; // died on that hit — stop the frame here
 
     this.updateExplosions();
     this.pelletLayer.alpha = 0.55 + 0.45 * Math.sin(this.elapsed / 220);
@@ -539,7 +659,7 @@ export class BigPacEngine {
         const gi = g.ty * cols + g.tx;
         const pi = this.pac.ty * cols + this.pac.tx;
         g.pathDirs =
-          torusDist(g.tx, g.ty, this.pac.tx, this.pac.ty, cols, rows) <= CHASE_RADIUS
+          torusDist(g.tx, g.ty, this.pac.tx, this.pac.ty, cols, rows) <= this.chaseRadius
             ? bfsPath(grid, cols, rows, gi, pi, this.baseTiles, PATH_MAX_STEPS)
             : [];
       }
@@ -756,10 +876,15 @@ export class BigPacEngine {
       this.fruitByTile.delete(idx);
       this.baseFruitCount[fruit.base]--;
       fruit.sprite.destroy();
-      this.score += FRUIT_POINTS;
+      this.score += this.fruitPoints;
       this.sfx.play('fruit', 0.45);
-      this.spawnPopup(px, py, `+${FRUIT_POINTS}`);
+      this.spawnPopup(px, py, `+${this.fruitPoints}`);
       this.pushScore();
+      // A fruit heals one heart (never above the starting maximum).
+      if (this.hitpoints < START_HP) {
+        this.hitpoints += 1;
+        this.pushHitpoints();
+      }
     }
 
     if (this.dotTiles.delete(idx)) {
@@ -769,6 +894,7 @@ export class BigPacEngine {
       this.score += DOT_POINTS;
       this.sfx.waka();
       this.pushScore();
+      this.maybeCompleteLevel();
       return;
     }
 
@@ -780,6 +906,16 @@ export class BigPacEngine {
       this.sfx.play('power', 0.5);
       this.frighten(); // every ghost panics and scatters away from Pac
       this.pushScore();
+      this.maybeCompleteLevel();
+    }
+  }
+
+  /** Once the board is cleared of dots and pellets, the level is complete. */
+  private maybeCompleteLevel() {
+    if (this.levelComplete || this.gameOver) return;
+    if (this.dotTiles.size === 0 && this.pelletsByTile.size === 0) {
+      this.levelComplete = true;
+      this.onLevelComplete(this.level);
     }
   }
 
@@ -796,5 +932,19 @@ export class BigPacEngine {
 
   private pushScore() {
     this.onScore(this.score);
+  }
+
+  private pushHitpoints() {
+    this.onHitpoints(this.hitpoints, START_HP);
+  }
+
+  /** Lose one heart; end the game if that empties the last one. */
+  private loseHitpoint() {
+    this.hitpoints = Math.max(0, this.hitpoints - 1);
+    this.pushHitpoints();
+    if (this.hitpoints === 0 && !this.gameOver) {
+      this.gameOver = true;
+      this.onGameOver();
+    }
   }
 }
