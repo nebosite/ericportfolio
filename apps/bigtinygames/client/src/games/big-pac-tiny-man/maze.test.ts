@@ -151,6 +151,31 @@ describe('generateMaze', () => {
     expect(maze.tunnelCols.length).toBeGreaterThan(Math.max(1, Math.round(maze.cols / 38)));
   });
 
+  it('spreads lairs evenly so no tile is far from one (fills every corner)', () => {
+    for (const [w, h] of SIZES) {
+      const maze = generateMaze(planWorld(w, h));
+      const { cols, rows, grid } = maze;
+      const centers = maze.baseRooms.map((r) => ({ cx: r.x + r.w / 2, cy: r.y + r.h / 2 }));
+      let maxDist = 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (grid[y * cols + x] !== 1) continue;
+          let best = Infinity;
+          for (const c of centers) {
+            const d = Math.hypot(x + 0.5 - c.cx, y + 0.5 - c.cy);
+            if (d < best) best = d;
+          }
+          if (best > maxDist) maxDist = best;
+        }
+      }
+      expect(maxDist).toBeLessThanOrEqual(18.5); // ~18-unit reach, no empty region
+      // The south-east quadrant (the old gap) actually has a lair now.
+      if (maze.baseRooms.length >= 4) {
+        expect(maze.baseRooms.some((r) => r.x > cols / 2 && r.y > rows / 2)).toBe(true);
+      }
+    }
+  });
+
   it('opens extra passages for a loopier, more porous maze', () => {
     for (let run = 0; run < 3; run++) {
       const maze = generateMaze(planWorld(1920, 1080));

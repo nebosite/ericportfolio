@@ -49,6 +49,7 @@ const WALL_RADIUS = 6; // px corner rounding on wall shapes
 const BOX_FLOOR_COLOR = 0x5a5a5a; // ghost-lair floor: gray, marking forbidden ground
 const DOT_COLOR = 0xffc7ae;
 const GHOST_TINTS = [0xff4b4b, 0xffb8ff, 0x00ffff, 0xffb852];
+const GHOSTS_PER_LAIR = 4; // every ghost lair is home to four ghosts
 
 // Ghost-clearing blast triggered by touching a regular ghost.
 const EXPLOSION_RADIUS = 5; // grid units; ghosts within die (as eyes), no score
@@ -295,35 +296,36 @@ export class BigPacEngine {
 
     world.addChild(this.fruitLayer);
 
-    // Ghosts spawn inside the box interiors; each remembers its home box and
-    // its classic tint.
+    // Ghosts spawn inside the box interiors: GHOSTS_PER_LAIR in every lair (one
+    // of each classic tint), each remembering its home box.
     const ghostLayer = new Container();
     world.addChild(ghostLayer);
     const rooms = this.maze.baseRooms;
     this.baseFruitCount = rooms.map(() => 0);
     this.baseFruitTimer = rooms.map(() => 0); // each lair drops its first fruit right away
-    for (let i = 0; i < this.plan.ghosts; i++) {
-      const room = rooms[i % rooms.length];
-      const color = GHOST_TINTS[i % GHOST_TINTS.length];
-      const sprite = new Sprite(this.tex.ghost);
-      sprite.anchor.set(0.5);
-      sprite.tint = color;
-      ghostLayer.addChild(sprite);
-      this.ghosts.push({
-        tx: room.x + 1 + Math.floor(Math.random() * (room.w - 2)),
-        ty: room.y + 1 + Math.floor(Math.random() * (room.h - 2)),
-        progress: 0,
-        dir: STOPPED,
-        sprite,
-        home: { x: room.x + 2, y: room.y + 1 },
-        exitAbove: { x: room.x + 2, y: room.y - 1 },
-        color,
-        state: 'normal',
-        frightUntil: 0,
-        pathDirs: [],
-        repathAt: 0,
-        repathDue: false,
-      });
+    for (const room of rooms) {
+      for (let j = 0; j < GHOSTS_PER_LAIR; j++) {
+        const color = GHOST_TINTS[j % GHOST_TINTS.length];
+        const sprite = new Sprite(this.tex.ghost);
+        sprite.anchor.set(0.5);
+        sprite.tint = color;
+        ghostLayer.addChild(sprite);
+        this.ghosts.push({
+          tx: room.x + 1 + Math.floor(Math.random() * (room.w - 2)),
+          ty: room.y + 1 + Math.floor(Math.random() * (room.h - 2)),
+          progress: 0,
+          dir: STOPPED,
+          sprite,
+          home: { x: room.x + 2, y: room.y + 1 },
+          exitAbove: { x: room.x + 2, y: room.y - 1 },
+          color,
+          state: 'normal',
+          frightUntil: 0,
+          pathDirs: [],
+          repathAt: 0,
+          repathDue: false,
+        });
+      }
     }
 
     const pacSprite = new Sprite(this.tex.pacOpen);

@@ -26,19 +26,36 @@ export interface WorldPlan {
 const CLASSIC_TILES = 28 * 31;
 const CLASSIC_GHOSTS = 4;
 
+// Ghost lairs sit on an even grid dense enough that no tile is farther than
+// ~LAIR_REACH grid units from one. LAIR_CELL is the grid spacing, sized so a
+// cell's half-diagonal (0.5·√2·LAIR_CELL) plus the ±1 jitter and placement
+// rounding stays within LAIR_REACH — the 0.9 factor is that safety margin.
+const LAIR_REACH = 18;
+const LAIR_CELL = Math.round(LAIR_REACH * Math.SQRT2 * 0.9); // ≈23
+
+/** Columns × rows of the even ghost-lair grid for a maze of this size. */
+export function lairGridDims(cols: number, rows: number): { bCols: number; bRows: number } {
+  return {
+    bCols: Math.max(1, Math.ceil(cols / LAIR_CELL)),
+    bRows: Math.max(1, Math.ceil(rows / LAIR_CELL)),
+  };
+}
+
 /** Counts scale with maze area relative to the 1980 original. */
 export function planWorld(pxW: number, pxH: number): WorldPlan {
   const odd = (n: number) => Math.max(15, 2 * Math.floor((n - 1) / 2) + 1);
   const cols = odd(Math.floor(pxW / TILE));
   const rows = odd(Math.floor(pxH / TILE));
   const ratio = (cols * rows) / CLASSIC_TILES;
+  const { bCols, bRows } = lairGridDims(cols, rows);
   return {
     cols,
     rows,
     ghosts: Math.max(CLASSIC_GHOSTS, Math.round(CLASSIC_GHOSTS * ratio)),
     // One power pellet per ~100 grid squares (placed with spacing by the engine).
     powerPellets: Math.max(1, Math.floor((cols * rows) / 100)),
-    ghostBases: Math.max(1, Math.round(ratio)),
+    // An even grid of lairs covering the whole maze (no empty corner).
+    ghostBases: bCols * bRows,
   };
 }
 
@@ -176,43 +193,65 @@ export function generateMaze(plan: WorldPlan): Maze {
   const tunnelRows: number[] = [];
   const tunnelCols: number[] = [];
 
-  // Ghost boxes: walled rooms spread across the maze, each nudged by a random
-  // jitter so they don't sit on a rigid grid. The box border is forced to
-  // wall, the 3x2 interior is open, and the only way in or out is the top
-  // middle tile, which connects up to the corridor lattice.
+  // Ghost boxes: walled rooms on an EVEN grid that covers the whole maze — one
+  // per cell, every cell (so no corner is left empty), spaced so no tile is more
+  // than ~LAIR_REACH from a lair. The box border is forced to wall, the 3x2
+  // interior is open, and the only way in or out is the top-middle tile, which
+  // connects up to the corridor lattice.
   const baseRooms: Rect[] = [];
   const pacSpawn = { x: 2 * startCx + 1, y: 2 * startCy + 1 };
-  const bCols = Math.max(1, Math.round(Math.sqrt(plan.ghostBases * (cols / rows))));
-  const bRows = Math.max(1, Math.ceil(plan.ghostBases / bCols));
-  const jitterX = Math.max(0, Math.floor((cols / bCols) * 0.28));
-  const jitterY = Math.max(0, Math.floor((rows / bRows) * 0.28));
-  const jitter = (range: number) =>
-    range > 0 ? Math.floor(Math.random() * (2 * range + 1)) - range : 0;
-  for (let i = 0; i < plan.ghostBases; i++) {
-    const gx = i % bCols;
-    const gy = Math.floor(i / bCols);
-    let x = Math.round(((gx + 0.5) / bCols) * cols - BASE_ROOM_W / 2) + jitter(jitterX);
-    let y = Math.round(((gy + 0.5) / bRows) * rows - BASE_ROOM_H / 2) + jitter(jitterY);
-    x = Math.min(Math.max(x, 1), cols - 1 - BASE_ROOM_W) | 1;
-    // y >= 3 keeps room above the exit for the connector up to the lattice.
-    y = Math.min(Math.max(y, 3), rows - 1 - BASE_ROOM_H) | 1;
-    // Pac spawns in a walkable clearing; never drop a box on top of him.
-    if (Math.abs(x + 2 - pacSpawn.x) <= 4 && Math.abs(y + 2 - pacSpawn.y) <= 4) {
-      x = x + 8 <= cols - 1 - BASE_ROOM_W ? (x + 8) | 1 : (x - 8) | 1;
-    }
+  const { bCols, bRows } = lairGridDims(cols, rows);
+  // A ±1-tile nudge off the even grid so lairs don't sit on a perfectly rigid
+  // lattice. x stays odd (its exit column must land on the corridor lattice); y
+  // may be any parity — the exit connector reaches the maze either way.
+  const jitter1 = () => Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+  for (let gy = 0; gy < bRows; gy++) {
+    for (let gx = 0; gx < bCols; gx++) {
+      let x = Math.round(((gx + 0.5) / bCols) * cols - BASE_ROOM_W / 2) + jitter1();
+      let y = Math.round(((gy + 0.5) / bRows) * rows - BASE_ROOM_H / 2) + jitter1();
+      x = Math.min(Math.max(x, 1), cols - 1 - BASE_ROOM_W) | 1;
+      // y >= 3 keeps room above the exit for the connector up to the lattice.
+      y = Math.min(Math.max(y, 3), rows - 1 - BASE_ROOM_H);
 
-    const exitX = x + 2; // top middle (odd column — on the corridor lattice)
-    for (let ry = y; ry < y + BASE_ROOM_H; ry++) {
-      for (let rx = x; rx < x + BASE_ROOM_W; rx++) {
-        const isBorder = rx === x || rx === x + BASE_ROOM_W - 1 || ry === y || ry === y + BASE_ROOM_H - 1;
-        const isExit = rx === exitX && ry === y;
-        grid[at(rx, ry)] = isBorder && !isExit ? 0 : 1;
+      const exitX = x + 2; // top middle (odd column — on the corridor lattice)
+      for (let ry = y; ry < y + BASE_ROOM_H; ry++) {
+        for (let rx = x; rx < x + BASE_ROOM_W; rx++) {
+          const isBorder = rx === x || rx === x + BASE_ROOM_W - 1 || ry === y || ry === y + BASE_ROOM_H - 1;
+          const isExit = rx === exitX && ry === y;
+          grid[at(rx, ry)] = isBorder && !isExit ? 0 : 1;
+        }
+      }
+      // Connect the exit upward: (exitX, y-2) is an odd/odd lattice tile, which
+      // the backtracker always carved, so one connector tile reaches the maze.
+      carve(exitX, y - 1);
+      baseRooms.push({ x, y, w: BASE_ROOM_W, h: BASE_ROOM_H });
+    }
+  }
+
+  // A lair may have landed on Pac's spawn; the even grid takes priority, so move
+  // his spawn to the nearest open, non-box tile instead of nudging the lair.
+  const inBox = (x: number, y: number) =>
+    baseRooms.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+  if (grid[at(pacSpawn.x, pacSpawn.y)] !== 1 || inBox(pacSpawn.x, pacSpawn.y)) {
+    const seen = new Uint8Array(cols * rows);
+    seen[at(pacSpawn.x, pacSpawn.y)] = 1;
+    const queue: Array<[number, number]> = [[pacSpawn.x, pacSpawn.y]];
+    while (queue.length > 0) {
+      const [cx, cy] = queue.shift()!;
+      if (grid[at(cx, cy)] === 1 && !inBox(cx, cy)) {
+        pacSpawn.x = cx;
+        pacSpawn.y = cy;
+        break;
+      }
+      for (const [dx, dy] of CELL_DIRS) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        if (seen[at(nx, ny)]) continue;
+        seen[at(nx, ny)] = 1;
+        queue.push([nx, ny]);
       }
     }
-    // Connect the exit upward: (exitX, y-2) is an odd/odd lattice tile, which
-    // the backtracker always carved, so one connector tile reaches the maze.
-    carve(exitX, y - 1);
-    baseRooms.push({ x, y, w: BASE_ROOM_W, h: BASE_ROOM_H });
   }
 
   // Stamping walled boxes over the braided maze chops some loops into stubs.
