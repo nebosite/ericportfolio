@@ -1,0 +1,21 @@
+    [ ] BT Snake
+        [ ] Double ghost: all snakes become ghosts and wrap around.
+            - Ghost snakes go through each other
+        [ ] Permanent rocks?
+        [ ] Robot powerup:  That particular snake becomes self-aware for 10 seconds
+            - Looks for nearby food and ghosts
+
+            
+    [ ] Big pipe, tiny dreams
+    [ ] Big space, tiny invaders
+    [ ] Big ast, tiny e-roids
+    [ ] Big Donkey, tiny kong
+    [ ] Big Q, tiny bert
+    [ ] Big def, tiny ender
+    [ ] Big frog, tiny ger
+    [ ] Big dig, tiny dug
+    [ ] Big pit, tiny fall
+    [ ] Big missile, tiny command
+    [ ] Big tem, tiny pest
+    [ ] Big yar, tiny revenge
+    [ ] Big robo, tiny tron
