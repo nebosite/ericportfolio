@@ -3,11 +3,13 @@ import { attachGameInput, Vec } from '../input';
 import { Maze, TILE, WorldPlan, generateMaze, planWorld } from './maze';
 import {
   DIRS,
+  aStarPath,
   bestTowardTarget,
   bfsPath,
   chooseSpacedTiles,
   firstOpenBelow,
   torusDist,
+  torusHypot,
   wrap,
 } from './grid';
 import { loadSpriteTextures, SpriteTextures } from './sprites';
@@ -41,11 +43,20 @@ const GHOST_POINTS = 200;
 const FRUIT_INTERVAL = 6000; // ms before a lair re-drops its fruit once eaten
 
 const WALL_COLOR = 0x1c1c8a;
-const BOX_FLOOR_COLOR = 0x141467; // forbidden ground: slightly darker than walls
+const WALL_FILL_COLOR = 0x141467; // dark blue inside the wall outline
+const WALL_OUTLINE = 3; // px thickness of the wall's rounded outline
+const WALL_RADIUS = 6; // px corner rounding on wall shapes
+const BOX_FLOOR_COLOR = 0x5a5a5a; // ghost-lair floor: gray, marking forbidden ground
 const DOT_COLOR = 0xffc7ae;
 const GHOST_TINTS = [0xff4b4b, 0xffb8ff, 0x00ffff, 0xffb852];
 
+// Ghost-clearing blast triggered by touching a regular ghost.
+const EXPLOSION_RADIUS = 5; // grid units; ghosts within die (as eyes), no score
+const EXPLODE_MS = 450; // how long the blast graphic lasts
+const EXPLOSION_COLOR = 0xffd24a;
+
 const STOPPED: Vec = { x: 0, y: 0 };
+const NO_BLOCKED: ReadonlySet<number> = new Set(); // eyes may cross any open tile, boxes included
 
 // Grid-locked mover, classic Pac style: an entity occupies a tile and walks
 // center-to-center; `progress` is how many pixels it has covered toward the
@@ -136,6 +147,11 @@ export class BigPacEngine {
   private started = false;
   private popupLayer = new Container();
   private popups: Popup[] = [];
+  private fxLayer = new Container();
+  private explosions: Array<{ gfx: Graphics; born: number; x: number; y: number }> = [];
+  /** Ghosts eaten so far in the current fright phase; doubles their value. */
+  private ghostChain = 0;
+  private frightActive = false;
   private detachInput: () => void = () => {};
 
   /** True once the player has pressed Start; the world is locked in. */
@@ -165,39 +181,40 @@ export class BigPacEngine {
     world.y = Math.floor((pxH - rows * TILE) / 2);
     app.stage.addChild(world);
 
-    // Walls: horizontal runs of wall tiles merged into single rects, all in
-    // one static Graphics (one geometry upload, one draw call).
+    // Walls drawn with a rounded outline (classic maze look): the wall union is
+    // filled once in the outline color, then re-filled inset by the outline
+    // width in the dark-blue wall-fill color, leaving a rounded border ring
+    // around a dark-blue interior. Each tile's exposed corners round; wall-to-
+    // wall joins are squared by straight bridge fills so runs read as one
+    // continuous rounded outline.
+    const isWall = (x: number, y: number) =>
+      x >= 0 && y >= 0 && x < cols && y < rows && grid[y * cols + x] === 0;
+    const traceWalls = (g: Graphics, inset: number) => {
+      const size = TILE - 2 * inset;
+      const rr = Math.max(0, WALL_RADIUS - inset);
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (isWall(x, y)) g.roundRect(x * TILE + inset, y * TILE + inset, size, size, rr);
+        }
+      }
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (!isWall(x, y)) continue;
+          if (isWall(x + 1, y)) {
+            g.rect(x * TILE + TILE - WALL_RADIUS, y * TILE + inset, 2 * WALL_RADIUS, size);
+          }
+          if (isWall(x, y + 1)) {
+            g.rect(x * TILE + inset, y * TILE + TILE - WALL_RADIUS, size, 2 * WALL_RADIUS);
+          }
+        }
+      }
+    };
     const walls = new Graphics();
-    for (let y = 0; y < rows; y++) {
-      let runStart = -1;
-      for (let x = 0; x <= cols; x++) {
-        const isWall = x < cols && !grid[y * cols + x];
-        if (isWall && runStart < 0) runStart = x;
-        if (!isWall && runStart >= 0) {
-          walls.rect(runStart * TILE, y * TILE, (x - runStart) * TILE, TILE);
-          runStart = -1;
-        }
-      }
-    }
+    traceWalls(walls, 0);
     walls.fill(WALL_COLOR);
+    traceWalls(walls, WALL_OUTLINE);
+    walls.fill(WALL_FILL_COLOR);
     world.addChild(walls);
-
-    // Wider-looking passages: every floor run is redrawn in the background
-    // color expanded 1px outward, shaving 1px off each adjoining wall edge.
-    const floorCarve = new Graphics();
-    for (let y = 0; y < rows; y++) {
-      let runStart = -1;
-      for (let x = 0; x <= cols; x++) {
-        const isFloor = x < cols && grid[y * cols + x] === 1;
-        if (isFloor && runStart < 0) runStart = x;
-        if (!isFloor && runStart >= 0) {
-          floorCarve.rect(runStart * TILE - 1, y * TILE - 1, (x - runStart) * TILE + 2, TILE + 2);
-          runStart = -1;
-        }
-      }
-    }
-    floorCarve.fill(BG_COLOR);
-    world.addChild(floorCarve);
 
     // Ghost-box footprints: Pac may never stand here; ghosts only when leaving
     // or returning home.
@@ -208,8 +225,7 @@ export class BigPacEngine {
     }
 
     // Forbidden ground: tint the walkable area inside each box (3x2 interior
-    // plus the exit doorway) slightly darker than the walls, expanded 1px to
-    // meet the narrowed wall edges.
+    // plus the exit doorway) gray, expanded 1px to meet the wall edges.
     const boxFloor = new Graphics();
     for (const r of this.maze.baseRooms) {
       boxFloor.rect(
@@ -315,7 +331,8 @@ export class BigPacEngine {
     world.addChild(pacSprite);
     this.pac = { tx: spawn.x, ty: spawn.y, progress: 0, dir: STOPPED, sprite: pacSprite };
 
-    // Floating "+N" score numbers ride above everything else.
+    // Blast graphics over the maze, and floating "+N" score numbers on top.
+    world.addChild(this.fxLayer);
     world.addChild(this.popupLayer);
 
     for (const m of [this.pac, ...this.ghosts]) this.place(m);
@@ -414,24 +431,48 @@ export class BigPacEngine {
       }
     }
 
-    // Pac eats frightened ghosts on contact; they become homebound eyes.
+    // Pac eats frightened ghosts on contact; they become homebound eyes. Each
+    // consecutive ghost in the same fright phase is worth double the last.
     for (const ghost of this.ghosts) {
       if (ghost.state !== 'frightened') continue;
       if (
         Math.abs(ghost.sprite.x - pac.sprite.x) < TILE * 0.7 &&
         Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
       ) {
+        const points = GHOST_POINTS * 2 ** this.ghostChain;
+        this.ghostChain += 1;
         ghost.state = 'eyes';
         ghost.pathDirs = [];
         ghost.sprite.texture = this.tex.ghostEyes;
         ghost.sprite.tint = 0xffffff;
-        this.score += GHOST_POINTS;
+        this.score += points;
         this.sfx.play('eatghost', 0.5);
-        this.spawnPopup(ghost.sprite.x, ghost.sprite.y, `+${GHOST_POINTS}`);
+        this.spawnPopup(ghost.sprite.x, ghost.sprite.y, `+${points}`);
         this.pushScore();
       }
     }
 
+    // When the fright phase is over (all frightened ghosts eaten or calmed),
+    // reset the eat-chain back to the base value for next time.
+    if (this.frightActive && !this.ghosts.some((g) => g.state === 'frightened')) {
+      this.frightActive = false;
+      this.ghostChain = 0;
+    }
+
+    // Touching a REGULAR ghost sets off a blast: every ghost within
+    // EXPLOSION_RADIUS is knocked out (sent home as eyes), for no points.
+    for (const ghost of this.ghosts) {
+      if (ghost.state !== 'normal') continue;
+      if (
+        Math.abs(ghost.sprite.x - pac.sprite.x) < TILE * 0.7 &&
+        Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
+      ) {
+        this.explode(pac.tx, pac.ty, pac.sprite.x, pac.sprite.y);
+        break;
+      }
+    }
+
+    this.updateExplosions();
     this.pelletLayer.alpha = 0.55 + 0.45 * Math.sin(this.elapsed / 220);
   }
 
@@ -472,6 +513,19 @@ export class BigPacEngine {
     // Box tiles are walkable only for ghosts already inside (heading out) or
     // eyes heading home.
     const allowBase = g.state === 'eyes' || inBase;
+
+    // Eyes head straight home along a guaranteed A* path — no wandering and no
+    // chasing Pac, so a just-eaten ghost can never get lost circling walls.
+    if (g.state === 'eyes') {
+      if (g.pathDirs.length === 0) {
+        const gi = g.ty * cols + g.tx;
+        const hi = g.home.y * cols + g.home.x;
+        g.pathDirs = aStarPath(grid, cols, rows, gi, hi, NO_BLOCKED);
+      }
+      const d = g.pathDirs.shift();
+      if (d && this.isOpen(g.tx, g.ty, d, true)) return d;
+      // At/adjacent to home (or a rare stale step): fall through to a safe step.
+    }
 
     // Aggressive chase: when its 2-second timer is up, a normal ghost within
     // CHASE_RADIUS commits to the shortest path to Pac's current tile, then
@@ -541,6 +595,9 @@ export class BigPacEngine {
 
   /** A power pellet frightens every ghost on the board (except homebound eyes). */
   private frighten() {
+    // A fresh power pellet restarts the eat-chain at the base value.
+    this.frightActive = true;
+    this.ghostChain = 0;
     for (const g of this.ghosts) {
       if (g.state === 'eyes') continue; // already eaten — nothing to scare
       g.state = 'frightened';
@@ -624,6 +681,49 @@ export class BigPacEngine {
       }
       p.text.y = p.y - t * RISE;
       p.text.alpha = 1 - t;
+    }
+  }
+
+  // ---- ghost-clearing blast ------------------------------------------------
+
+  /** Blast at (tileX,tileY): knock out every ghost within EXPLOSION_RADIUS. */
+  private explode(tileX: number, tileY: number, px: number, py: number) {
+    const { cols, rows } = this.maze;
+    this.spawnExplosion(px, py);
+    this.sfx.play('eatghost', 0.4); // reuse the eaten-ghost thump for the blast
+    for (const g of this.ghosts) {
+      if (g.state === 'eyes') continue; // already down
+      if (torusHypot(g.tx, g.ty, tileX, tileY, cols, rows) <= EXPLOSION_RADIUS) {
+        g.state = 'eyes'; // dies as if eaten — but no points for a blast
+        g.pathDirs = [];
+        g.sprite.texture = this.tex.ghostEyes;
+        g.sprite.tint = 0xffffff;
+      }
+    }
+  }
+
+  private spawnExplosion(x: number, y: number) {
+    const gfx = new Graphics();
+    this.fxLayer.addChild(gfx);
+    this.explosions.push({ gfx, born: this.elapsed, x, y });
+  }
+
+  private updateExplosions() {
+    const maxR = EXPLOSION_RADIUS * TILE;
+    for (let i = this.explosions.length - 1; i >= 0; i--) {
+      const e = this.explosions[i];
+      const t = (this.elapsed - e.born) / EXPLODE_MS;
+      if (t >= 1) {
+        e.gfx.destroy();
+        this.explosions.splice(i, 1);
+        continue;
+      }
+      const r = maxR * t;
+      e.gfx.clear();
+      e.gfx.circle(e.x, e.y, r * 0.7);
+      e.gfx.fill({ color: EXPLOSION_COLOR, alpha: 0.35 * (1 - t) });
+      e.gfx.circle(e.x, e.y, r);
+      e.gfx.stroke({ color: EXPLOSION_COLOR, width: 3, alpha: 1 - t });
     }
   }
 

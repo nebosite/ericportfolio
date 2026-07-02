@@ -142,6 +142,34 @@ export function generateMaze(plan: WorldPlan): Maze {
     }
   }
 
+  // Extra porosity: after braiding, open a share of the still-closed inter-cell
+  // walls so the maze has ~POROSITY more passages — a looser, more open weave to
+  // wander. Opening walls only adds connections, so it can never create a dead
+  // end or strand anything; the later repair/connectivity passes still hold.
+  const POROSITY = 0.2;
+  let openWalls = 0;
+  const closedWalls: Array<[number, number]> = [];
+  for (let cy = 0; cy < cellRows; cy++) {
+    for (let cx = 0; cx < cellCols; cx++) {
+      const tx = 2 * cx + 1;
+      const ty = 2 * cy + 1;
+      if (cx + 1 < cellCols) {
+        if (grid[at(tx + 1, ty)]) openWalls++;
+        else closedWalls.push([tx + 1, ty]);
+      }
+      if (cy + 1 < cellRows) {
+        if (grid[at(tx, ty + 1)]) openWalls++;
+        else closedWalls.push([tx, ty + 1]);
+      }
+    }
+  }
+  for (let i = closedWalls.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [closedWalls[i], closedWalls[j]] = [closedWalls[j], closedWalls[i]];
+  }
+  const toOpen = Math.min(closedWalls.length, Math.round(openWalls * POROSITY));
+  for (let i = 0; i < toOpen; i++) carve(closedWalls[i][0], closedWalls[i][1]);
+
   // Wrap-around exits used to be whole corridor rows/cols carved edge-to-edge —
   // straight shortcuts across the maze. They're now punched in at the very end
   // (after connectivity) as border-only openings, so the interior stays maze.

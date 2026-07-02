@@ -25,6 +25,22 @@ export function torusDist(
   return dx + dy;
 }
 
+/** Straight-line (Euclidean) distance between two tiles on a torus. */
+export function torusHypot(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cols: number,
+  rows: number,
+): number {
+  let dx = Math.abs(ax - bx);
+  let dy = Math.abs(ay - by);
+  if (dx > cols - dx) dx = cols - dx;
+  if (dy > rows - dy) dy = rows - dy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 /** The four cardinal moves. */
 export const DIRS: Vec[] = [
   { x: 1, y: 0 },
@@ -146,6 +162,102 @@ export function bfsPath(
   }
   dirs.reverse();
   return dirs;
+}
+
+/**
+ * A* shortest path from `startIdx` to `targetIdx` across walkable tiles (grid
+ * value 1 and not in `blocked`), returned as the list of step directions to
+ * walk it. Movement is toroidal and uniform-cost, with the toroidal Manhattan
+ * distance as an admissible heuristic, so the path is optimal — and, unlike a
+ * greedy "step toward home" chase, it can never get stuck circling a wall.
+ * Returns an empty array if the target is unreachable (or start === target).
+ */
+export function aStarPath(
+  grid: Uint8Array,
+  cols: number,
+  rows: number,
+  startIdx: number,
+  targetIdx: number,
+  blocked: ReadonlySet<number>,
+  maxExpansions: number = cols * rows,
+): Vec[] {
+  if (startIdx === targetIdx) return [];
+  const tX = targetIdx % cols;
+  const tY = (targetIdx - tX) / cols;
+  const heuristic = (idx: number) => {
+    const x = idx % cols;
+    const y = (idx - x) / cols;
+    return torusDist(x, y, tX, tY, cols, rows);
+  };
+
+  // Binary min-heap of [fScore, tile]; small and dependency-free.
+  const heap: Array<[number, number]> = [[heuristic(startIdx), startIdx]];
+  const push = (f: number, idx: number) => {
+    heap.push([f, idx]);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p][0] <= heap[i][0]) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  };
+  const pop = (): [number, number] => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        const r = 2 * i + 2;
+        let s = i;
+        if (l < heap.length && heap[l][0] < heap[s][0]) s = l;
+        if (r < heap.length && heap[r][0] < heap[s][0]) s = r;
+        if (s === i) break;
+        [heap[s], heap[i]] = [heap[i], heap[s]];
+        i = s;
+      }
+    }
+    return top;
+  };
+
+  const gScore = new Map<number, number>([[startIdx, 0]]);
+  const cameFrom = new Map<number, number>();
+  const stepDir = new Map<number, Vec>();
+  const closed = new Set<number>();
+  let expansions = 0;
+  while (heap.length > 0 && expansions < maxExpansions) {
+    const [, current] = pop();
+    if (current === targetIdx) {
+      const dirs: Vec[] = [];
+      for (let cur = targetIdx; cur !== startIdx; cur = cameFrom.get(cur)!) {
+        dirs.push(stepDir.get(cur)!);
+      }
+      dirs.reverse();
+      return dirs;
+    }
+    if (closed.has(current)) continue;
+    closed.add(current);
+    expansions++;
+    const cx = current % cols;
+    const cy = (current - cx) / cols;
+    const g = gScore.get(current)!;
+    for (const d of DIRS) {
+      const nx = wrap(cx + d.x, cols);
+      const ny = wrap(cy + d.y, rows);
+      const nidx = ny * cols + nx;
+      if (grid[nidx] !== 1 || blocked.has(nidx) || closed.has(nidx)) continue;
+      const tentative = g + 1;
+      if (tentative < (gScore.get(nidx) ?? Infinity)) {
+        gScore.set(nidx, tentative);
+        cameFrom.set(nidx, current);
+        stepDir.set(nidx, d);
+        push(tentative + heuristic(nidx), nidx);
+      }
+    }
+  }
+  return [];
 }
 
 /**

@@ -151,6 +151,26 @@ describe('generateMaze', () => {
     expect(maze.tunnelCols.length).toBeGreaterThan(Math.max(1, Math.round(maze.cols / 38)));
   });
 
+  it('opens extra passages for a loopier, more porous maze', () => {
+    for (let run = 0; run < 3; run++) {
+      const maze = generateMaze(planWorld(1920, 1080));
+      const { cols, rows, grid } = maze;
+      const cellCols = (cols - 1) / 2;
+      const cellRows = (rows - 1) / 2;
+      const cells = cellCols * cellRows;
+      let open = 0;
+      for (let cy = 0; cy < cellRows; cy++) {
+        for (let cx = 0; cx < cellCols; cx++) {
+          if (cx + 1 < cellCols && grid[(2 * cy + 1) * cols + (2 * cx + 2)] === 1) open++;
+          if (cy + 1 < cellRows && grid[(2 * cy + 2) * cols + (2 * cx + 1)] === 1) open++;
+        }
+      }
+      // A perfect maze opens exactly cells-1 inter-cell walls; the full braid
+      // plus the porosity pass opens well beyond that, so the weave has loops.
+      expect(open).toBeGreaterThan(1.15 * (cells - 1));
+    }
+  });
+
   it('keeps every open tile reachable from Pac spawn (full connectivity)', () => {
     // The connectivity pass guarantees one connected component: no sealed box,
     // no islanded corridor pocket, anywhere, at any size.

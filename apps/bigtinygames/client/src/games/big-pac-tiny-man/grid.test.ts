@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   wrap,
   torusDist,
+  torusHypot,
   DIRS,
+  aStarPath,
   bfsDistances,
   bfsPath,
   firstOpenBelow,
@@ -32,6 +34,16 @@ describe('torusDist', () => {
     // x: 0 -> 9 is 1 step across the seam on a width-10 torus, not 9.
     expect(torusDist(0, 0, 9, 0, 10, 10)).toBe(1);
     expect(torusDist(0, 0, 0, 8, 10, 10)).toBe(2);
+  });
+});
+
+describe('torusHypot', () => {
+  it('is the straight-line distance when no wrap is shorter', () => {
+    expect(torusHypot(0, 0, 3, 4, 100, 100)).toBe(5); // 3-4-5 triangle
+  });
+  it('takes the wrap-around path when it is shorter', () => {
+    expect(torusHypot(0, 0, 9, 0, 10, 10)).toBe(1); // one step across the seam
+    expect(torusHypot(0, 0, 9, 9, 10, 10)).toBeCloseTo(Math.SQRT2); // diagonal across both seams
   });
 });
 
@@ -155,6 +167,55 @@ describe('bfsPath', () => {
   it('gives up past the step budget', () => {
     // (0,0) is 4 steps from (2,2); a budget of 2 can't reach it.
     expect(bfsPath(openGrid(), COLS, ROWS, idx(2, 2), idx(0, 0), new Set(), 2)).toEqual([]);
+  });
+});
+
+describe('aStarPath', () => {
+  const walk = (sx: number, sy: number, dirs: { x: number; y: number }[]) => {
+    let x = sx;
+    let y = sy;
+    for (const d of dirs) {
+      x = wrap(x + d.x, COLS);
+      y = wrap(y + d.y, ROWS);
+    }
+    return { x, y };
+  };
+
+  it('finds an optimal path whose length matches the toroidal distance', () => {
+    const dirs = aStarPath(openGrid(), COLS, ROWS, idx(0, 0), idx(3, 4), new Set());
+    expect(dirs).toHaveLength(torusDist(0, 0, 3, 4, COLS, ROWS));
+    expect(walk(0, 0, dirs)).toEqual({ x: 3, y: 4 });
+  });
+
+  it('is empty when start equals target', () => {
+    expect(aStarPath(openGrid(), COLS, ROWS, idx(2, 2), idx(2, 2), new Set())).toEqual([]);
+  });
+
+  it('routes around walls and never steps on one', () => {
+    const grid = openGrid();
+    grid[idx(1, 2)] = 0;
+    const dirs = aStarPath(grid, COLS, ROWS, idx(2, 2), idx(0, 2), new Set());
+    expect(dirs.length).toBeGreaterThan(0);
+    let x = 2;
+    let y = 2;
+    for (const d of dirs) {
+      x = wrap(x + d.x, COLS);
+      y = wrap(y + d.y, ROWS);
+      expect(grid[idx(x, y)]).toBe(1);
+    }
+    expect({ x, y }).toEqual({ x: 0, y: 2 });
+  });
+
+  it('wraps toroidally for the shorter path', () => {
+    expect(aStarPath(openGrid(), COLS, ROWS, idx(0, 0), idx(4, 0), new Set())).toEqual([
+      { x: -1, y: 0 },
+    ]);
+  });
+
+  it('returns empty when the target is walled off', () => {
+    const grid = openGrid();
+    for (const [x, y] of [[1, 0], [4, 0], [0, 1], [0, 4]]) grid[idx(x, y)] = 0; // seal (0,0)
+    expect(aStarPath(grid, COLS, ROWS, idx(2, 2), idx(0, 0), new Set())).toEqual([]);
   });
 });
 
