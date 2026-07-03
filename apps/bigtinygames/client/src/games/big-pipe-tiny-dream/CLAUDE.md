@@ -48,20 +48,27 @@ coupling stays in the component.** Extract any new rule into the pure layer and
 test it in the same change.
 
 - `pipeLogic.ts` — the **pure model** and the only place rules live: `Tile`
-  kinds (`straight` / `elbow` / `cross` crossover / `start` source / `terminus`
-  drain), `openings` (rotation → which sides connect; `start`/`terminus` are
-  single-opening "dir-kinds"), `exitSide` (how water threads a tile; a cross
-  keeps two independent channels; a drain has nowhere onward), `canReceive` /
-  `isLocked` (a wet side can't take more; any water — plus the `start` — locks
-  rotation, but a dry `terminus` can still be turned), `rotateTile`,
-  `generateGrid` (random board, central start, **terminus at the start's mirror**
-  through the board centre), and the water head: `startFlow` / `advanceFlow`
-  (cross into the next tile, `won` when it enters the drain, or `dead` when the
-  far edge has no matching open neighbour). The difficulty knobs `countdownSec` /
-  `flowRate` are here too, keyed off the 1-based `level`. Grid size is supplied by
-  the caller (the canvas fills the viewport). Flow helpers **mutate** the tile
-  `water` flags in place — the grid is a mutable ref in the render layer,
-  mirroring the pixi engine pattern in Big Pac.
+  kinds (`straight` / `elbow` / `cross` crossover / `tee` splitter / `start`
+  source / `terminus` drain), `openings` (rotation → which sides connect;
+  `start`/`terminus` are single-opening "dir-kinds"), `exits` (the side(s) water
+  leaves by — one for a straight/elbow, the channel opposite for a cross, **two
+  for a tee**, none for a drain), `canReceive` / `isLocked` (a wet side can't
+  take more; any water — plus the `start` — locks rotation, but a dry `terminus`
+  can still be turned), `rotateTile`, `generateGrid` (tees sprinkled at ~2% of
+  tiles, central start, `drainCount` drains placed ≥4 grid units from every edge
+  / the source / each other), and the **multi-stream** water model: `startFlow` /
+  `advanceHead` return `Step`s (`continue` a stream, `drain` = a terminus fed, or
+  `dead` with a reason). A tee turns one stream into two, so a single source can
+  feed several drains. **Death has two flavours**: a `crash` (off an edge or into
+  a mis-oriented tile — a preparation failure) ends the whole run **immediately**;
+  a `collision` (running into water already flowing) only kills that one branch,
+  and the run ends by collisions alone only once **every** stream is dead before
+  the drains are fed. `drainCount(cols,rows,level)` = `1 + ceil(area/1000) *
+level`; `countdownSec` (base `35 − 5·level`, floored at 5, **plus a flat +30s**)
+  / `flowRate` round out the level knobs. Grid size is supplied by the caller (the canvas fills the
+  viewport). Flow helpers **mutate** the tile `water` flags in place — the grid
+  is a mutable ref in the render layer, mirroring the pixi engine pattern in Big
+  Pac.
 - `pipeLogic.test.ts` — unit tests for all of the above (the safety net; extend
   it for every rule change). Uses a `seqRng` helper for determinism.
 - `sprites.ts` — loads the pipe tile graphics, which are **editable 40x40 PNGs**
@@ -97,12 +104,17 @@ itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
 
 ## Current defaults worth knowing (tune freely)
 
-- **Flow speed** = `4 + 4·level` px/s; **countdown** = `35 − 5·level`s (floor 5).
-- **Level clear** = guide the water into the **terminus drain** (mirror of the
-  start). Then a fresh board, shorter countdown, faster flow. **Game over** = the
-  water reaches a tile edge with no correctly-oriented, dry neighbour.
-- **Score** = **one point per pixel the water travels**, accumulated across
-  levels; submitted to the leaderboard on game over.
+- **Flow speed** = `4 + 4·level` px/s; **countdown** = `35 − 5·level`s (floor 5)
+  **+ 30s** planning buffer.
+- **Tee** = a rare ~2% splitter. Enter one port → water exits the other two.
+- **Drains** = `1 + ceil(area/1000)·level`, placed randomly ≥4 from every edge,
+  the source and each other. **Level clear** = feed **all** drains. **Game over**
+  = a stream **crashes** off an edge / into a mis-oriented tile (immediate), or
+  every stream dies (crash or collision) before the drains are fed. Running into
+  existing water is a **collision** — only that branch dies.
+- **Score** = **one point per pixel the water travels**, summed over all live
+  streams, accumulated across levels; submitted to the leaderboard on game over.
+- **Speed toggle** overrides level speed with a flat fast 100 px/s.
 - **Sound** = placeholder beeps (`assets/sounds/*.wav`) for rotate / flow-start /
   level-complete / game-over. Swap the WAVs for nicer cues when ready.
 

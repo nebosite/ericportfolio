@@ -2,16 +2,16 @@ import { useCallback, useEffect, useRef, useState, FormEvent } from "react";
 import { attachGameInput } from "../input";
 import {
   Grid,
-  Flow,
   Tile,
   Side,
+  Head,
   N,
   E,
   isLocked,
   rotateTile,
   generateGrid,
   startFlow,
-  advanceFlow,
+  advanceHead,
   tileAt,
   idx,
   countdownSec,
@@ -30,12 +30,14 @@ const TILE = 40;
 const WATER_W = 8; // the stream drawn inside the pipe casing
 const GAME_SLUG = "big-pipe-tiny-dream";
 const FAST_SPEED = 100; // px/s when the speed toggle is on "fast"
-const HALO_RADIUS = 75; // ~150px-wide source glow that rides the water head
-const SHADOW_RADIUS = 100; // ~200px-wide dark pool behind the drain
+const HALO_RADIUS = 70; // ~140px-wide glow that rides each advancing stream head
+const SHADOW_RADIUS = 100; // ~200px-wide dark pool behind every drain
+const MAX_HALOS = 24; // cap the per-head glows so a wide split stays cheap
 
 const WATER = "#37b6ff";
 const WATER_GLOW = "#bff0ff";
 const DRAIN_RING = "#8affc8";
+const DRAIN_RING_DONE = "#48ffa0";
 const BG = "#0d0d14";
 
 type Phase = "idle" | "playing" | "levelclear" | "gameover" | "saved";
@@ -55,18 +57,12 @@ const EDGE: Array<[number, number]> = [
   [0, TILE / 2],
 ];
 
-// A tile's water centreline: entry edge → centre → exit edge (always length
-// TILE, whether the middle bends or runs straight). Single-opening tiles
-// (start/terminus) pass exit === entry, giving an edge→centre stub.
-function centreline(entry: Side, exit: Side): Array<[number, number]> {
-  return [EDGE[entry], [TILE / 2, TILE / 2], EDGE[exit]];
-}
-
 // Which sprite draws this tile, and how many 90° clockwise turns to rotate the
 // (natively-oriented) PNG so its openings match the tile's logical state.
 //   pipe native = vertical N–S       → rot
 //   elbow native = E+S (logic rot 1) → rot − 1
 //   cross native = horizontal on top → rot (visual only)
+//   tee native = E+S+W (logic rot 0) → rot
 //   start/terminus native = open E   → dir − 1
 function spriteFor(t: Tile): { name: SpriteName; steps: number } {
   switch (t.kind) {
@@ -76,6 +72,8 @@ function spriteFor(t: Tile): { name: SpriteName; steps: number } {
       return { name: "elbow", steps: (t.rot + 3) % 4 };
     case "cross":
       return { name: "cross", steps: t.rot % 4 };
+    case "tee":
+      return { name: "tee", steps: t.rot % 4 };
     case "start":
       return { name: "start", steps: ((t.dir ?? N) + 3) % 4 };
     default:
@@ -83,51 +81,68 @@ function spriteFor(t: Tile): { name: SpriteName; steps: number } {
   }
 }
 
-// Stroke a polyline only up to `len` pixels along it — the growing water head.
-function strokePartial(
+// Paint a tile's water into the given context: the entry arm fills over the
+// first half of `progress`, then every exit arm fills over the second half (a
+// tee has two exit arms, so its stream visibly splits). progress = 1 is a full,
+// completed tile; a drain is painted as entry-only (no exits) at 0.5.
+function paintWater(
   ctx: CanvasRenderingContext2D,
-  pts: Array<[number, number]>,
-  len: number,
-  width: number,
-  color: string,
+  entry: Side,
+  exits: Side[],
+  cx: number,
+  cy: number,
+  progress: number,
 ) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
+  const ox = cx * TILE;
+  const oy = cy * TILE;
+  const midX = ox + TILE / 2;
+  const midY = oy + TILE / 2;
+  const ex0 = ox + EDGE[entry][0];
+  const ey0 = oy + EDGE[entry][1];
+  ctx.strokeStyle = WATER;
+  ctx.lineWidth = WATER_W;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  let remaining = len;
-  for (let i = 1; i < pts.length && remaining > 0; i++) {
-    const [x0, y0] = pts[i - 1];
-    const [x1, y1] = pts[i];
-    const seg = Math.hypot(x1 - x0, y1 - y0);
-    if (remaining >= seg) {
-      ctx.lineTo(x1, y1);
-      remaining -= seg;
-    } else {
-      const t = remaining / seg;
-      ctx.lineTo(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
-      remaining = 0;
+
+  const inFrac = Math.min(progress, 0.5) / 0.5;
+  if (inFrac > 0) {
+    ctx.beginPath();
+    ctx.moveTo(ex0, ey0);
+    ctx.lineTo(ex0 + (midX - ex0) * inFrac, ey0 + (midY - ey0) * inFrac);
+    ctx.stroke();
+  }
+  if (progress > 0.5) {
+    const outFrac = (progress - 0.5) / 0.5;
+    for (const ex of exits) {
+      const xp = ox + EDGE[ex][0];
+      const yp = oy + EDGE[ex][1];
+      ctx.beginPath();
+      ctx.moveTo(midX, midY);
+      ctx.lineTo(midX + (xp - midX) * outFrac, midY + (yp - midY) * outFrac);
+      ctx.stroke();
     }
   }
-  ctx.stroke();
 }
 
-// The point `len` pixels along a polyline (for the bright head bead).
-function pointAlong(pts: Array<[number, number]>, len: number): [number, number] {
-  let remaining = len;
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1];
-    const [x1, y1] = pts[i];
-    const seg = Math.hypot(x1 - x0, y1 - y0);
-    if (remaining <= seg) {
-      const t = seg === 0 ? 0 : remaining / seg;
-      return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
-    }
-    remaining -= seg;
+// The leading tip(s) of a crossing head — one on the entry arm before the
+// centre, one per exit arm after it (a tee has two).
+function headTips(head: Head): Array<[number, number]> {
+  const ox = head.x * TILE;
+  const oy = head.y * TILE;
+  const midX = ox + TILE / 2;
+  const midY = oy + TILE / 2;
+  if (head.progress <= 0.5) {
+    const f = head.progress / 0.5;
+    const ex0 = ox + EDGE[head.entry][0];
+    const ey0 = oy + EDGE[head.entry][1];
+    return [[ex0 + (midX - ex0) * f, ey0 + (midY - ey0) * f]];
   }
-  return pts[pts.length - 1];
+  const outFrac = (head.progress - 0.5) / 0.5;
+  return head.exits.map((ex) => {
+    const xp = ox + EDGE[ex][0];
+    const yp = oy + EDGE[ex][1];
+    return [midX + (xp - midX) * outFrac, midY + (yp - midY) * outFrac] as [number, number];
+  });
 }
 
 // Draw one tile's pipe sprite onto the (transparent) pipe layer at its grid
@@ -182,11 +197,13 @@ export default function BigPipeTinyDream() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgRef = useRef<HTMLCanvasElement | null>(null); // textured green ground
   const pipesRef = useRef<HTMLCanvasElement | null>(null); // transparent pipe layer
+  const waterRef = useRef<HTMLCanvasElement | null>(null); // baked, completed water
   const spritesRef = useRef<SpriteImages | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
   const gridRef = useRef<Grid | null>(null);
-  const flowRef = useRef<Flow | null>(null);
-  const trailRef = useRef<Array<{ x: number; y: number; entry: Side; exit: Side }>>([]);
+  const headsRef = useRef<Head[]>([]); // active stream heads
+  const reachedRef = useRef<Array<Side | null>>([]); // per drain: entry side, or null
+  const floodStartedRef = useRef(false);
   const levelRef = useRef(1);
   const scoreRef = useRef(0);
   const traveledRef = useRef(0); // pixels the water has travelled — the score
@@ -200,6 +217,8 @@ export default function BigPipeTinyDream() {
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
   const [fast, setFast] = useState(false);
+  const [drainsDone, setDrainsDone] = useState(0);
+  const [drainsTotal, setDrainsTotal] = useState(1);
   const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
 
@@ -266,9 +285,9 @@ export default function BigPipeTinyDream() {
     }
   }, []);
 
-  // Composite one frame, bottom to top: textured green ground, the drain's dark
-  // pool and the source halo (which rides the water head), the pipes, the water,
-  // then the countdown badge.
+  // Composite one frame, bottom to top: textured green ground, each drain's dark
+  // pool and a halo riding every advancing head, the pipes, the drain rings, the
+  // baked + live water, then the countdown badge.
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const pipes = pipesRef.current;
@@ -276,6 +295,7 @@ export default function BigPipeTinyDream() {
     const grid = gridRef.current;
     if (!canvas || !pipes || !ctx || !grid) return;
     const now = performance.now();
+    const heads = headsRef.current;
 
     const bg = bgRef.current;
     if (bg) {
@@ -285,60 +305,53 @@ export default function BigPipeTinyDream() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    const trail = trailRef.current;
-    const flow = flowRef.current;
     const sx = grid.start.x * TILE;
     const sy = grid.start.y * TILE;
-    const tx = grid.terminus.x * TILE;
-    const ty = grid.terminus.y * TILE;
 
-    // The drain's pulsating dark pool (~200px), always on.
-    const shadowR = SHADOW_RADIUS * (0.85 + 0.15 * Math.sin(now / 700 + 1));
-    const shadow = ctx.createRadialGradient(
-      tx + TILE / 2,
-      ty + TILE / 2,
-      0,
-      tx + TILE / 2,
-      ty + TILE / 2,
-      shadowR,
-    );
-    shadow.addColorStop(0, "rgba(0,0,0,0.55)");
-    shadow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = shadow;
-    ctx.beginPath();
-    ctx.arc(tx + TILE / 2, ty + TILE / 2, shadowR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // The source halo (~150px), pulsating and tracking the leading water edge.
-    let haloX = sx + TILE / 2;
-    let haloY = sy + TILE / 2;
-    if (flow && !flow.dead && trail.length > 0) {
-      const head = trail[trail.length - 1];
-      const frac = Math.min(flow.progress, flow.won ? 0.5 : 1);
-      const pts = centreline(head.entry, head.exit).map(
-        ([lx, ly]) => [head.x * TILE + lx, head.y * TILE + ly] as [number, number],
-      );
-      [haloX, haloY] = pointAlong(pts, frac * TILE);
+    // Every drain's pulsating dark pool (~200px), always on.
+    for (const d of grid.drains) {
+      const dx = d.x * TILE + TILE / 2;
+      const dy = d.y * TILE + TILE / 2;
+      const r = SHADOW_RADIUS * (0.85 + 0.15 * Math.sin(now / 700 + d.x + d.y));
+      const g = ctx.createRadialGradient(dx, dy, 0, dx, dy, r);
+      g.addColorStop(0, "rgba(0,0,0,0.55)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(dx, dy, r, 0, Math.PI * 2);
+      ctx.fill();
     }
+
+    // A pulsating halo riding each advancing head (or the spring before flow).
+    const haloPts: Array<[number, number]> =
+      heads.length > 0
+        ? heads.slice(0, MAX_HALOS).map((h) => headTips(h)[0])
+        : [[sx + TILE / 2, sy + TILE / 2]];
     const haloR = HALO_RADIUS * (0.8 + 0.2 * Math.sin(now / 500));
-    const halo = ctx.createRadialGradient(haloX, haloY, 0, haloX, haloY, haloR);
-    halo.addColorStop(0, "rgba(255,238,170,0.5)");
-    halo.addColorStop(1, "rgba(255,238,170,0)");
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(haloX, haloY, haloR, 0, Math.PI * 2);
-    ctx.fill();
+    for (const [hx, hy] of haloPts) {
+      const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, haloR);
+      halo.addColorStop(0, "rgba(255,238,170,0.5)");
+      halo.addColorStop(1, "rgba(255,238,170,0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(hx, hy, haloR, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // The pipes sit above the ground and the glows.
     ctx.drawImage(pipes, 0, 0);
 
-    // A soft ring around the drain so it's findable on a monitor-sized board.
-    ctx.strokeStyle = DRAIN_RING;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now / 400);
-    ctx.beginPath();
-    ctx.arc(tx + TILE / 2, ty + TILE / 2, TILE * 0.46, 0, Math.PI * 2);
-    ctx.stroke();
+    // A soft ring around each drain so they're findable on a huge board; a fed
+    // drain glows brighter and steadier.
+    grid.drains.forEach((d, i) => {
+      const done = reachedRef.current[i] != null;
+      ctx.strokeStyle = done ? DRAIN_RING_DONE : DRAIN_RING;
+      ctx.lineWidth = done ? 3 : 2;
+      ctx.globalAlpha = done ? 0.9 : 0.5 + 0.3 * Math.sin(now / 400 + d.x);
+      ctx.beginPath();
+      ctx.arc(d.x * TILE + TILE / 2, d.y * TILE + TILE / 2, TILE * 0.46, 0, Math.PI * 2);
+      ctx.stroke();
+    });
     ctx.globalAlpha = 1;
 
     // Source is always wet: a small water pip at the spring.
@@ -347,28 +360,22 @@ export default function BigPipeTinyDream() {
     ctx.arc(sx + TILE / 2, sy + TILE / 2, TILE * 0.1, 0, Math.PI * 2);
     ctx.fill();
 
-    // Water: every trail tile is full except the head, which fills to progress.
-    for (let i = 0; i < trail.length; i++) {
-      const seg = trail[i];
-      const isHead = i === trail.length - 1 && flow != null && !flow.dead;
-      // The head fills to its progress; a won (drain) tile only to its centre.
-      const frac = isHead ? Math.min(flow!.progress, flow!.won ? 0.5 : 1) : 1;
-      const pts = centreline(seg.entry, seg.exit).map(
-        ([lx, ly]) => [seg.x * TILE + lx, seg.y * TILE + ly] as [number, number],
-      );
-      strokePartial(ctx, pts, frac * TILE, WATER_W, WATER);
-      if (isHead) {
-        const headPt = pointAlong(pts, frac * TILE);
-        ctx.fillStyle = WATER_GLOW;
+    // Baked water (completed tiles + fed drains), then each live head on top.
+    const water = waterRef.current;
+    if (water) ctx.drawImage(water, 0, 0);
+    for (const h of heads) {
+      paintWater(ctx, h.entry, h.exits, h.x, h.y, h.progress);
+      ctx.fillStyle = WATER_GLOW;
+      for (const [tx, ty] of headTips(h)) {
         ctx.beginPath();
-        ctx.arc(headPt[0], headPt[1], WATER_W / 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, WATER_W / 2, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
     // Countdown badge over the spring until the flood begins.
-    if (phaseRef.current === "playing" && flow == null) {
-      const secs = Math.max(0, Math.ceil((flowAtRef.current - performance.now()) / 1000));
+    if (phaseRef.current === "playing" && !floodStartedRef.current) {
+      const secs = Math.max(0, Math.ceil((flowAtRef.current - now) / 1000));
       ctx.fillStyle = "rgba(13,13,20,0.72)";
       ctx.beginPath();
       ctx.arc(sx + TILE / 2, sy + TILE / 2, TILE * 0.42, 0, Math.PI * 2);
@@ -412,19 +419,28 @@ export default function BigPipeTinyDream() {
       }
       bgRef.current = bg;
 
-      // Transparent pipe layer, redrawn per tile on rotation.
+      // Transparent pipe layer (redrawn per tile on rotation) and a water layer
+      // that accumulates completed streams.
       const pipes = document.createElement("canvas");
       pipes.width = canvas.width;
       pipes.height = canvas.height;
       pipesRef.current = pipes;
+      const water = document.createElement("canvas");
+      water.width = canvas.width;
+      water.height = canvas.height;
+      waterRef.current = water;
 
-      gridRef.current = generateGrid(cols, rows, Math.random);
-      flowRef.current = null;
-      trailRef.current = [];
+      const grid = generateGrid(cols, rows, Math.random, lvl);
+      gridRef.current = grid;
+      headsRef.current = [];
+      reachedRef.current = grid.drains.map(() => null);
+      floodStartedRef.current = false;
       traveledRef.current = 0;
       flowAtRef.current = performance.now() + countdownSec(lvl) * 1000;
       levelRef.current = lvl;
       setLevel(lvl);
+      setDrainsDone(0);
+      setDrainsTotal(grid.drains.length);
       setPhase("playing");
       renderPipes();
       draw();
@@ -441,62 +457,90 @@ export default function BigPipeTinyDream() {
     startLevel(1);
   }, [startLevel]);
 
-  // The rAF loop: advance the flood while phase is "playing".
+  // The rAF loop: advance every stream while phase is "playing".
   useEffect(() => {
     if (phase !== "playing") return;
     lastTsRef.current = performance.now();
+
+    // Mark a drain fed; returns true when that completes the set.
+    const markDrain = (grid: Grid, dx: number, dy: number, entry: Side): boolean => {
+      const i = grid.drains.findIndex((d) => d.x === dx && d.y === dy);
+      if (i < 0 || reachedRef.current[i] != null) return false;
+      reachedRef.current[i] = entry;
+      const wctx = waterRef.current?.getContext("2d");
+      if (wctx) paintWater(wctx, entry, [], dx, dy, 0.5); // a stub into the drain
+      const done = reachedRef.current.filter((r) => r != null).length;
+      setDrainsDone(done);
+      return done === grid.drains.length;
+    };
+
     const tick = (ts: number) => {
       const dt = (ts - lastTsRef.current) / 1000;
       lastTsRef.current = ts;
       const grid = gridRef.current;
       if (!grid) return;
       const lvl = levelRef.current;
+      let won = false;
+      let crashed = false; // a stream ran off an edge / into a mis-oriented tile
 
       // Kick off the flood once the countdown elapses.
-      if (flowRef.current == null && ts >= flowAtRef.current) {
-        const f = startFlow(grid);
-        flowRef.current = f;
+      if (!floodStartedRef.current && ts >= flowAtRef.current) {
+        floodStartedRef.current = true;
         sfxRef.current?.play("flow", 0.5);
-        if (!f.dead) {
-          trailRef.current.push({ x: f.x, y: f.y, entry: f.entry, exit: f.exit });
-        }
+        const step = startFlow(grid);
+        if (step.type === "continue") headsRef.current.push(step.head);
+        else if (step.type === "drain") won = markDrain(grid, step.x, step.y, step.entry);
+        else if (step.reason === "crash") crashed = true;
       }
 
-      let flow = flowRef.current;
-      if (flow && !flow.dead) {
+      if (floodStartedRef.current && !won && !crashed) {
         const speed = fastRef.current ? FAST_SPEED : flowRate(lvl);
         const delta = speed * dt;
-        traveledRef.current += delta;
-        flow.progress += delta / TILE;
-        // Cross into as many tiles as this frame's travel spans (a drain tile
-        // is `won` and never advances onward).
-        while (flow && !flow.dead && !flow.won && flow.progress >= 1) {
-          const carry = flow.progress - 1;
-          const next = advanceFlow(grid, flow);
-          flowRef.current = next;
-          flow = next;
-          if (next.dead) break;
-          next.progress = carry;
-          trailRef.current.push({ x: next.x, y: next.y, entry: next.entry, exit: next.exit });
+        const dInc = delta / TILE;
+        const heads = headsRef.current;
+        traveledRef.current += delta * heads.length; // every stream travels
+        const next: Head[] = [];
+        for (const h of heads) {
+          h.progress += dInc;
+          if (h.progress < 1) {
+            next.push(h);
+            continue;
+          }
+          // Completed this tile: bake its full water, then branch onward.
+          const wctx = waterRef.current?.getContext("2d");
+          if (wctx) paintWater(wctx, h.entry, h.exits, h.x, h.y, 1);
+          for (const st of advanceHead(grid, h)) {
+            if (st.type === "continue") {
+              st.head.progress = h.progress - 1;
+              next.push(st.head);
+            } else if (st.type === "drain") {
+              if (markDrain(grid, st.x, st.y, st.entry)) won = true;
+            } else if (st.reason === "crash") {
+              crashed = true; // off an edge / mis-oriented tile → whole run ends
+            }
+            // collision → this branch simply ends, the run continues
+          }
         }
+        headsRef.current = next;
         scoreRef.current = Math.floor(traveledRef.current);
         setScore(scoreRef.current);
       }
 
       draw();
 
-      const cur = flowRef.current;
-      if (cur && cur.dead) {
+      if (won) {
+        stopLoop();
+        sfxRef.current?.play("levelup", 0.6);
+        setPhase("levelclear");
+        return;
+      }
+      // A crash (edge / mis-oriented tile) ends the run at once; so does every
+      // stream dying — by collision or otherwise — before the drains are fed.
+      if (crashed || (floodStartedRef.current && headsRef.current.length === 0)) {
         stopLoop();
         sfxRef.current?.play("gameover", 0.6);
         trackEvent("game_over", { game: GAME_SLUG, score: scoreRef.current });
         setPhase("gameover");
-        return;
-      }
-      if (cur && cur.won && cur.progress >= 0.5) {
-        stopLoop();
-        sfxRef.current?.play("levelup", 0.6);
-        setPhase("levelclear");
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -598,7 +642,9 @@ export default function BigPipeTinyDream() {
         >
           SPEED: {fast ? "FAST ⏩" : "NORMAL"}
         </button>
-        <span className={styles.drainHint}>◎ GUIDE WATER TO THE DRAIN</span>
+        <span className={styles.drainHint}>
+          ◎ DRAINS {drainsDone}/{drainsTotal}
+        </span>
         <span>CLICK / TAP TO ROTATE</span>
       </div>
 
@@ -610,13 +656,13 @@ export default function BigPipeTinyDream() {
             <p className={styles.overlayTitle}>BIG PIPE TINY DREAM</p>
             <p>
               The board is already full of pipe. Before the water wakes, twist the tiles — one click
-              turns a piece a quarter turn — and dream up a path from the golden spring to the
+              turns a piece a quarter turn — and dream up a path from the golden spring to every
               glowing drain.
             </p>
             <p>
-              Water creeps from the spring, scoring a point for every pixel it travels. Keep an
-              open, matching pipe waiting at every edge; a wet pipe sets and can&apos;t be turned.
-              Reach the drain to clear the level.
+              A tee splits the stream in two, so one spring can feed many drains — but a stream that
+              runs into a wall, an edge, or water already flowing dies. If every stream dies before
+              the drains are fed, the dream ends. Score a point for each pixel the water travels.
             </p>
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
@@ -629,7 +675,7 @@ export default function BigPipeTinyDream() {
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>LEVEL {level} COMPLETE</p>
             <p>SCORE: {score}</p>
-            <p>The spring runs faster the deeper you dream.</p>
+            <p>Every drain fed. The spring runs faster the deeper you dream.</p>
             <button
               type="button"
               className={styles.arcadeButton}

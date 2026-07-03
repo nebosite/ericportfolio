@@ -42,7 +42,7 @@ describe("BigPipeTinyDream — overlays & wiring", () => {
     fireEvent.click(screen.getByRole("button", { name: "▶ START" }));
     expect(trackEvent).toHaveBeenCalledWith("game_start", { game: "big-pipe-tiny-dream" });
     expect(screen.getByText("LEVEL 1")).toBeInTheDocument();
-    expect(screen.getByText("◎ GUIDE WATER TO THE DRAIN")).toBeInTheDocument();
+    expect(screen.getByText(/◎ DRAINS \d+\/\d+/)).toBeInTheDocument();
     // Title overlay is gone once play begins.
     expect(screen.queryByText("BIG PIPE TINY DREAM")).not.toBeInTheDocument();
   });

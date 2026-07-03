@@ -1,6 +1,7 @@
 import crossUrl from "./assets/sprites/cross.png";
 import elbowUrl from "./assets/sprites/elbow.png";
 import pipeUrl from "./assets/sprites/pipe.png";
+import teeUrl from "./assets/sprites/tee.png";
 import startUrl from "./assets/sprites/start.png";
 import terminusUrl from "./assets/sprites/terminus.png";
 
@@ -13,15 +14,17 @@ import terminusUrl from "./assets/sprites/terminus.png";
 //   pipe     — vertical straight (N–S)
 //   elbow    — opening east + south
 //   cross    — crossover, horizontal pipe on top
+//   tee      — openings east + south + west (bar on top, stem down)
 //   start    — spring, opening east
 //   terminus — drain, opening east
 
-export type SpriteName = "cross" | "elbow" | "pipe" | "start" | "terminus";
+export type SpriteName = "cross" | "elbow" | "pipe" | "tee" | "start" | "terminus";
 
 const SPRITE_URLS: Record<SpriteName, string> = {
   cross: crossUrl,
   elbow: elbowUrl,
   pipe: pipeUrl,
+  tee: teeUrl,
   start: startUrl,
   terminus: terminusUrl,
 };

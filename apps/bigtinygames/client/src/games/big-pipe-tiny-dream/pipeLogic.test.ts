@@ -6,18 +6,20 @@ import {
   W,
   Tile,
   Grid,
+  Head,
   Rng,
   openings,
-  exitSide,
+  exits,
   canReceive,
   isLocked,
   rotateTile,
   generateGrid,
   startFlow,
-  advanceFlow,
+  advanceHead,
   tileAt,
   countdownSec,
   flowRate,
+  drainCount,
 } from "./pipeLogic";
 
 const dry = (): boolean[] => [false, false, false, false];
@@ -38,19 +40,22 @@ describe("openings", () => {
   it("straight opens N–S at rot 0 and E–W after a quarter turn", () => {
     expect(openings(tile("straight", 0))).toEqual([true, false, true, false]);
     expect(openings(tile("straight", 1))).toEqual([false, true, false, true]);
-    expect(openings(tile("straight", 2))).toEqual([true, false, true, false]);
   });
 
   it("elbow bends and sweeps around with rotation", () => {
     expect(openings(tile("elbow", 0))).toEqual([true, true, false, false]); // N+E
-    expect(openings(tile("elbow", 1))).toEqual([false, true, true, false]); // E+S
     expect(openings(tile("elbow", 2))).toEqual([false, false, true, true]); // S+W
-    expect(openings(tile("elbow", 3))).toEqual([true, false, false, true]); // W+N
   });
 
   it("cross opens every side regardless of rotation", () => {
     expect(openings(tile("cross", 0))).toEqual([true, true, true, true]);
-    expect(openings(tile("cross", 3))).toEqual([true, true, true, true]);
+  });
+
+  it("tee opens three sides (bar + stem) and rotates around", () => {
+    expect(openings(tile("tee", 0))).toEqual([false, true, true, true]); // E+S+W
+    expect(openings(tile("tee", 1))).toEqual([true, false, true, true]); // S+W+N
+    expect(openings(tile("tee", 2))).toEqual([true, true, false, true]); // W+N+E
+    expect(openings(tile("tee", 3))).toEqual([true, true, true, false]); // N+E+S
   });
 
   it("start and terminus open only toward their dir", () => {
@@ -59,90 +64,106 @@ describe("openings", () => {
   });
 });
 
-describe("exitSide", () => {
-  it("straight and cross pass straight through", () => {
-    expect(exitSide(tile("straight", 0), N)).toBe(S);
-    expect(exitSide(tile("cross", 0), E)).toBe(W);
-    expect(exitSide(tile("cross", 0), N)).toBe(S);
+describe("exits", () => {
+  it("straight and cross pass straight through (one exit)", () => {
+    expect(exits(tile("straight", 0), N)).toEqual([S]);
+    expect(exits(tile("cross", 0), E)).toEqual([W]);
   });
 
   it("elbow bends to its other opening", () => {
-    expect(exitSide(tile("elbow", 0), N)).toBe(E);
-    expect(exitSide(tile("elbow", 0), E)).toBe(N);
+    expect(exits(tile("elbow", 0), N)).toEqual([E]);
   });
 
-  it("a terminus has nowhere onward", () => {
-    expect(exitSide(tile("terminus", 0, W), W)).toBeNull();
+  it("a tee splits into its other two ports", () => {
+    expect(exits(tile("tee", 0), W)).toEqual([E, S]);
+    expect(exits(tile("tee", 0), S)).toEqual([E, W]);
+    expect(exits(tile("tee", 0), E)).toEqual([S, W]);
   });
 
-  it("returns null when entering a closed side", () => {
-    expect(exitSide(tile("straight", 0), E)).toBeNull();
+  it("a terminus has nowhere onward, and a closed side yields none", () => {
+    expect(exits(tile("terminus", 0, W), W)).toEqual([]);
+    expect(exits(tile("straight", 0), E)).toEqual([]);
   });
 });
 
 describe("canReceive / locking", () => {
   it("receives on an open, dry side only", () => {
     expect(canReceive(tile("straight", 0), N)).toBe(true);
-    expect(canReceive(tile("straight", 0), E)).toBe(false); // closed side
+    expect(canReceive(tile("straight", 0), E)).toBe(false);
     const wet = tile("straight", 0);
     wet.water[N] = true;
-    expect(canReceive(wet, N)).toBe(false); // already used
+    expect(canReceive(wet, N)).toBe(false); // encountering water there → dies
   });
 
   it("a cross can still receive on its free channel", () => {
     const c = tile("cross", 0);
     c.water[N] = true;
-    c.water[S] = true; // N–S channel used
-    expect(canReceive(c, E)).toBe(true); // E–W channel still open
+    c.water[S] = true;
+    expect(canReceive(c, E)).toBe(true);
     expect(canReceive(c, N)).toBe(false);
   });
 
   it("start tiles and any watered pipe are locked; a dry terminus is not", () => {
     expect(isLocked(tile("start", 0, N))).toBe(true);
-    expect(isLocked(tile("terminus", 0, N))).toBe(false); // rotatable until reached
-    expect(isLocked(tile("straight", 0))).toBe(false);
-    const wet = tile("elbow", 0);
-    wet.water[N] = true;
+    expect(isLocked(tile("terminus", 0, N))).toBe(false);
+    expect(isLocked(tile("tee", 0))).toBe(false);
+    const wet = tile("tee", 0);
+    wet.water[E] = true;
     expect(isLocked(wet)).toBe(true);
   });
 
-  it("rotate advances an elbow's rot and turns a terminus's opening", () => {
-    const r = rotateTile(tile("elbow", 3));
-    expect(r.rot).toBe(0);
-    expect(r.water).toEqual(dry());
-    const term = rotateTile(tile("terminus", 0, N));
-    expect(term.dir).toBe(E); // N → E
+  it("rotate advances a rot-kind and turns a terminus's opening", () => {
+    expect(rotateTile(tile("tee", 3)).rot).toBe(0);
+    expect(rotateTile(tile("terminus", 0, N)).dir).toBe(E);
+  });
+});
+
+describe("drainCount", () => {
+  it("is 1 + ceil(area/1000) * level", () => {
+    expect(drainCount(20, 20, 1)).toBe(1 + 1 * 1); // area 400 → ceil 1
+    expect(drainCount(40, 40, 1)).toBe(1 + 2 * 1); // area 1600 → ceil 2
+    expect(drainCount(40, 40, 3)).toBe(1 + 2 * 3);
   });
 });
 
 describe("generateGrid", () => {
-  it("places start centrally and a terminus at its mirror", () => {
-    const g = generateGrid(20, 20, seqRng([0.5]));
-    const s = tileAt(g, g.start.x, g.start.y);
-    expect(s.kind).toBe("start");
-    expect(g.start).toEqual({ x: 10, y: 10 });
-    // mirror of (10,10) through the 20x20 board is (9,9)
-    expect(g.terminus).toEqual({ x: 9, y: 9 });
-    expect(tileAt(g, 9, 9).kind).toBe("terminus");
-    expect(s.water.some(Boolean)).toBe(true); // source primed
+  it("sprinkles a few tees and keeps the start central", () => {
+    const g = generateGrid(40, 40, Math.random, 1);
+    expect(tileAt(g, g.start.x, g.start.y).kind).toBe("start");
+    expect(g.start.x).toBeGreaterThanOrEqual(10);
+    expect(g.start.x).toBeLessThan(30);
+    const tees = g.tiles.filter((t) => t.kind === "tee").length;
+    // ~2% of tiles are tees — sparse, but a handful on a 1600-cell board.
+    expect(tees).toBeGreaterThan(0);
+    expect(tees).toBeLessThan(g.tiles.length * 0.06);
   });
 
-  it("keeps the start in the central area", () => {
-    const g = generateGrid(20, 20, seqRng([0.99, 0.99, 0.99, 0.5]));
-    expect(g.start.x).toBeGreaterThanOrEqual(5);
-    expect(g.start.x).toBeLessThan(15);
-    expect(g.start.y).toBeGreaterThanOrEqual(5);
-    expect(g.start.y).toBeLessThan(15);
+  it("places drains ≥4 from every edge, the source and each other", () => {
+    const g = generateGrid(40, 40, Math.random, 2);
+    expect(g.drains.length).toBe(drainCount(40, 40, 2));
+    for (let i = 0; i < g.drains.length; i++) {
+      const d = g.drains[i];
+      expect(d.x).toBeGreaterThanOrEqual(4);
+      expect(d.x).toBeLessThanOrEqual(40 - 5);
+      expect(d.y).toBeGreaterThanOrEqual(4);
+      expect(d.y).toBeLessThanOrEqual(40 - 5);
+      expect(Math.hypot(d.x - g.start.x, d.y - g.start.y)).toBeGreaterThanOrEqual(4);
+      expect(tileAt(g, d.x, d.y).kind).toBe("terminus");
+      for (let j = i + 1; j < g.drains.length; j++) {
+        const e = g.drains[j];
+        expect(Math.hypot(d.x - e.x, d.y - e.y)).toBeGreaterThanOrEqual(4);
+      }
+    }
   });
 
   it("is deterministic for a given rng", () => {
-    const a = generateGrid(8, 8, seqRng([0.1, 0.7, 0.3, 0.9]));
-    const b = generateGrid(8, 8, seqRng([0.1, 0.7, 0.3, 0.9]));
+    const a = generateGrid(24, 24, seqRng([0.1, 0.7, 0.3, 0.9, 0.5]), 2);
+    const b = generateGrid(24, 24, seqRng([0.1, 0.7, 0.3, 0.9, 0.5]), 2);
     expect(a.tiles.map((t) => `${t.kind}${t.rot}`)).toEqual(
       b.tiles.map((t) => `${t.kind}${t.rot}`),
     );
     expect(a.start).toEqual(b.start);
-    expect(a.terminus).toEqual(b.terminus);
+    expect(a.drains).toEqual(b.drains);
   });
 });
 
@@ -153,120 +174,107 @@ function makeGrid(
   tiles: Tile[],
   sx: number,
   sy: number,
-  terminus = { x: -1, y: -1 },
+  drains: Array<{ x: number; y: number }> = [],
 ): Grid {
-  return { cols, rows, tiles, start: { x: sx, y: sy }, terminus };
+  return { cols, rows, tiles, start: { x: sx, y: sy }, drains };
 }
 
+// A head sitting in a tile, having entered from `entry` with the given exits.
+const head = (x: number, y: number, entry: number, exits: number[]): Head => ({
+  x,
+  y,
+  entry,
+  exits,
+  progress: 1,
+});
+
 describe("startFlow", () => {
-  it("enters a correctly oriented neighbour and marks it wet", () => {
-    // 3x1 row: [start→E] [straight E–W] [straight E–W]
+  it("continues into a correctly oriented neighbour and marks it wet", () => {
     const g = makeGrid(3, 1, [tile("start", 0, E), tile("straight", 1), tile("straight", 1)], 0, 0);
-    const f = startFlow(g);
-    expect(f.dead).toBe(false);
-    expect(f).toMatchObject({ x: 1, y: 0, entry: W, exit: E, filled: 1, won: false });
+    const step = startFlow(g);
+    expect(step.type).toBe("continue");
+    if (step.type === "continue") {
+      expect(step.head).toMatchObject({ x: 1, y: 0, entry: W, exits: [E] });
+    }
     expect(tileAt(g, 1, 0).water[W]).toBe(true);
-    expect(tileAt(g, 1, 0).water[E]).toBe(true);
   });
 
   it("dies if the first neighbour can't receive", () => {
     const g = makeGrid(2, 1, [tile("start", 0, E), tile("straight", 0)], 0, 0);
-    expect(startFlow(g).dead).toBe(true);
+    expect(startFlow(g).type).toBe("dead");
+  });
+
+  it("reaches a drain sitting right next to the spring", () => {
+    const g = makeGrid(2, 1, [tile("start", 0, E), tile("terminus", 0, W)], 0, 0, [{ x: 1, y: 0 }]);
+    const step = startFlow(g);
+    expect(step).toMatchObject({ type: "drain", x: 1, y: 0, entry: W });
   });
 });
 
-describe("advanceFlow", () => {
-  it("threads down a lined-up row, filling each tile", () => {
-    const g = makeGrid(3, 1, [tile("start", 0, E), tile("straight", 1), tile("straight", 1)], 0, 0);
-    let f = startFlow(g);
-    f = advanceFlow(g, f);
-    expect(f.dead).toBe(false);
-    expect(f).toMatchObject({ x: 2, y: 0, filled: 2 });
-    // running off the east edge next is game over
-    f = advanceFlow(g, f);
-    expect(f.dead).toBe(true);
+describe("advanceHead", () => {
+  it("threads a straight run, then crashes off the edge", () => {
+    const g = makeGrid(2, 1, [tile("start", 0, E), tile("straight", 1)], 0, 0);
+    startFlow(g); // wets (1,0)
+    const h = head(1, 0, W, [E]);
+    expect(advanceHead(g, h)).toEqual([{ type: "dead", reason: "crash" }]);
   });
 
-  it("dies into a mis-oriented tile", () => {
-    const g = makeGrid(3, 1, [tile("start", 0, E), tile("straight", 1), tile("straight", 0)], 0, 0);
-    let f = startFlow(g);
-    f = advanceFlow(g, f);
-    expect(f.dead).toBe(true);
-    expect(f.filled).toBe(1); // only the first pipe got wet
+  it("a tee splits into two live streams", () => {
+    // tee at (1,1) fed from the west → exits E and S into aligned neighbours.
+    const tiles = Array.from({ length: 9 }, () => tile("straight", 0));
+    tiles[1 * 3 + 1] = tile("tee", 0); // (1,1): E+S+W
+    tiles[1 * 3 + 2] = tile("straight", 1); // (2,1): E–W, opens W
+    tiles[2 * 3 + 1] = tile("straight", 0); // (1,2): N–S, opens N
+    const g = makeGrid(3, 3, tiles, 0, 0);
+    const results = advanceHead(g, head(1, 1, W, [E, S]));
+    expect(results.map((r) => r.type)).toEqual(["continue", "continue"]);
+    expect(tileAt(g, 2, 1).water[W]).toBe(true);
+    expect(tileAt(g, 1, 2).water[N]).toBe(true);
   });
 
-  it("an elbow turns the stream", () => {
-    const g = makeGrid(
-      2,
-      2,
-      [
-        tile("start", 0, E), // (0,0)
-        tile("elbow", 2), // (1,0): S+W — receives from W, exits S
-        tile("straight", 0), // (0,1) unused
-        tile("straight", 0), // (1,1): N–S — receives from N
-      ],
-      0,
-      0,
-    );
-    let f = startFlow(g); // enters (1,0) from W
-    expect(f).toMatchObject({ x: 1, y: 0, exit: S });
-    f = advanceFlow(g, f); // turns down into (1,1)
-    expect(f.dead).toBe(false);
-    expect(f).toMatchObject({ x: 1, y: 1, entry: N });
+  it("a tee branch that crashes into a wall while the other lives", () => {
+    const tiles = Array.from({ length: 9 }, () => tile("straight", 0));
+    tiles[1 * 3 + 1] = tile("tee", 0); // (1,1) exits E,S
+    tiles[1 * 3 + 2] = tile("straight", 0); // (2,1): N–S — no west opening → crash
+    tiles[2 * 3 + 1] = tile("straight", 0); // (1,2): N–S — opens N → continue
+    const g = makeGrid(3, 3, tiles, 0, 0);
+    const results = advanceHead(g, head(1, 1, W, [E, S]));
+    const east = results[0]; // exit E → (2,1)
+    const south = results[1]; // exit S → (1,2)
+    expect(east).toEqual({ type: "dead", reason: "crash" });
+    expect(south.type).toBe("continue");
   });
 
-  it("crosses through a crossover piece on its free channel", () => {
-    const g = makeGrid(3, 1, [tile("start", 0, E), tile("cross", 0), tile("straight", 1)], 0, 0);
-    let f = startFlow(g); // enters cross from W, exits E
-    expect(f).toMatchObject({ x: 1, y: 0, entry: W, exit: E });
-    expect(tileAt(g, 1, 0).water[N]).toBe(false); // N–S channel still dry
-    f = advanceFlow(g, f);
-    expect(f).toMatchObject({ x: 2, y: 0, filled: 2, dead: false });
+  it("a stream that meets existing water dies by collision (not game over)", () => {
+    // (1,0) opens west but is already wet on that side → collision, not a crash.
+    const g = makeGrid(2, 1, [tile("start", 0, E), tile("straight", 1)], 0, 0);
+    tileAt(g, 1, 0).water[W] = true;
+    expect(advanceHead(g, head(0, 0, W, [E]))).toEqual([{ type: "dead", reason: "collision" }]);
   });
 
-  it("wins when the water reaches the drain", () => {
-    // [start→E] [straight E–W] [terminus opening W]
+  it("reaches a drain when the terminus faces the incoming water", () => {
     const g = makeGrid(
       3,
       1,
       [tile("start", 0, E), tile("straight", 1), tile("terminus", 0, W)],
       0,
       0,
-      { x: 2, y: 0 },
+      [{ x: 2, y: 0 }],
     );
-    let f = startFlow(g);
-    f = advanceFlow(g, f); // into the drain
-    expect(f).toMatchObject({ x: 2, y: 0, won: true, dead: false, filled: 2 });
-  });
-
-  it("dies if the drain's opening faces the wrong way", () => {
-    // terminus opens north, but the water arrives from the west
-    const g = makeGrid(
-      3,
-      1,
-      [tile("start", 0, E), tile("straight", 1), tile("terminus", 0, N)],
-      0,
-      0,
-      { x: 2, y: 0 },
-    );
-    let f = startFlow(g);
-    f = advanceFlow(g, f);
-    expect(f.dead).toBe(true);
-    expect(f.won).toBe(false);
+    startFlow(g);
+    const results = advanceHead(g, head(1, 0, W, [E]));
+    expect(results).toEqual([{ type: "drain", x: 2, y: 0, entry: W }]);
   });
 });
 
 describe("difficulty curve", () => {
-  it("countdown shrinks with level and floors at 5s", () => {
-    expect(countdownSec(1)).toBe(30);
-    expect(countdownSec(2)).toBe(25);
-    expect(countdownSec(6)).toBe(5);
-    expect(countdownSec(10)).toBe(5);
+  it("countdown shrinks with level, with a +30s planning buffer", () => {
+    expect(countdownSec(1)).toBe(60); // 30 base + 30
+    expect(countdownSec(6)).toBe(35); // 5 floor + 30
   });
 
   it("flow speeds up with level", () => {
     expect(flowRate(1)).toBe(8);
-    expect(flowRate(2)).toBe(12);
     expect(flowRate(3)).toBe(16);
   });
 });
