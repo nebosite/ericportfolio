@@ -71,9 +71,11 @@ and test it in the same change.
   `assetts/sprites/` at real arcade size (Pac 13×13, ghosts 14×15, etc.); the
   ghost body is tinted per ghost. Reskin by replacing the PNGs — nothing is
   generated. (Dots and walls stay code-drawn geometry.)
-- `sfx.ts` — sound via the Web Audio API, playing the **MP3s** in
+- `sfx.ts` — sound via the Web Audio API, playing the **sound files** in
   `assetts/sounds/` as cheap overlapping one-shots (the munch `waka` is throttled
-  so it doesn't machine-gun). Replace the MP3s to change the sounds.
+  so it doesn't machine-gun). Per the repo asset rule the short one-shots are
+  **WAV** (`waka`, `fruit`, `eatghost`) and the longer `power` cue is **MP3**;
+  replace the files to change the sounds.
 - `BigPacTinyManPage.tsx` / `BigPacTinyMan.module.css` — the page: hosts the pixi
   canvas, the start gate, the score HUD, and the standard feedback panel. **The
   maze derives from the page size**, so a resize regenerates the world — but only

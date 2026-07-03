@@ -132,3 +132,31 @@ portfolio, owned by a dedicated service. Do not add per-app feedback tables.
   `/root/portfolio.env` (chmod 600) and prints it once; `deploy.sh` sources that
   file so PM2 picks it up via `--update-env`. If `ADMIN_TOKEN` is unset the admin
   API is closed entirely.
+
+## Asset formats: hand-editable by default
+
+So graphics and sounds can be updated by hand with ordinary tools, every asset
+we author is stored in source control in an editable format:
+
+- **Still graphics → PNG.** All hand-authored still image assets (game sprites,
+  UI icons, logos, textures, code-adjacent art) are committed as `.png`. Do not
+  add hand-authored graphics as JPG/JPEG/GIF/WEBP/etc.; convert them to PNG first.
+- **Sound effects → WAV under 2s, MP3 at/over 2s.** Clips shorter than two
+  seconds are committed as uncompressed `.wav` (trivially editable in any audio
+  tool); clips two seconds or longer are `.mp3` (kept compressed so long cues
+  don't bloat the repo). The Web Audio loader decodes either transparently, so
+  switching a clip's format is just swapping the file and its import.
+
+**Never convert an asset that's already in a binary format.** These format
+preferences are for choosing a format when you *author or add* a new asset. An
+asset already committed in a reasonable binary format (a JPEG photo, an existing
+PNG/MP3/WAV) is left exactly as-is — re-encoding one binary to another (JPEG→PNG,
+MP3→WAV, …) never recovers quality, only changes size, and risks lossy churn.
+Apply the rules to new source assets; do not bulk-convert what's already here.
+
+**Exception — the photo/art gallery.** `apps/ericjorgensen/server/src/media/**`
+holds Eric's *photography and scanned artwork* (portfolio content, not
+hand-authored UI graphics). These stay in their native **JPEG** — they are
+photographs served to the web, where PNG would balloon size for no editing
+benefit. The PNG rule targets graphics we actually hand-edit, not gallery
+photos.

@@ -1,12 +1,13 @@
-import wakaUrl from './assetts/sounds/waka.mp3';
+import wakaUrl from './assetts/sounds/waka.wav';
 import powerUrl from './assetts/sounds/power.mp3';
-import fruitUrl from './assetts/sounds/fruit.mp3';
-import eatghostUrl from './assetts/sounds/eatghost.mp3';
+import fruitUrl from './assetts/sounds/fruit.wav';
+import eatghostUrl from './assetts/sounds/eatghost.wav';
 
-// Sound effects for Big Pac Tiny Man. Plays the MP3s in this game's
+// Sound effects for Big Pac Tiny Man. Plays the clips in this game's
 // assetts/sounds/ folder through the Web Audio API, which decodes them once
 // and can fire many overlapping one-shots cheaply (Pac eats a lot of dots).
-// Replace the MP3s to change the sounds; Vite bundles them via the imports.
+// Per the repo asset rule, short one-shots (<2s) are hand-editable WAVs; only the
+// longer `power` cue stays MP3. Replace the files to change the sounds.
 
 type SoundName = 'waka' | 'power' | 'fruit' | 'eatghost';
 
