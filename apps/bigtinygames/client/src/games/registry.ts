@@ -11,24 +11,24 @@ export interface GameMeta {
 
 export const GAMES: GameMeta[] = [
   {
-    id: "snake",
-    title: "BIG TINY SNAKE",
-    blurb: "One large field. One(?) tiny snake. How long can you last?",
-    path: "/snake",
-    status: "ready",
-  },
-  {
     id: "big-pac-tiny-man",
     title: "BIG PAC TINY MAN",
-    blurb: "A labyrinth as big as your monitor and one very small man to feed.",
+    blurb: "Endless donut holes.",
     path: "/big-pac-tiny-man",
     status: "ready",
   },
   {
     id: "big-pipe-tiny-dream",
     title: "BIG PIPE TINY DREAM",
-    blurb: "A board already full of pipe. Twist the pieces, dream a path, guide the water.",
+    blurb: "So much pipe, so little time.",
     path: "/big-pipe-tiny-dream",
+    status: "ready",
+  },
+  {
+    id: "snake",
+    title: "BIG TINY SNAKE",
+    blurb: "Snakes. Why did it have to be snakes?",
+    path: "/snake",
     status: "ready",
   },
 ];
