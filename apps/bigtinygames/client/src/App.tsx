@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import SnakePage from "./games/snake/SnakePage";
 import BigPacTinyManPage from "./games/big-pac-tiny-man/BigPacTinyManPage";
+import BigPipeTinyDreamPage from "./games/big-pipe-tiny-dream/BigPipeTinyDreamPage";
 
 export default function App() {
   return (
@@ -9,6 +10,7 @@ export default function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/snake" element={<SnakePage />} />
       <Route path="/big-pac-tiny-man" element={<BigPacTinyManPage />} />
+      <Route path="/big-pipe-tiny-dream" element={<BigPipeTinyDreamPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

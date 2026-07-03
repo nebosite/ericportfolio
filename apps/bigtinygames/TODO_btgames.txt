@@ -4,18 +4,48 @@
         [ ] Permanent rocks?
         [ ] Robot powerup:  That particular snake becomes self-aware for 10 seconds
             - Looks for nearby food and ghosts
+    [ ] Big pac tiny man
+        [ ] Every fourth ghost eaten, spawn a robot pacman from the center
+            Searches for dots, but is unaware of ghosts.
+            Eating a power up makes him search for ghosts.  Powerup lasts twice as long.
+            No exposion when dying, just flattens and disappears
 
-            
-    [ ] Big pipe, tiny dreams
-    [ ] Big space, tiny invaders
+ FUTURE GAMES           
+    [ ] Big space, tiny invaders (+ missile command?)
+        - mouse aiming
+        - Galaga flight patterns
+        - more ship types
+        - swooping UFOs, in formation
+
+    [~] Big pipe, tiny dream  (SHIPPED v1: rotate-a-full-board take on Pipe Dream,
+        cross/elbow/straight tiles, per-level countdown + flood, leaderboard)
+        Backlog ideas:
+        - T-pipe splits the stream
+        - Powerups - pause, auto-fit, end cap, extra parts
+        - empty squares for sliding items around
+        - spare part drawer
+        - sound: soft click on rotate, gentle trickle as water flows
+
     [ ] Big ast, tiny e-roids
+        - Little star castles
+        - mineral drops
+        - seekers
+        - UFO formations
+
+    [ ] Big star, tiny castle
+        Many star castles, maybe a big one in the middle
+        - Faster shot speed
+        - nukes
+        - drones
+        
     [ ] Big Donkey, tiny kong
     [ ] Big Q, tiny bert
     [ ] Big def, tiny ender
     [ ] Big frog, tiny ger
     [ ] Big dig, tiny dug
-    [ ] Big pit, tiny fall
+    [ ] Big pit, tiny fall (Big lode tiny runner?)
     [ ] Big missile, tiny command
     [ ] Big tem, tiny pest
     [ ] Big yar, tiny revenge
     [ ] Big robo, tiny tron
+    [ ] Big superma, tiny rio bros

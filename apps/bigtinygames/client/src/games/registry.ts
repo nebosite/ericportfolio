@@ -24,4 +24,11 @@ export const GAMES: GameMeta[] = [
     path: "/big-pac-tiny-man",
     status: "ready",
   },
+  {
+    id: "big-pipe-tiny-dream",
+    title: "BIG PIPE TINY DREAM",
+    blurb: "A board already full of pipe. Twist the pieces, dream a path, guide the water.",
+    path: "/big-pipe-tiny-dream",
+    status: "ready",
+  },
 ];
