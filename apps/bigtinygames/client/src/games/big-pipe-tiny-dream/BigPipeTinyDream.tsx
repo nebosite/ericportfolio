@@ -12,12 +12,13 @@ import {
   generateGrid,
   startFlow,
   advanceHead,
+  connectedToSource,
   tileAt,
   idx,
   countdownSec,
   flowRate,
 } from "./pipeLogic";
-import { loadSprites, SpriteImages, SpriteName } from "./sprites";
+import { loadSprites, spriteUrl, SpriteImages, SpriteName } from "./sprites";
 import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import { trackEvent } from "../../lib/analytics";
@@ -41,6 +42,17 @@ const DRAIN_RING_DONE = "#48ffa0";
 const BG = "#0d0d14";
 
 type Phase = "idle" | "playing" | "levelclear" | "gameover" | "saved";
+
+// The bank of free pieces the player can drop onto the board.
+type BankKind = "elbow" | "straight" | "cross" | "tee";
+const BANK_ORDER: BankKind[] = ["elbow", "straight", "cross", "tee"];
+const BANK_SPRITE: Record<BankKind, SpriteName> = {
+  elbow: "elbow",
+  straight: "pipe",
+  cross: "cross",
+  tee: "tee",
+};
+const fullBank = (): (BankKind | null)[] => [...BANK_ORDER];
 
 interface ScoreRow {
   id: number;
@@ -154,6 +166,7 @@ function drawTile(
   t: Tile,
   cx: number,
   cy: number,
+  darken = false,
 ) {
   const px = cx * TILE;
   const py = cy * TILE;
@@ -164,6 +177,13 @@ function drawTile(
   ctx.translate(px + TILE / 2, py + TILE / 2);
   ctx.rotate((steps * Math.PI) / 2);
   ctx.drawImage(imgs[name], -TILE / 2, -TILE / 2, TILE, TILE);
+  if (darken) {
+    // Dim tiles that can't trace a path to the source — source-atop only tints
+    // the sprite's own pixels, leaving the transparent gaps alone.
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(-TILE / 2, -TILE / 2, TILE, TILE);
+  }
   ctx.restore();
 }
 
@@ -208,6 +228,8 @@ export default function BigPipeTinyDream() {
   const scoreRef = useRef(0);
   const traveledRef = useRef(0); // pixels the water has travelled — the score
   const fastRef = useRef(false); // speed toggle: fast (100px/s) vs level speed
+  const bankRef = useRef<(BankKind | null)[]>(fullBank());
+  const cursorRef = useRef<{ kind: BankKind; fromSlot: number } | null>(null);
   const rafRef = useRef(0);
   const lastTsRef = useRef(0);
   const flowAtRef = useRef(0); // performance.now() when the flood begins
@@ -219,6 +241,8 @@ export default function BigPipeTinyDream() {
   const [fast, setFast] = useState(false);
   const [drainsDone, setDrainsDone] = useState(0);
   const [drainsTotal, setDrainsTotal] = useState(1);
+  const [bank, setBankState] = useState<(BankKind | null)[]>(fullBank());
+  const [cursor, setCursorState] = useState<{ kind: BankKind; fromSlot: number } | null>(null);
   const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
 
@@ -227,10 +251,52 @@ export default function BigPipeTinyDream() {
     setPhaseState(p);
   }, []);
 
+  const setBank = useCallback((b: (BankKind | null)[]) => {
+    bankRef.current = b;
+    setBankState(b);
+  }, []);
+
+  const setCursor = useCallback((c: { kind: BankKind; fromSlot: number } | null) => {
+    cursorRef.current = c;
+    setCursorState(c);
+  }, []);
+
   const toggleFast = useCallback(() => {
     fastRef.current = !fastRef.current;
     setFast(fastRef.current);
   }, []);
+
+  // Click a bank slot: pick up a free piece (cursor becomes it), or click the
+  // slot it came from to put it back and return to normal play.
+  const onSlot = useCallback(
+    (i: number) => {
+      if (phaseRef.current !== "playing") return;
+      sfxRef.current?.resume();
+      const cur = cursorRef.current;
+      const b = [...bankRef.current];
+      if (cur) {
+        b[cur.fromSlot] = cur.kind; // the held piece goes back to its slot
+        if (i === cur.fromSlot) {
+          setBank(b);
+          setCursor(null); // put back where it came from → normal play
+        } else if (b[i] != null) {
+          const kind = b[i] as BankKind; // switch to a different slot's piece
+          b[i] = null;
+          setBank(b);
+          setCursor({ kind, fromSlot: i });
+        } else {
+          setBank(b);
+          setCursor(null);
+        }
+      } else if (b[i] != null) {
+        const kind = b[i] as BankKind;
+        b[i] = null;
+        setBank(b);
+        setCursor({ kind, fromSlot: i });
+      }
+    },
+    [setBank, setCursor],
+  );
 
   // Load sprite PNGs and prime the sound effects once, on mount.
   useEffect(() => {
@@ -270,7 +336,9 @@ export default function BigPipeTinyDream() {
 
   useEffect(loadLeaderboard, [loadLeaderboard]);
 
-  // Repaint the whole transparent pipe layer (once per new board / on rotation).
+  // Repaint the whole transparent pipe layer (once per new board / whenever a
+  // rotation or placement changes the board), darkening every tile that can't
+  // reach the source so the live path stands out.
   const renderPipes = useCallback(() => {
     const grid = gridRef.current;
     const pipes = pipesRef.current;
@@ -278,9 +346,10 @@ export default function BigPipeTinyDream() {
     const ctx = pipes?.getContext("2d");
     if (!grid || !pipes || !ctx || !imgs) return;
     ctx.clearRect(0, 0, pipes.width, pipes.height);
+    const connected = connectedToSource(grid);
     for (let y = 0; y < grid.rows; y++) {
       for (let x = 0; x < grid.cols; x++) {
-        drawTile(ctx, imgs, tileAt(grid, x, y), x, y);
+        drawTile(ctx, imgs, tileAt(grid, x, y), x, y, !connected[idx(grid, x, y)]);
       }
     }
   }, []);
@@ -441,11 +510,13 @@ export default function BigPipeTinyDream() {
       setLevel(lvl);
       setDrainsDone(0);
       setDrainsTotal(grid.drains.length);
+      setBank(fullBank()); // four fresh free pieces per level
+      setCursor(null);
       setPhase("playing");
       renderPipes();
       draw();
     },
-    [draw, renderPipes, setPhase],
+    [draw, renderPipes, setPhase, setBank, setCursor],
   );
 
   const startGame = useCallback(() => {
@@ -559,13 +630,14 @@ export default function BigPipeTinyDream() {
     }
   }, [phase, startGame, startLevel]);
 
-  // Click / tap a tile to rotate it 90° clockwise (unless it's watered/locked).
+  // Click / tap a tile: drop the armed bank piece there, or rotate it 90°
+  // clockwise. Watered/start tiles (and drains, for placement) are left alone.
   useEffect(() => {
     if (phase !== "playing") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rotateAt = (clientX: number, clientY: number) => {
+    const actAt = (clientX: number, clientY: number) => {
       const grid = gridRef.current;
       const pipes = pipesRef.current;
       const imgs = spritesRef.current;
@@ -576,20 +648,29 @@ export default function BigPipeTinyDream() {
       const gy = Math.floor(((clientY - rect.top) * (canvas.height / rect.height)) / TILE);
       if (gx < 0 || gy < 0 || gx >= grid.cols || gy >= grid.rows) return;
       const t = tileAt(grid, gx, gy);
-      if (isLocked(t)) return;
-      grid.tiles[idx(grid, gx, gy)] = rotateTile(t);
-      const pctx = pipes.getContext("2d");
-      if (pctx) drawTile(pctx, imgs, grid.tiles[idx(grid, gx, gy)], gx, gy);
+      const cur = cursorRef.current;
+
+      if (cur) {
+        // Drop the free piece here (can't replace the source, a drain, or a wet
+        // pipe); the piece is spent and its slot stays empty.
+        if (isLocked(t) || t.kind === "terminus") return;
+        grid.tiles[idx(grid, gx, gy)] = { kind: cur.kind, rot: 0, water: [false, false, false, false] };
+        setCursor(null);
+      } else {
+        if (isLocked(t)) return;
+        grid.tiles[idx(grid, gx, gy)] = rotateTile(t);
+      }
       sfxRef.current?.resume();
       sfxRef.current?.play("rotate", 0.4);
+      renderPipes(); // full repaint: connectivity/darkening may have shifted
       draw();
     };
 
-    const onClick = (e: MouseEvent) => rotateAt(e.clientX, e.clientY);
+    const onClick = (e: MouseEvent) => actAt(e.clientX, e.clientY);
     const onTouch = (e: TouchEvent) => {
       e.preventDefault();
       const t = e.changedTouches[0];
-      rotateAt(t.clientX, t.clientY);
+      actAt(t.clientX, t.clientY);
     };
     canvas.addEventListener("click", onClick);
     canvas.addEventListener("touchend", onTouch, { passive: false });
@@ -597,7 +678,27 @@ export default function BigPipeTinyDream() {
       canvas.removeEventListener("click", onClick);
       canvas.removeEventListener("touchend", onTouch);
     };
-  }, [phase, draw]);
+  }, [phase, draw, renderPipes, setCursor]);
+
+  // Turn the mouse pointer into the held piece while one is armed.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const imgs = spritesRef.current;
+    if (cursor && imgs) {
+      const c = document.createElement("canvas");
+      c.width = 32;
+      c.height = 32;
+      const cx = c.getContext("2d");
+      if (cx) {
+        cx.imageSmoothingEnabled = false;
+        cx.drawImage(imgs[BANK_SPRITE[cursor.kind]], 0, 0, 32, 32);
+        canvas.style.cursor = `url(${c.toDataURL()}) 16 16, crosshair`;
+        return;
+      }
+    }
+    canvas.style.cursor = cursor ? "crosshair" : "";
+  }, [cursor]);
 
   const submitScore = async (e: FormEvent) => {
     e.preventDefault();
@@ -642,10 +743,34 @@ export default function BigPipeTinyDream() {
         >
           SPEED: {fast ? "FAST ⏩" : "NORMAL"}
         </button>
+        <div className={styles.bank} role="group" aria-label="Free Parts">
+          <span className={styles.bankLabel}>FREE PARTS</span>
+          {bank.map((kind, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`${styles.bankSlot} ${cursor?.fromSlot === i ? styles.bankSlotArmed : ""}`}
+              onClick={() => onSlot(i)}
+              disabled={phase !== "playing"}
+              aria-label={
+                kind
+                  ? `Take ${kind} piece`
+                  : cursor?.fromSlot === i
+                    ? "Return piece"
+                    : "Empty slot"
+              }
+              title={kind ? `Place a ${kind}` : "Empty"}
+            >
+              {kind ? (
+                <img src={spriteUrl(BANK_SPRITE[kind])} alt={kind} className={styles.bankIcon} />
+              ) : null}
+            </button>
+          ))}
+        </div>
         <span className={styles.drainHint}>
           ◎ DRAINS {drainsDone}/{drainsTotal}
         </span>
-        <span>CLICK / TAP TO ROTATE</span>
+        <span>{cursor ? "CLICK A TILE TO PLACE" : "CLICK / TAP TO ROTATE"}</span>
       </div>
 
       <div ref={stageRef} className={styles.stage}>

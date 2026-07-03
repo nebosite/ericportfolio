@@ -65,10 +65,15 @@ test it in the same change.
   and the run ends by collisions alone only once **every** stream is dead before
   the drains are fed. `drainCount(cols,rows,level)` = `1 + ceil(area/1000) *
 level`; `countdownSec` (base `35 − 5·level`, floored at 5, **plus a flat +30s**)
-  / `flowRate` round out the level knobs. Grid size is supplied by the caller (the canvas fills the
-  viewport). Flow helpers **mutate** the tile `water` flags in place — the grid
-  is a mutable ref in the render layer, mirroring the pixi engine pattern in Big
-  Pac.
+  / `flowRate` round out the level knobs. The board **wraps** (a torus):
+  `wrapX`/`wrapY` fold neighbour lookups, so flow and connectivity run off one
+  edge onto the opposite one and there's no "off the board" crash — only
+  mis-orientation. `connectedToSource(g)` is a wrap-aware BFS over (tile,
+  entry-side) states that routes exactly like the real flood (following `exits`,
+  so a cross only passes straight through its two channels and a tee splits) to
+  mark which tiles the water could reach (the render layer darkens the rest). Grid size is supplied by the caller (the canvas fills the viewport).
+  Flow helpers **mutate** the tile `water` flags in place — the grid is a mutable
+  ref in the render layer, mirroring the pixi engine pattern in Big Pac.
 - `pipeLogic.test.ts` — unit tests for all of the above (the safety net; extend
   it for every rule change). Uses a `seqRng` helper for determinism.
 - `sprites.ts` — loads the pipe tile graphics, which are **editable 40x40 PNGs**
@@ -82,12 +87,16 @@ level`; `countdownSec` (base `35 − 5·level`, floored at 5, **plus a flat +30s
   wakes), `levelup` (water reaches the drain), `gameover`. All are short (<2s)
   hand-editable WAVs per the repo asset rule; replace the files to change them.
 - `BigPipeTinyDream.tsx` — the **render + loop + input** layer: a `requestAnimation
-Frame` flood loop, canvas 2D drawing (a **static offscreen base layer** holds the
-  pipe sprites and is repainted one tile at a time on rotation; each frame blits
-  it and draws only the water, the pulsing drain ring, and the countdown badge on
-  top), the HUD, the idle/levelclear/gameover/saved overlays, and the high-score
-  flow (`GET`/`POST /api/leaderboard?game=big-pipe-tiny-dream`). Input: click/tap
-  a tile to rotate (locked tiles ignore it); Enter/Space/gamepad confirm starts a
+Frame` flood loop and layered canvas 2D drawing — a textured green ground, a
+  transparent **pipe layer** (repainted whole on any board change, dimming every
+  tile `connectedToSource` leaves out at 50% via a `source-atop` tint), a baked
+  **water layer** that accumulates completed streams, plus per-frame glows (a halo
+  per head, a shadow + ring per drain) and the countdown badge. The HUD carries
+  the SPEED toggle, the **piece bank** (four one-shot free pieces — elbow /
+  straight / cross / tee — click a slot to arm the cursor with that piece, click a
+  tile to drop it, or click the origin slot to put it back), and `DRAINS x/n`.
+  Input: click/tap a tile to rotate (or place the armed piece); locked tiles are
+  ignored, and placement also skips drains; Enter/Space/gamepad confirm starts a
   run or advances a level via the shared `../input` `attachGameInput`. Everything
   here is pixels and timing — keep pure math in `pipeLogic.ts`.
 - `BigPipeTinyDream.module.css` — the fill-the-stage layout and overlays.
@@ -107,11 +116,19 @@ itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
 - **Flow speed** = `4 + 4·level` px/s; **countdown** = `35 − 5·level`s (floor 5)
   **+ 30s** planning buffer.
 - **Tee** = a rare ~2% splitter. Enter one port → water exits the other two.
+- **Wraparound**: the board is a torus — flow (and the connectivity check) run
+  off one edge onto the opposite one; there's no "off the board" crash.
+- **Path highlight**: tiles that can't `connectedToSource` are dimmed 50% so the
+  live path from spring to drains reads at a glance; recomputed on every rotate /
+  placement.
+- **Piece bank**: four one-shot free pieces (elbow / straight / cross / tee),
+  refreshed each level. Arm one → the cursor becomes it → click a rotatable tile
+  to drop it (spends it), or click its origin slot to put it back.
 - **Drains** = `1 + ceil(area/1000)·level`, placed randomly ≥4 from every edge,
   the source and each other. **Level clear** = feed **all** drains. **Game over**
-  = a stream **crashes** off an edge / into a mis-oriented tile (immediate), or
-  every stream dies (crash or collision) before the drains are fed. Running into
-  existing water is a **collision** — only that branch dies.
+  = a stream **crashes** into a mis-oriented tile (immediate), or every stream
+  dies (crash or collision) before the drains are fed. Running into existing
+  water is a **collision** — only that branch dies.
 - **Score** = **one point per pixel the water travels**, summed over all live
   streams, accumulated across levels; submitted to the leaderboard on game over.
 - **Speed toggle** overrides level speed with a flat fast 100 px/s.

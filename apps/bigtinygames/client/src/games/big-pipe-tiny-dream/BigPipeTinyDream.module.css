@@ -39,6 +39,52 @@
   box-shadow: 0 0 8px rgba(255, 210, 90, 0.7);
 }
 
+.bank {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.bankLabel {
+  color: var(--coin-gold);
+  letter-spacing: 0.1em;
+  margin-right: 0.15rem;
+}
+
+.bankSlot {
+  width: 2rem;
+  height: 2rem;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--crt-black);
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bankSlot:hover:not(:disabled) {
+  border-color: var(--coin-gold);
+}
+
+.bankSlot:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bankSlotArmed {
+  border-color: var(--coin-gold);
+  background: rgba(255, 210, 90, 0.15);
+  box-shadow: 0 0 8px rgba(255, 210, 90, 0.7);
+}
+
+.bankIcon {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
 /* The play field fills the remaining space; the canvas is sized to it in JS. */
 .stage {
   flex: 1;

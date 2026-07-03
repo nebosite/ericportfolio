@@ -29,6 +29,9 @@ const SPRITE_URLS: Record<SpriteName, string> = {
   terminus: terminusUrl,
 };
 
+/** The bundled URL for a sprite (for <img> icons like the piece bank). */
+export const spriteUrl = (name: SpriteName): string => SPRITE_URLS[name];
+
 export type SpriteImages = Record<SpriteName, HTMLImageElement>;
 
 /** Load every sprite PNG as an Image; resolves once all have decoded. */

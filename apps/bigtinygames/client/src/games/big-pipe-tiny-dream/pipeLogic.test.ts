@@ -16,7 +16,11 @@ import {
   generateGrid,
   startFlow,
   advanceHead,
+  connectedToSource,
+  wrapX,
+  wrapY,
   tileAt,
+  idx,
   countdownSec,
   flowRate,
   drainCount,
@@ -212,11 +216,25 @@ describe("startFlow", () => {
 });
 
 describe("advanceHead", () => {
-  it("threads a straight run, then crashes off the edge", () => {
+  it("wraps across the edge into an aligned neighbour", () => {
+    // (2,0) heads east; the board wraps to column 0, which opens west → continue.
+    const g = makeGrid(
+      3,
+      1,
+      [tile("straight", 1), tile("start", 0, E), tile("straight", 1)],
+      1,
+      0,
+    );
+    const results = advanceHead(g, head(2, 0, W, [E]));
+    expect(results[0].type).toBe("continue");
+    if (results[0].type === "continue") expect(results[0].head).toMatchObject({ x: 0, y: 0 });
+  });
+
+  it("wrapping into a mis-oriented tile still crashes", () => {
+    // wraps east from (1,0) back to the start, which faces east not west → crash.
     const g = makeGrid(2, 1, [tile("start", 0, E), tile("straight", 1)], 0, 0);
-    startFlow(g); // wets (1,0)
-    const h = head(1, 0, W, [E]);
-    expect(advanceHead(g, h)).toEqual([{ type: "dead", reason: "crash" }]);
+    startFlow(g);
+    expect(advanceHead(g, head(1, 0, W, [E]))).toEqual([{ type: "dead", reason: "crash" }]);
   });
 
   it("a tee splits into two live streams", () => {
@@ -264,6 +282,47 @@ describe("advanceHead", () => {
     startFlow(g);
     const results = advanceHead(g, head(1, 0, W, [E]));
     expect(results).toEqual([{ type: "drain", x: 2, y: 0, entry: W }]);
+  });
+});
+
+describe("wraparound + connectivity", () => {
+  it("wrapX / wrapY fold coordinates onto the torus", () => {
+    const g = makeGrid(5, 4, [], 0, 0);
+    expect(wrapX(g, -1)).toBe(4);
+    expect(wrapX(g, 5)).toBe(0);
+    expect(wrapY(g, -1)).toBe(3);
+    expect(wrapY(g, 4)).toBe(0);
+  });
+
+  it("marks tiles that trace back to the source and leaves the rest out", () => {
+    // (0,0) start→E, (1,0) E–W straight connects; (2,0) vertical does not.
+    const g = makeGrid(3, 1, [tile("start", 0, E), tile("straight", 1), tile("straight", 0)], 0, 0);
+    const seen = connectedToSource(g);
+    expect(seen[idx(g, 0, 0)]).toBe(true); // source
+    expect(seen[idx(g, 1, 0)]).toBe(true); // linked E–W pipe
+    expect(seen[idx(g, 2, 0)]).toBe(false); // vertical, no west opening
+  });
+
+  it("connectivity follows the wraparound edge", () => {
+    // start faces west; the tile it reaches sits on the far (wrapped) column.
+    const g = makeGrid(2, 1, [tile("start", 0, W), tile("straight", 1)], 0, 0);
+    const seen = connectedToSource(g);
+    expect(seen[idx(g, 1, 0)]).toBe(true); // reached by wrapping west from (0,0)
+  });
+
+  it("a cross only passes straight through its entry channel", () => {
+    // source enters the cross from the west → water may only leave east, never
+    // turn up/down through the perpendicular channel.
+    const tiles = Array.from({ length: 9 }, () => tile("straight", 0));
+    tiles[1 * 3 + 0] = tile("start", 0, E); // (0,1) source → east
+    tiles[1 * 3 + 1] = tile("cross", 0); // (1,1) cross
+    tiles[1 * 3 + 2] = tile("straight", 1); // (2,1) E–W, opens W → reachable
+    tiles[0 * 3 + 1] = tile("straight", 0); // (1,0) N–S, opens S — must NOT connect
+    const g = makeGrid(3, 3, tiles, 0, 1);
+    const seen = connectedToSource(g);
+    expect(seen[idx(g, 1, 1)]).toBe(true); // the cross itself
+    expect(seen[idx(g, 2, 1)]).toBe(true); // straight through to the east
+    expect(seen[idx(g, 1, 0)]).toBe(false); // the cross must not turn north
   });
 });
 

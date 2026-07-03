@@ -62,6 +62,11 @@ export const inBounds = (g: Grid, x: number, y: number): boolean =>
   x >= 0 && y >= 0 && x < g.cols && y < g.rows;
 export const tileAt = (g: Grid, x: number, y: number): Tile => g.tiles[idx(g, x, y)];
 
+// The board wraps: stepping off one edge continues on the opposite one, so the
+// grid is a torus (like Big Pac's maze). Neighbour lookups run through these.
+export const wrapX = (g: Grid, x: number): number => ((x % g.cols) + g.cols) % g.cols;
+export const wrapY = (g: Grid, y: number): number => ((y % g.rows) + g.rows) % g.rows;
+
 /** Which sides this tile currently opens onto, accounting for its rotation. */
 export function openings(t: Tile): boolean[] {
   const out = [false, false, false, false];
@@ -249,23 +254,63 @@ function stepInto(g: Grid, x: number, y: number, entry: Side): Step {
 
 /**
  * Begin the flood: water leaves the start tile toward its `dir` into the
- * neighbouring cell. One step — the caller turns it into the first head (or an
- * immediate game over / drain).
+ * neighbouring cell (wrapping across the board edge). One step — the caller
+ * turns it into the first head (or an immediate game over / drain).
  */
 export function startFlow(g: Grid): Step {
   const s = tileAt(g, g.start.x, g.start.y);
   const dir = s.dir ?? N;
-  return stepInto(g, g.start.x + DX[dir], g.start.y + DY[dir], OPP[dir]);
+  return stepInto(g, wrapX(g, g.start.x + DX[dir]), wrapY(g, g.start.y + DY[dir]), OPP[dir]);
 }
 
 /**
  * Advance a head that has run the full length of its tile: one Step per exit
- * (two for a tee). A branch that runs off the board, into a mis-oriented tile,
- * or into water already there comes back `dead`; one that reaches a terminus
- * comes back `drain`.
+ * (two for a tee). Neighbours wrap across the board edges. A branch that runs
+ * into a mis-oriented tile comes back a `crash`, into water already there a
+ * `collision`; one that reaches a terminus comes back `drain`.
  */
 export function advanceHead(g: Grid, head: Head): Step[] {
-  return head.exits.map((exit) => stepInto(g, head.x + DX[exit], head.y + DY[exit], OPP[exit]));
+  return head.exits.map((exit) =>
+    stepInto(g, wrapX(g, head.x + DX[exit]), wrapY(g, head.y + DY[exit]), OPP[exit]),
+  );
+}
+
+/**
+ * Which tiles the water could actually reach from the source — the same routing
+ * as the real flood (following `exits`, so a cross only passes straight through
+ * its two independent channels and a tee splits), just ignoring collisions.
+ * States are (tile, entry side) so a piece's reachable exits depend on how the
+ * stream arrived. The render layer darkens everything this leaves out.
+ */
+export function connectedToSource(g: Grid): boolean[] {
+  const connected = new Array(g.cols * g.rows).fill(false);
+  connected[idx(g, g.start.x, g.start.y)] = true;
+  const visited = new Set<number>(); // key = tileIndex * 4 + entry side
+  const queue: Array<{ x: number; y: number; entry: Side }> = [];
+
+  // Water entering cell (x,y) from `entry` — only if the tile opens there.
+  const enter = (rawX: number, rawY: number, entry: Side) => {
+    const x = wrapX(g, rawX);
+    const y = wrapY(g, rawY);
+    if (!openings(tileAt(g, x, y))[entry]) return;
+    const key = idx(g, x, y) * 4 + entry;
+    if (visited.has(key)) return;
+    visited.add(key);
+    connected[idx(g, x, y)] = true;
+    queue.push({ x, y, entry });
+  };
+
+  const s = tileAt(g, g.start.x, g.start.y);
+  const dir = s.dir ?? N;
+  enter(g.start.x + DX[dir], g.start.y + DY[dir], OPP[dir]); // the source emits
+
+  while (queue.length) {
+    const { x, y, entry } = queue.shift() as { x: number; y: number; entry: Side };
+    for (const ex of exits(tileAt(g, x, y), entry)) {
+      enter(x + DX[ex], y + DY[ex], OPP[ex]);
+    }
+  }
+  return connected;
 }
 
 // Difficulty knobs, all keyed off the 1-based level (from the game spec).
