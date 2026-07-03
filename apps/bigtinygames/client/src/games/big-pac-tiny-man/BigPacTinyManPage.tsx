@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BigPacEngine, StartOpts } from './engine';
-import FeedbackPanel from '../../components/FeedbackPanel';
-import { trackEvent } from '../../lib/analytics';
-import styles from './BigPacTinyMan.module.css';
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { BigPacEngine, StartOpts } from "./engine";
+import FeedbackPanel from "../../components/FeedbackPanel";
+import { trackEvent } from "../../lib/analytics";
+import styles from "./BigPacTinyMan.module.css";
 
-const GAME = 'big-pac-tiny-man';
+const GAME = "big-pac-tiny-man";
 const START_HP = 5;
 
 interface ScoreRow {
@@ -25,7 +25,7 @@ export default function BigPacTinyManPage() {
   const [gameOver, setGameOver] = useState(false);
   const [levelingUp, setLevelingUp] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [initials, setInitials] = useState('');
+  const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
   const [worldKey, setWorldKey] = useState(0);
   const [started, setStarted] = useState(false);
@@ -63,10 +63,10 @@ export default function BigPacTinyManPage() {
         setWorldKey((k) => k + 1);
       }, 400);
     };
-    window.addEventListener('resize', onResize);
+    window.addEventListener("resize", onResize);
     return () => {
       window.clearTimeout(timer);
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 
@@ -90,7 +90,7 @@ export default function BigPacTinyManPage() {
       },
       () => {
         setGameOver(true);
-        trackEvent('game_over', { game: GAME, level: levelRef.current });
+        trackEvent("game_over", { game: GAME, level: levelRef.current });
       },
       (completed) => {
         // Level cleared: announce the next level, then rebuild the world at it.
@@ -98,7 +98,7 @@ export default function BigPacTinyManPage() {
         levelRef.current = next;
         setLevel(next);
         setLevelingUp(true);
-        trackEvent('level_up', { game: GAME, level: next });
+        trackEvent("level_up", { game: GAME, level: next });
         levelTimerRef.current = window.setTimeout(() => {
           startOptsRef.current = { level: next, score: scoreRef.current, hitpoints: hpRef.current };
           autoStartRef.current = true;
@@ -131,7 +131,7 @@ export default function BigPacTinyManPage() {
   const handleStart = () => {
     const engine = engineRef.current;
     if (!engine) return;
-    trackEvent('game_start', { game: GAME });
+    trackEvent("game_start", { game: GAME });
     engine.start();
     setStarted(true);
   };
@@ -145,7 +145,7 @@ export default function BigPacTinyManPage() {
     setScore(0);
     setLevel(1);
     setSubmitted(false);
-    setInitials('');
+    setInitials("");
     setGameOver(false);
     setStarted(false);
     setWorldKey((k) => k + 1);
@@ -156,12 +156,12 @@ export default function BigPacTinyManPage() {
     const clean = initials.trim().toUpperCase();
     if (!clean) return;
     try {
-      await fetch('/api/leaderboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ initials: clean, score: scoreRef.current, game: GAME }),
       });
-      trackEvent('score_submitted', { game: GAME, score: scoreRef.current, initials: clean });
+      trackEvent("score_submitted", { game: GAME, score: scoreRef.current, initials: clean });
       loadLeaderboard();
     } finally {
       setSubmitted(true);
@@ -172,7 +172,7 @@ export default function BigPacTinyManPage() {
     <ol className={styles.scoreList}>
       {leaderboard.map((row, i) => (
         <li key={row.id} className={styles.scoreRow}>
-          <span className={styles.rank}>{(i + 1).toString().padStart(2, '0')}</span>
+          <span className={styles.rank}>{(i + 1).toString().padStart(2, "0")}</span>
           <span className={styles.scoreInitials}>{row.initials}</span>
           <span className={styles.scoreValue}>{row.score.toLocaleString()}</span>
         </li>
@@ -193,7 +193,7 @@ export default function BigPacTinyManPage() {
         <div className={styles.hearts} aria-label={`${hitpoints} of ${maxHitpoints} hearts`}>
           {Array.from({ length: maxHitpoints }, (_, i) => (
             <span key={i} className={i < hitpoints ? styles.heartFull : styles.heartEmpty}>
-              {i < hitpoints ? '♥' : '♡'}
+              {i < hitpoints ? "♥" : "♡"}
             </span>
           ))}
         </div>
@@ -211,10 +211,11 @@ export default function BigPacTinyManPage() {
               onClick={handleStart}
               disabled={!ready}
             >
-              {ready ? '▶ START GAME' : 'LOADING…'}
+              {ready ? "▶ START GAME" : "LOADING…"}
             </button>
             <p className={styles.titleHint}>
-              Arrow keys / WASD / gamepad — or swipe &amp; tap on touch. Clear every dot to level up.
+              Arrow keys / WASD / gamepad — or swipe &amp; tap on touch. Clear every dot to level
+              up.
             </p>
             <FeedbackPanel entity={GAME} />
           </div>
@@ -245,7 +246,7 @@ export default function BigPacTinyManPage() {
                       setInitials(
                         e.target.value
                           .toUpperCase()
-                          .replace(/[^A-Z0-9]/g, '')
+                          .replace(/[^A-Z0-9]/g, "")
                           .slice(0, 3),
                       )
                     }
@@ -257,7 +258,11 @@ export default function BigPacTinyManPage() {
                     SAVE
                   </button>
                 </form>
-                <button type="button" className={styles.skipButton} onClick={() => setSubmitted(true)}>
+                <button
+                  type="button"
+                  className={styles.skipButton}
+                  onClick={() => setSubmitted(true)}
+                >
                   skip
                 </button>
               </>

@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
-import { GAMES } from '../games/registry';
-import styles from './HomePage.module.css';
+import { Link } from "react-router-dom";
+import { GAMES } from "../games/registry";
+import styles from "./HomePage.module.css";
 
 export default function HomePage() {
   return (
@@ -24,8 +24,8 @@ export default function HomePage() {
               <span className={styles.marquee}>{game.title}</span>
               <span className={styles.blurb}>{game.blurb}</span>
               <span className={styles.cabinetFooter}>
-                <span className={game.status === 'ready' ? styles.badgeReady : styles.badgeWip}>
-                  {game.status === 'ready' ? 'READY TO PLAY' : 'UNDER CONSTRUCTION'}
+                <span className={game.status === "ready" ? styles.badgeReady : styles.badgeWip}>
+                  {game.status === "ready" ? "READY TO PLAY" : "UNDER CONSTRUCTION"}
                 </span>
                 <span className={styles.play}>▶ PLAY</span>
               </span>

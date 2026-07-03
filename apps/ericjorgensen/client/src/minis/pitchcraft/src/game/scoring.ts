@@ -50,8 +50,7 @@ export class VibratoDetector {
   /** t in seconds, cents = signed deviation from the target. */
   push(t: number, cents: number): void {
     this.samples.push({ t, cents });
-    while (this.samples.length && t - this.samples[0].t > this.windowSec)
-      this.samples.shift();
+    while (this.samples.length && t - this.samples[0].t > this.windowSec) this.samples.shift();
   }
 
   reset(): void {
@@ -71,11 +70,7 @@ export class VibratoDetector {
       mn = Math.min(mn, v[i].cents);
       mx = Math.max(mx, v[i].cents);
       sumAbs += Math.abs(v[i].cents);
-      if (
-        i > 0 &&
-        Math.sign(v[i].cents) !== Math.sign(v[i - 1].cents) &&
-        Math.abs(v[i].cents) > 4
-      )
+      if (i > 0 && Math.sign(v[i].cents) !== Math.sign(v[i - 1].cents) && Math.abs(v[i].cents) > 4)
         cross++;
     }
     const rate = cross / span; // crossings per second

@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  cleanup,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import GalleryPage, { readCookie, writeCookie, shuffle } from "./GalleryPage";
 
@@ -76,9 +70,7 @@ describe("GalleryPage behavior", () => {
 
   it("fetches the folder contents and shows the first item", async () => {
     renderGallery("Art");
-    expect(
-      await screen.findByRole("img", { name: "Alpha" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Alpha" })).toBeInTheDocument();
     expect(screen.getByText("desc A")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith("/api/media/Art/contents.json");
   });
@@ -87,9 +79,7 @@ describe("GalleryPage behavior", () => {
     renderGallery("Art");
     await screen.findByRole("img", { name: "Alpha" });
     fireEvent.click(screen.getByRole("button", { name: "Gamma" }));
-    expect(
-      await screen.findByRole("img", { name: "Gamma" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Gamma" })).toBeInTheDocument();
   });
 
   it("arrow keys move with wrap-around", async () => {
@@ -97,26 +87,18 @@ describe("GalleryPage behavior", () => {
     await screen.findByRole("img", { name: "Alpha" });
 
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(
-      await screen.findByRole("img", { name: "Beta" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Beta" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(
-      await screen.findByRole("img", { name: "Alpha" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Alpha" })).toBeInTheDocument();
 
     // Left from the first item wraps to the last.
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(
-      await screen.findByRole("img", { name: "Gamma" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Gamma" })).toBeInTheDocument();
 
     // Right from the last wraps back to the first.
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(
-      await screen.findByRole("img", { name: "Alpha" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Alpha" })).toBeInTheDocument();
   });
 
   it("clicking the image opens the full-res original in a child window", async () => {

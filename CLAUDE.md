@@ -6,6 +6,7 @@
 review it in a browser before committing to git or deploying to the VPS.
 
 Steps:
+
 1. Make the code change.
 2. `npm run dev` (or `npm run build` + preview) in the affected app's `client/` directory.
 3. Tell the user the local URL and ask them to check it.
@@ -14,7 +15,7 @@ Steps:
 
 ## Workflow: tests are part of every change
 
-Testing is **not optional** and must keep pace as the sites grow. The repo uses 
+Testing is **not optional** and must keep pace as the sites grow. The repo uses
 **Vitest** in every workspace (jsdom + Testing Library for clients, supertest for
 the Express servers). Run `npm test` from the repo root to execute the whole
 suite across all eight workspaces (or `npm test -w apps/<app>/<client|server>`
@@ -53,9 +54,9 @@ failure modes we've actually hit can't silently ship stale or broken code.
   can't safely fix:
   - **Dirty working tree.** A non-clean tree blocks `git pull`. The one artifact
     it auto-heals is a drifted `package-lock.json` (older `npm install`s rewrote
-    it; `npm ci` no longer does). Any *other* uncommitted change aborts with a
-    list, so you resolve it by hand instead of deploying around it. *(This is the
-    exact failure that once left stale code live in production.)*
+    it; `npm ci` no longer does). Any _other_ uncommitted change aborts with a
+    list, so you resolve it by hand instead of deploying around it. _(This is the
+    exact failure that once left stale code live in production.)_
   - **Wrong branch / diverged history.** Refuses unless on `main` and able to
     fast-forward to `origin/main` (stray commits made on the server abort).
   - **Missing `ADMIN_TOKEN`.** Warns if `/root/portfolio.env` has none (the
@@ -84,6 +85,7 @@ Every client app in the portfolio is instrumented with GA4 (Measurement ID
 automatic page_view events via GA4 Enhanced Measurement.
 
 **For new pages / apps:**
+
 - Add the gtag snippet to the new app's `index.html` (copy from any existing app).
 - Key interactions should fire custom events via the app's `src/lib/analytics.ts`
   helper (`trackEvent(name, params)`). Follow the existing pattern:
@@ -116,7 +118,7 @@ portfolio, owned by a dedicated service. Do not add per-app feedback tables.
   Per-browser vote dedupe is the client's job; the service stores feedback and
   counts upvotes. Each row also has a `status` (`Suggested` | `Implemented`).
 - **Client panel:** the reusable `components/FeedbackPanel.tsx` (`<FeedbackPanel
-  entity="..." />`), duplicated per client app (no shared workspace) — keep the
+entity="..." />`), duplicated per client app (no shared workspace) — keep the
   copies in sync. It calls relative `/api/feedback*`; routing sends those to the
   shared service (nginx `location /api/feedback` → 3005 in prod; the per-app vite
   proxy `'/api/feedback' → 3005` in dev).
@@ -148,15 +150,31 @@ we author is stored in source control in an editable format:
   switching a clip's format is just swapping the file and its import.
 
 **Never convert an asset that's already in a binary format.** These format
-preferences are for choosing a format when you *author or add* a new asset. An
+preferences are for choosing a format when you _author or add_ a new asset. An
 asset already committed in a reasonable binary format (a JPEG photo, an existing
 PNG/MP3/WAV) is left exactly as-is — re-encoding one binary to another (JPEG→PNG,
 MP3→WAV, …) never recovers quality, only changes size, and risks lossy churn.
 Apply the rules to new source assets; do not bulk-convert what's already here.
 
 **Exception — the photo/art gallery.** `apps/ericjorgensen/server/src/media/**`
-holds Eric's *photography and scanned artwork* (portfolio content, not
+holds Eric's _photography and scanned artwork_ (portfolio content, not
 hand-authored UI graphics). These stay in their native **JPEG** — they are
 photographs served to the web, where PNG would balloon size for no editing
 benefit. The PNG rule targets graphics we actually hand-edit, not gallery
 photos.
+
+## Code formatting: Prettier
+
+The entire repo is formatted with **Prettier** (pinned in the root
+`devDependencies`), so formatting is never a manual concern or a review
+argument. The config lives in `.prettierrc.json`:
+
+- **Double quotes**, semicolons, `trailingComma: "all"`, `printWidth: 100`,
+  `tabWidth: 2`, `endOfLine: "lf"` (LF everywhere, even on Windows).
+- `.prettierignore` excludes `node_modules`, build output, `package-lock.json`,
+  and `apps/ericjorgensen/server/src/media` (binary photos + generated manifests).
+
+Run `npm run format` to format everything, or `npm run format:check` to verify.
+A `.claude/settings.json` PostToolUse hook also runs `tsc --noEmit && prettier
+--write .` after each edit, so anything committed is already formatted. Match
+Prettier's output rather than hand-formatting against it.

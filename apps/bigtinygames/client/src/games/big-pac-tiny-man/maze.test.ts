@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { planWorld, generateMaze, TILE, type Maze } from './maze';
+import { describe, it, expect } from "vitest";
+import { planWorld, generateMaze, TILE, type Maze } from "./maze";
 
 // planWorld/generateMaze use Math.random, so these assert structural invariants
 // across several screen sizes and repeated runs rather than exact layouts.
@@ -28,13 +28,11 @@ function openNeighbors(maze: Maze, x: number, y: number): number {
 }
 
 function inAnyBox(maze: Maze, x: number, y: number): boolean {
-  return maze.baseRooms.some(
-    (r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h,
-  );
+  return maze.baseRooms.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
 }
 
-describe('planWorld', () => {
-  it('produces an odd grid no smaller than 15x15', () => {
+describe("planWorld", () => {
+  it("produces an odd grid no smaller than 15x15", () => {
     for (const [w, h] of SIZES) {
       const plan = planWorld(w, h);
       expect(plan.cols).toBeGreaterThanOrEqual(15);
@@ -44,7 +42,7 @@ describe('planWorld', () => {
     }
   });
 
-  it('keeps at least the classic counts and scales up with area', () => {
+  it("keeps at least the classic counts and scales up with area", () => {
     const small = planWorld(320, 240);
     const big = planWorld(1920, 1080);
     expect(small.ghosts).toBeGreaterThanOrEqual(4);
@@ -56,20 +54,20 @@ describe('planWorld', () => {
     expect(big.ghostBases).toBeGreaterThanOrEqual(small.ghostBases);
   });
 
-  it('exposes the arcade tile size', () => {
+  it("exposes the arcade tile size", () => {
     expect(TILE).toBe(16);
   });
 });
 
-describe('generateMaze', () => {
-  it('returns a grid matching the planned dimensions', () => {
+describe("generateMaze", () => {
+  it("returns a grid matching the planned dimensions", () => {
     for (const [w, h] of SIZES) {
       const maze = generateMaze(planWorld(w, h));
       expect(maze.grid.length).toBe(maze.cols * maze.rows);
     }
   });
 
-  it('spawns Pac on an open corridor tile', () => {
+  it("spawns Pac on an open corridor tile", () => {
     for (const [w, h] of SIZES) {
       const maze = generateMaze(planWorld(w, h));
       const { pacSpawn, cols, grid } = maze;
@@ -78,7 +76,7 @@ describe('generateMaze', () => {
     }
   });
 
-  it('has no dead ends: every open corridor tile has >=2 exits', () => {
+  it("has no dead ends: every open corridor tile has >=2 exits", () => {
     for (const [w, h] of SIZES) {
       for (let run = 0; run < 4; run++) {
         const maze = generateMaze(planWorld(w, h));
@@ -95,26 +93,27 @@ describe('generateMaze', () => {
     }
   });
 
-  it('builds ghost boxes with a walled border and a single top-middle exit', () => {
+  it("builds ghost boxes with a walled border and a single top-middle exit", () => {
     const maze = generateMaze(planWorld(1280, 720));
     expect(maze.baseRooms.length).toBeGreaterThan(0);
     for (const r of maze.baseRooms) {
       const exitX = r.x + 2;
       for (let y = r.y; y < r.y + r.h; y++) {
         for (let x = r.x; x < r.x + r.w; x++) {
-          const isBorder =
-            x === r.x || x === r.x + r.w - 1 || y === r.y || y === r.y + r.h - 1;
+          const isBorder = x === r.x || x === r.x + r.w - 1 || y === r.y || y === r.y + r.h - 1;
           const isExit = x === exitX && y === r.y;
           const val = maze.grid[y * maze.cols + x];
-          if (isExit) expect(val).toBe(1); // the one doorway is open
-          else if (isBorder) expect(val).toBe(0); // the rest of the wall is solid
+          if (isExit)
+            expect(val).toBe(1); // the one doorway is open
+          else if (isBorder)
+            expect(val).toBe(0); // the rest of the wall is solid
           else expect(val).toBe(1); // interior is open
         }
       }
     }
   });
 
-  it('opens wrap exits at the borders WITHOUT a straight corridor across', () => {
+  it("opens wrap exits at the borders WITHOUT a straight corridor across", () => {
     // Exits are now just the two border tiles of a row/col (plus the toroidal
     // wrap between them); the interior stays maze, so there is no edge-to-edge
     // shortcut. Use a large maze so a coincidentally all-open row is impossible.
@@ -143,7 +142,7 @@ describe('generateMaze', () => {
     }
   });
 
-  it('roughly doubles the exit density versus the old ~one-per-38-tiles', () => {
+  it("roughly doubles the exit density versus the old ~one-per-38-tiles", () => {
     // Old density was ≈ round(dim/38); the new target ≈ round(dim/19), so the
     // counts should clear the old formula even if a box swallows an exit or two.
     const maze = generateMaze(planWorld(1920, 1080));
@@ -151,7 +150,7 @@ describe('generateMaze', () => {
     expect(maze.tunnelCols.length).toBeGreaterThan(Math.max(1, Math.round(maze.cols / 38)));
   });
 
-  it('spreads lairs evenly so no tile is far from one (fills every corner)', () => {
+  it("spreads lairs evenly so no tile is far from one (fills every corner)", () => {
     for (const [w, h] of SIZES) {
       const maze = generateMaze(planWorld(w, h));
       const { cols, rows, grid } = maze;
@@ -176,7 +175,7 @@ describe('generateMaze', () => {
     }
   });
 
-  it('opens extra passages for a loopier, more porous maze', () => {
+  it("opens extra passages for a loopier, more porous maze", () => {
     for (let run = 0; run < 3; run++) {
       const maze = generateMaze(planWorld(1920, 1080));
       const { cols, rows, grid } = maze;
@@ -196,7 +195,7 @@ describe('generateMaze', () => {
     }
   });
 
-  it('keeps every open tile reachable from Pac spawn (full connectivity)', () => {
+  it("keeps every open tile reachable from Pac spawn (full connectivity)", () => {
     // The connectivity pass guarantees one connected component: no sealed box,
     // no islanded corridor pocket, anywhere, at any size.
     for (const [w, h] of SIZES) {

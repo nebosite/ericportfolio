@@ -13,10 +13,7 @@ export default function App() {
         path="/photography"
         element={<GalleryPage folder="Photography" heading="Photography" />}
       />
-      <Route
-        path="/writing"
-        element={<GalleryPage folder="writing" heading="Writing" />}
-      />
+      <Route path="/writing" element={<GalleryPage folder="writing" heading="Writing" />} />
       {/* Pure AI Output — Pitchcraft, a microphone pitch-matching trainer. */}
       <Route path="/pitchcraft" element={<PitchcraftPage />} />
       {/* Secret, password-gated feedback console. */}

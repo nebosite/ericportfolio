@@ -129,13 +129,7 @@ export function growMark(
   const handSign = r() < 0.5 ? -1 : 1; // handedness
   const pick = (arr: number[]) => arr[Math.floor(r() * arr.length)];
 
-  const grow = (
-    x: number,
-    y: number,
-    ang: number,
-    len: number,
-    depth: number,
-  ) => {
+  const grow = (x: number, y: number, ang: number, len: number, depth: number) => {
     const gen = S.depth - depth; // 0 at the trunk, increasing toward the tips
     if (depth <= 0 || len < 3) {
       buds.push({ x, y, gen });
@@ -161,9 +155,7 @@ export function growMark(
       const frac = n === 1 ? 0 : i / (n - 1) - 0.5;
       let off = frac * S.angle * 2;
       if (n === 1) off = geo ? 0 : (r() - 0.5) * S.angle * 0.5;
-      const jit = geo
-        ? (r() - 0.5) * 2.2
-        : (r() - 0.5) * S.angle * S.jitter * 2;
+      const jit = geo ? (r() - 0.5) * 2.2 : (r() - 0.5) * S.angle * S.jitter * 2;
       const handed = handSign * S.hand * S.angle;
       const childAng = ang + off + jit + handed;
       const nlen = len * S.decay * (geo ? 1 : 0.84 + r() * 0.32);
@@ -171,13 +163,7 @@ export function growMark(
     }
   };
 
-  grow(
-    60,
-    148,
-    -90 + handSign * S.hand * S.angle * 0.6,
-    S.len * (0.92 + r() * 0.18),
-    S.depth,
-  );
+  grow(60, 148, -90 + handSign * S.hand * S.angle * 0.6, S.len * (0.92 + r() * 0.18), S.depth);
   let maxGen = 0;
   for (const s of segments) if (s.gen > maxGen) maxGen = s.gen;
   for (const b of buds) if (b.gen > maxGen) maxGen = b.gen;

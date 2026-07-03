@@ -1,29 +1,29 @@
 // Pure paint logic for PixelWhimsy — grid sizing, brush shapes, and flood fill.
 // Kept framework-free so the rules can be unit tested away from the canvas.
 
-export const BLANK = '#ffffff';
+export const BLANK = "#ffffff";
 
 // 16 bright, child-friendly crayon colors.
 export const PALETTE = [
-  '#ff3b3b', // cherry red
-  '#ff8a3b', // orange pop
-  '#ffd93d', // sunshine yellow
-  '#b6e62e', // lime fizz
-  '#4cc94c', // grass green
-  '#2ec9a7', // mermaid teal
-  '#3bc2ff', // sky blue
-  '#2e6ee6', // crayon blue
-  '#7b5ee6', // grape
-  '#b03be6', // magic purple
-  '#ff6fa5', // bubblegum pink
-  '#a65a2e', // teddy-bear brown
-  '#000000', // midnight black
-  '#7a7a8c', // robot gray
-  '#ffffff', // cloud white (eraser!)
-  '#ffe0c2', // peach
+  "#ff3b3b", // cherry red
+  "#ff8a3b", // orange pop
+  "#ffd93d", // sunshine yellow
+  "#b6e62e", // lime fizz
+  "#4cc94c", // grass green
+  "#2ec9a7", // mermaid teal
+  "#3bc2ff", // sky blue
+  "#2e6ee6", // crayon blue
+  "#7b5ee6", // grape
+  "#b03be6", // magic purple
+  "#ff6fa5", // bubblegum pink
+  "#a65a2e", // teddy-bear brown
+  "#000000", // midnight black
+  "#7a7a8c", // robot gray
+  "#ffffff", // cloud white (eraser!)
+  "#ffe0c2", // peach
 ];
 
-export type Brush = 'single' | 'round5' | 'round20' | 'fill';
+export type Brush = "single" | "round5" | "round20" | "fill";
 
 export const CELL = 10; // one toy pixel = 10x10 real pixels (desktop)
 export const CELL_MOBILE = 6; // smaller toy pixels on phones/tablets
@@ -74,11 +74,7 @@ export function brushRadius(brush: Brush, cols = 0, rows = 0): number {
  * Cell offsets (relative to the cursor cell) a brush paints. Round brushes
  * include every cell whose center is within the brush radius (see brushRadius).
  */
-export function brushOffsets(
-  brush: Brush,
-  cols = 0,
-  rows = 0,
-): Array<[number, number]> {
+export function brushOffsets(brush: Brush, cols = 0, rows = 0): Array<[number, number]> {
   const r = brushRadius(brush, cols, rows);
   if (r <= 0) return [[0, 0]];
   const limit = (r + 0.5) * (r + 0.5);

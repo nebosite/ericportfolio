@@ -1,22 +1,8 @@
 import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
-import {
-  PitchcraftEngine,
-  Hud,
-  SessionResult,
-  MicError,
-  blankHud,
-} from "./engine";
-import {
-  VOICES,
-  LEVELS,
-  VoiceId,
-  noteSet,
-  midiName,
-  isSharp,
-  NOTE_NAMES,
-} from "./src/game/notes";
+import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
+import { VOICES, LEVELS, VoiceId, noteSet, midiName, isSharp, NOTE_NAMES } from "./src/game/notes";
 import {
   Stats,
   SessionRecord,
@@ -62,11 +48,7 @@ interface MapCell {
   border: string;
 }
 
-function buildPitchMap(
-  stats: Stats,
-  voiceId: VoiceId,
-  level: 1 | 2 | 3 | 4,
-): MapCell[] {
+function buildPitchMap(stats: Stats, voiceId: VoiceId, level: 1 | 2 | 3 | 4): MapCell[] {
   const { lo, hi } = noteSet(voiceId, level);
   const out: MapCell[] = [];
   for (let m = lo; m <= hi; m++) {
@@ -85,9 +67,7 @@ function buildPitchMap(
     out.push({
       midi: m,
       label: sharp ? "" : NOTE_NAMES[((m % 12) + 12) % 12],
-      title:
-        midiName(m) +
-        (mastery != null ? ` · ${Math.round(mastery * 100)}%` : " · untried"),
+      title: midiName(m) + (mastery != null ? ` · ${Math.round(mastery * 100)}%` : " · untried"),
       bg,
       fg,
       border,
@@ -246,8 +226,8 @@ export default function PitchcraftPage() {
             Pitchcraft<span style={{ color: "#F4B23E" }}>.</span>
           </h1>
           <p className={styles.tagline}>
-            Hear the tone, then find it in your voice. A pitch-matching trainer
-            that meets you in your range.
+            Hear the tone, then find it in your voice. A pitch-matching trainer that meets you in
+            your range.
           </p>
         </div>
 
@@ -344,11 +324,7 @@ export default function PitchcraftPage() {
 
               <div className={styles.planBox}>{planText}</div>
 
-              <button
-                type="button"
-                className={styles.startBtn}
-                onClick={startSession}
-              >
+              <button type="button" className={styles.startBtn} onClick={startSession}>
                 Enable microphone &amp; start
               </button>
               {micError && (
@@ -401,11 +377,7 @@ export default function PitchcraftPage() {
                   >
                     Recent scores
                   </div>
-                  <svg
-                    viewBox="0 0 100 34"
-                    preserveAspectRatio="none"
-                    className={styles.spark}
-                  >
+                  <svg viewBox="0 0 100 34" preserveAspectRatio="none" className={styles.spark}>
                     <polyline
                       points={spark}
                       fill="none"
@@ -557,13 +529,8 @@ export default function PitchcraftPage() {
             </div>
 
             <div className={styles.stage}>
-              <canvas
-                ref={(el) => engineRef.current?.setCanvas(el)}
-                className={styles.canvas}
-              />
-              {hud.vibrato && (
-                <div className={styles.vibBadge}>Vibrato ×10</div>
-              )}
+              <canvas ref={(el) => engineRef.current?.setCanvas(el)} className={styles.canvas} />
+              {hud.vibrato && <div className={styles.vibBadge}>Vibrato ×10</div>}
               <div className={styles.timer}>
                 <div
                   className={styles.timerFill}
@@ -581,11 +548,7 @@ export default function PitchcraftPage() {
                   ? "Hear the tune, then sing it back from memory · no guide tone"
                   : "Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone ×1"}
               </div>
-              <button
-                type="button"
-                className={styles.endBtn}
-                onClick={endSession}
-              >
+              <button type="button" className={styles.endBtn} onClick={endSession}>
                 Quit round
               </button>
             </div>
@@ -614,36 +577,22 @@ export default function PitchcraftPage() {
                 >
                   {summary.score}
                 </div>
-                {summary.isBest && (
-                  <span className={styles.bestBadge}>New best</span>
-                )}
+                {summary.isBest && <span className={styles.bestBadge}>New best</span>}
               </div>
               <div style={{ display: "flex", gap: 26, marginTop: 24 }}>
                 <SumStat v={`${summary.accuracy}%`} l="accuracy" />
                 <SumStat
-                  v={
-                    summary.vibratoSec > 0
-                      ? `${summary.vibratoSec.toFixed(1)}s`
-                      : "0s"
-                  }
+                  v={summary.vibratoSec > 0 ? `${summary.vibratoSec.toFixed(1)}s` : "0s"}
                   l="vibrato held"
                   color="#35C4B5"
                 />
                 <SumStat v={summary.bestNote} l="strongest note" serif />
               </div>
               <div style={{ display: "flex", gap: 12, marginTop: 32 }}>
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  onClick={startSession}
-                >
+                <button type="button" className={styles.primaryBtn} onClick={startSession}>
                   Practice again
                 </button>
-                <button
-                  type="button"
-                  className={styles.ghostBtn}
-                  onClick={() => setPhase("intro")}
-                >
+                <button type="button" className={styles.ghostBtn} onClick={() => setPhase("intro")}>
                   Change range
                 </button>
               </div>

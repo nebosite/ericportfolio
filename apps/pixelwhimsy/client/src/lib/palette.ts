@@ -18,15 +18,15 @@
 // Pure and framework-free so the index math and palette construction are unit
 // tested away from the canvas.
 
-import { PALETTE as CRAYONS, BLANK } from './paint';
+import { PALETTE as CRAYONS, BLANK } from "./paint";
 
 export const PALETTE_SIZE = 256;
 export const BLANK_INDEX = 0;
 export const ANIM_BASE = 128; // high-bit colors start here
 export const GROUP_SIZE = 8;
 export const GROUP_COUNT = (PALETTE_SIZE - ANIM_BASE) / GROUP_SIZE; // 16
-const WHITE = '#ffffff';
-const BLACK = '#000000';
+const WHITE = "#ffffff";
+const BLACK = "#000000";
 
 // Static colors: index 0 is blank (the mode's background), then crayons at 1..16.
 export const STATIC_COLORS: readonly string[] = [BLANK, ...CRAYONS];
@@ -71,10 +71,7 @@ function ringDist(a: number, b: number, n: number): number {
 /** Halfway between a "#rrggbb" color and a target ("#ffffff" or "#000000"). */
 function halfTo(hex: string, target: string): string {
   const mid = (i: number) =>
-    Math.round(
-      (parseInt(hex.slice(i, i + 2), 16) + parseInt(target.slice(i, i + 2), 16)) /
-        2,
-    )
+    Math.round((parseInt(hex.slice(i, i + 2), 16) + parseInt(target.slice(i, i + 2), 16)) / 2)
       .toString(16)
       .padStart(2, "0");
   return `#${mid(1)}${mid(3)}${mid(5)}`;

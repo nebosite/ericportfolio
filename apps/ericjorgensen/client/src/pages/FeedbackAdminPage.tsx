@@ -24,16 +24,9 @@ export interface AdminItem {
 export type SortKey = "entity" | "created_at" | "votes" | "status";
 
 /** Pure, stable sort used by the table (extracted so it can be unit tested). */
-export function sortItems(
-  items: AdminItem[],
-  key: SortKey,
-  dir: "asc" | "desc",
-): AdminItem[] {
+export function sortItems(items: AdminItem[], key: SortKey, dir: "asc" | "desc"): AdminItem[] {
   const sorted = [...items].sort((a, b) => {
-    const cmp =
-      key === "votes"
-        ? a.votes - b.votes
-        : String(a[key]).localeCompare(String(b[key]));
+    const cmp = key === "votes" ? a.votes - b.votes : String(a[key]).localeCompare(String(b[key]));
     return dir === "asc" ? cmp : -cmp;
   });
   return sorted;
@@ -45,14 +38,10 @@ function formatDate(raw: string): string {
 }
 
 export default function FeedbackAdminPage() {
-  const [token, setToken] = useState(
-    () => sessionStorage.getItem(TOKEN_KEY) ?? "",
-  );
+  const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) ?? "");
   const [input, setInput] = useState("");
   const [items, setItems] = useState<AdminItem[] | null>(null);
-  const [loading, setLoading] = useState(() =>
-    Boolean(sessionStorage.getItem(TOKEN_KEY)),
-  );
+  const [loading, setLoading] = useState(() => Boolean(sessionStorage.getItem(TOKEN_KEY)));
   const [authError, setAuthError] = useState(false);
   const [error, setError] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
@@ -124,9 +113,7 @@ export default function FeedbackAdminPage() {
       },
       body: JSON.stringify({ status }),
     });
-    setItems((cur) =>
-      cur ? cur.map((i) => (i.id === id ? { ...i, status } : i)) : cur,
-    );
+    setItems((cur) => (cur ? cur.map((i) => (i.id === id ? { ...i, status } : i)) : cur));
   };
 
   const saveNotes = async (id: number) => {
@@ -140,9 +127,7 @@ export default function FeedbackAdminPage() {
       },
       body: JSON.stringify({ notes }),
     });
-    setItems((cur) =>
-      cur ? cur.map((i) => (i.id === id ? { ...i, notes } : i)) : cur,
-    );
+    setItems((cur) => (cur ? cur.map((i) => (i.id === id ? { ...i, notes } : i)) : cur));
     setNoteDrafts((d) => {
       const next = { ...d };
       delete next[id];
@@ -179,16 +164,8 @@ export default function FeedbackAdminPage() {
             autoFocus
           />
           {authError && <p className={styles.error}>Incorrect password.</p>}
-          {error && (
-            <p className={styles.error}>
-              Could not reach the feedback service.
-            </p>
-          )}
-          <button
-            type="submit"
-            className={styles.button}
-            disabled={loading || !input.trim()}
-          >
+          {error && <p className={styles.error}>Could not reach the feedback service.</p>}
+          <button type="submit" className={styles.button} disabled={loading || !input.trim()}>
             {loading ? "Checking…" : "Unlock"}
           </button>
         </form>
@@ -196,8 +173,7 @@ export default function FeedbackAdminPage() {
     );
   }
 
-  const arrow = (key: SortKey) =>
-    key === sortKey ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+  const arrow = (key: SortKey) => (key === sortKey ? (sortDir === "asc" ? " ▲" : " ▼") : "");
 
   return (
     <div className={styles.page}>
@@ -205,11 +181,7 @@ export default function FeedbackAdminPage() {
         <h1 className={styles.title}>Feedback admin</h1>
         <div className={styles.headerActions}>
           <span className={styles.count}>{items.length} items</span>
-          <button
-            type="button"
-            className={styles.button}
-            onClick={() => load(token)}
-          >
+          <button type="button" className={styles.button} onClick={() => load(token)}>
             Refresh
           </button>
           <button type="button" className={styles.buttonGhost} onClick={logout}>
@@ -267,10 +239,7 @@ export default function FeedbackAdminPage() {
           </thead>
           <tbody>
             {sorted.map((item) => (
-              <tr
-                key={item.id}
-                className={item.isNew ? styles.newRow : undefined}
-              >
+              <tr key={item.id} className={item.isNew ? styles.newRow : undefined}>
                 <td className={styles.entityCol}>
                   {item.entity}
                   {item.isNew && <span className={styles.newBadge}>NEW</span>}
@@ -283,9 +252,7 @@ export default function FeedbackAdminPage() {
                     className={styles.statusSelect}
                     aria-label={`Status for item ${item.id}`}
                     value={item.status}
-                    onChange={(e) =>
-                      changeStatus(item.id, e.target.value as Status)
-                    }
+                    onChange={(e) => changeStatus(item.id, e.target.value as Status)}
                   >
                     {STATUSES.map((s) => (
                       <option key={s} value={s}>
@@ -313,8 +280,7 @@ export default function FeedbackAdminPage() {
                       className={styles.saveBtn}
                       aria-label={`Save notes for item ${item.id}`}
                       disabled={
-                        noteDrafts[item.id] === undefined ||
-                        noteDrafts[item.id] === item.notes
+                        noteDrafts[item.id] === undefined || noteDrafts[item.id] === item.notes
                       }
                       onClick={() => saveNotes(item.id)}
                     >

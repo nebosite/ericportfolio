@@ -49,9 +49,9 @@ Concretely, when building anything here:
 - **No way out to harm.** No external links, no purchases, no account flows, no
   ads — nothing that leads a child out of the sandbox.
 
-When in doubt, ask: *if a two-year-old slapped the screen and keyboard for thirty
+When in doubt, ask: _if a two-year-old slapped the screen and keyboard for thirty
 seconds straight, could they end up anywhere other than still playing in
-PixelWhimsy?* If yes, that's a bug.
+PixelWhimsy?_ If yes, that's a bug.
 
 ## The feeling: play
 

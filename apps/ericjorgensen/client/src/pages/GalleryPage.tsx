@@ -107,10 +107,7 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
   const openFullRes = (e: React.MouseEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     const w = Math.min(img.naturalWidth || 1000, window.screen.availWidth - 80);
-    const h = Math.min(
-      img.naturalHeight || 800,
-      window.screen.availHeight - 120,
-    );
+    const h = Math.min(img.naturalHeight || 800, window.screen.availHeight - 120);
     window.open(img.src, "_blank", `popup=1,width=${w},height=${h}`);
   };
 
@@ -153,12 +150,8 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
               </figcaption>
             </figure>
           )}
-          {failed && (
-            <p className={styles.empty}>Could not load this gallery.</p>
-          )}
-          {!failed && items.length === 0 && (
-            <p className={styles.empty}>Loading…</p>
-          )}
+          {failed && <p className={styles.empty}>Could not load this gallery.</p>}
+          {!failed && items.length === 0 && <p className={styles.empty}>Loading…</p>}
         </main>
       </div>
     </div>

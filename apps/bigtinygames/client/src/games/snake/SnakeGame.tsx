@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, FormEvent } from 'react';
-import { attachGameInput, Vec } from '../input';
+import { useCallback, useEffect, useRef, useState, FormEvent } from "react";
+import { attachGameInput, Vec } from "../input";
 import {
   GameState,
   TICK_MS,
@@ -12,10 +12,10 @@ import {
   step,
   swipeDirection,
   tapTurn,
-} from './snakeLogic';
-import FeedbackPanel from '../../components/FeedbackPanel';
-import { trackEvent } from '../../lib/analytics';
-import styles from './SnakeGame.module.css';
+} from "./snakeLogic";
+import FeedbackPanel from "../../components/FeedbackPanel";
+import { trackEvent } from "../../lib/analytics";
+import styles from "./SnakeGame.module.css";
 
 // The Big Tiny aesthetic: tiny 12x12 sprites on a field that fills the screen.
 // Movement / collision / spawning rules live in snakeLogic.ts (unit tested);
@@ -30,7 +30,7 @@ const GHOST_FIRST_TICKS = Math.round(GHOST_POWERUP_FIRST_MS / TICK_MS);
 const GHOST_EVERY_TICKS = Math.round(GHOST_POWERUP_EVERY_MS / TICK_MS);
 const MIDNIGHT_BLUE = [25, 25, 112]; // ghost trails fade toward this
 
-type Phase = 'idle' | 'playing' | 'gameover' | 'saved';
+type Phase = "idle" | "playing" | "gameover" | "saved";
 
 interface ScoreRow {
   id: number;
@@ -41,75 +41,75 @@ interface ScoreRow {
 
 // SPRITES — 12x12 one-bit patterns drawn in code so they're easy to tweak later.
 const SPRITE_HEAD = [
-  '..########..',
-  '.##########.',
-  '############',
-  '###.####.###',
-  '###.####.###',
-  '############',
-  '############',
-  '############',
-  '##.######.##',
-  '############',
-  '.##########.',
-  '..########..',
+  "..########..",
+  ".##########.",
+  "############",
+  "###.####.###",
+  "###.####.###",
+  "############",
+  "############",
+  "############",
+  "##.######.##",
+  "############",
+  ".##########.",
+  "..########..",
 ];
 const SPRITE_BODY = [
-  '..########..',
-  '.##########.',
-  '############',
-  '###.####.###',
-  '############',
-  '###.####.###',
-  '############',
-  '###.####.###',
-  '############',
-  '############',
-  '.##########.',
-  '..########..',
+  "..########..",
+  ".##########.",
+  "############",
+  "###.####.###",
+  "############",
+  "###.####.###",
+  "############",
+  "###.####.###",
+  "############",
+  "############",
+  ".##########.",
+  "..########..",
 ];
 const SPRITE_APPLE = [
-  '.....#......',
-  '....##......',
-  '...####.....',
-  '..########..',
-  '.##########.',
-  '############',
-  '############',
-  '############',
-  '############',
-  '.##########.',
-  '..########..',
-  '...######...',
+  ".....#......",
+  "....##......",
+  "...####.....",
+  "..########..",
+  ".##########.",
+  "############",
+  "############",
+  "############",
+  "############",
+  ".##########.",
+  "..########..",
+  "...######...",
 ];
 // A few missing interior pixels give the rock a pebbled, shaded look.
 const SPRITE_ROCK = [
-  '...######...',
-  '..########..',
-  '.##.#######.',
-  '#######.####',
-  '############',
-  '####.#######',
-  '############',
-  '#########.##',
-  '############',
-  '.#####.####.',
-  '..########..',
-  '...######...',
+  "...######...",
+  "..########..",
+  ".##.#######.",
+  "#######.####",
+  "############",
+  "####.#######",
+  "############",
+  "#########.##",
+  "############",
+  ".#####.####.",
+  "..########..",
+  "...######...",
 ];
 const SPRITE_GHOST = [
-  '...######...',
-  '..########..',
-  '.##########.',
-  '############',
-  '###..##..###',
-  '###..##..###',
-  '############',
-  '############',
-  '############',
-  '############',
-  '############',
-  '#.#.#..#.#.#',
+  "...######...",
+  "..########..",
+  ".##########.",
+  "############",
+  "###..##..###",
+  "###..##..###",
+  "############",
+  "############",
+  "############",
+  "############",
+  "############",
+  "#.#.#..#.#.#",
 ];
 
 function drawSprite(
@@ -122,7 +122,7 @@ function drawSprite(
   ctx.fillStyle = color;
   for (let row = 0; row < 12; row++) {
     for (let col = 0; col < 12; col++) {
-      if (pattern[row][col] === '#') {
+      if (pattern[row][col] === "#") {
         ctx.fillRect(cellX * CELL + col, cellY * CELL + row, 1, 1);
       }
     }
@@ -137,15 +137,15 @@ export default function SnakeGame() {
   const dirQueueRef = useRef<Vec[]>([]);
   const tickRef = useRef(0);
 
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>("idle");
   const [score, setScore] = useState(0);
   const [alive, setAlive] = useState(0);
   const [ghosts, setGhosts] = useState(0);
-  const [initials, setInitials] = useState('');
+  const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
 
   const loadLeaderboard = useCallback(() => {
-    fetch('/api/leaderboard')
+    fetch("/api/leaderboard")
       .then((res) => res.json())
       .then((data: ScoreRow[]) => setLeaderboard(data))
       .catch(() => {});
@@ -155,9 +155,9 @@ export default function SnakeGame() {
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
+    const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    ctx.fillStyle = '#0d0d14';
+    ctx.fillStyle = "#0d0d14";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const state = stateRef.current;
@@ -166,7 +166,7 @@ export default function SnakeGame() {
     // Rocks are normally gray and deadly, but while any snake is ghost-rushing
     // they're edible — pulse them blue↔green to signal that.
     const rushing = state.buffs.some((b) => b > 0);
-    let rockColor = '#6f6f82';
+    let rockColor = "#6f6f82";
     if (rushing) {
       const pulse = 0.5 + 0.5 * Math.sin(((Date.now() % 600) / 600) * Math.PI * 2);
       const rr = Math.round(60 + (61 - 60) * pulse);
@@ -181,14 +181,20 @@ export default function SnakeGame() {
     }
 
     // Food is lime-green (green = edible, matching the rush-time rocks).
-    for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, '#7CFC00');
+    for (const f of state.foods) drawSprite(ctx, SPRITE_APPLE, f.x, f.y, "#7CFC00");
 
     // The Ghost powerup throbs between blue and white.
     if (state.ghostPowerup) {
       const pulse = 0.5 + 0.5 * Math.sin(((Date.now() % 700) / 700) * Math.PI * 2);
       const r = Math.round(120 + 135 * pulse);
       const g = Math.round(150 + 105 * pulse);
-      drawSprite(ctx, SPRITE_GHOST, state.ghostPowerup.x, state.ghostPowerup.y, `rgb(${r},${g},255)`);
+      drawSprite(
+        ctx,
+        SPRITE_GHOST,
+        state.ghostPowerup.x,
+        state.ghostPowerup.y,
+        `rgb(${r},${g},255)`,
+      );
     }
 
     state.snakes.forEach((snake, si) => {
@@ -196,9 +202,9 @@ export default function SnakeGame() {
       const buff = state.buffs[si] ?? 0;
       const flashing = buff > 0 && buff <= GHOST_RUSH_FLASH;
       const blue = buff > 0 && (!flashing || Date.now() % 320 < 160);
-      const bodyA = blue ? '#2f6fd6' : '#2f9e4c';
-      const bodyB = blue ? '#5a9bff' : '#3dbf5e';
-      const headColor = blue ? '#a9d6ff' : '#57ff7a';
+      const bodyA = blue ? "#2f6fd6" : "#2f9e4c";
+      const bodyB = blue ? "#5a9bff" : "#3dbf5e";
+      const headColor = blue ? "#a9d6ff" : "#57ff7a";
       for (let i = snake.length - 1; i >= 1; i--) {
         // Alternate two shades so the body reads as segments even at 8px.
         drawSprite(ctx, SPRITE_BODY, snake[i].x, snake[i].y, i % 2 === 0 ? bodyA : bodyB);
@@ -219,7 +225,7 @@ export default function SnakeGame() {
       }
       const head = ghost.trail[0];
       if (head.x >= 0 && head.y >= 0 && head.x < state.cols && head.y < state.rows) {
-        drawSprite(ctx, SPRITE_GHOST, head.x, head.y, '#ffffff');
+        drawSprite(ctx, SPRITE_GHOST, head.x, head.y, "#ffffff");
       }
     }
   }, []);
@@ -240,8 +246,8 @@ export default function SnakeGame() {
     setScore(0);
     setAlive(stateRef.current.snakes.length);
     setGhosts(0);
-    setInitials('');
-    setPhase('playing');
+    setInitials("");
+    setPhase("playing");
   }, []);
 
   // Redraw whenever the phase changes (e.g. to show the cleared field).
@@ -260,10 +266,10 @@ export default function SnakeGame() {
 
   // Keyboard + gamepad via the shared input module.
   useEffect(() => {
-    if (phase === 'playing') {
+    if (phase === "playing") {
       return attachGameInput({ onDirection: queueDir });
     }
-    if (phase === 'idle' || phase === 'saved') {
+    if (phase === "idle" || phase === "saved") {
       return attachGameInput({ onConfirm: startGame });
     }
   }, [phase, startGame, queueDir]);
@@ -271,7 +277,7 @@ export default function SnakeGame() {
   // Touch (mobile): swipe to steer by dominant axis; a tap turns the snake
   // toward the tapped cell. Bound to the canvas so page scroll never fires.
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== "playing") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const SWIPE_MIN = 24; // px of travel that counts as a swipe rather than a tap
@@ -307,19 +313,19 @@ export default function SnakeGame() {
       if (dir) queueDir(dir);
     };
 
-    canvas.addEventListener('touchstart', onStart, { passive: false });
-    canvas.addEventListener('touchmove', onMove, { passive: false });
-    canvas.addEventListener('touchend', onEnd, { passive: false });
+    canvas.addEventListener("touchstart", onStart, { passive: false });
+    canvas.addEventListener("touchmove", onMove, { passive: false });
+    canvas.addEventListener("touchend", onEnd, { passive: false });
     return () => {
-      canvas.removeEventListener('touchstart', onStart);
-      canvas.removeEventListener('touchmove', onMove);
-      canvas.removeEventListener('touchend', onEnd);
+      canvas.removeEventListener("touchstart", onStart);
+      canvas.removeEventListener("touchmove", onMove);
+      canvas.removeEventListener("touchend", onEnd);
     };
   }, [phase, queueDir]);
 
   // Main game loop.
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== "playing") return;
     const timer = window.setInterval(() => {
       const queued = dirQueueRef.current.shift();
       if (queued) dirRef.current = queued;
@@ -342,8 +348,8 @@ export default function SnakeGame() {
       setAlive(next.snakes.length);
       setGhosts(next.ghosts.length);
       if (next.over) {
-        trackEvent('game_over', { game: 'snake', score: next.score });
-        setPhase('gameover');
+        trackEvent("game_over", { game: "snake", score: next.score });
+        setPhase("gameover");
         return;
       }
       draw();
@@ -353,7 +359,7 @@ export default function SnakeGame() {
 
   // Drop a fresh food in every few seconds.
   useEffect(() => {
-    if (phase !== 'playing') return;
+    if (phase !== "playing") return;
     const timer = window.setInterval(() => {
       if (stateRef.current) {
         stateRef.current = addFood(stateRef.current);
@@ -368,15 +374,15 @@ export default function SnakeGame() {
     const clean = initials.trim().toUpperCase();
     if (!clean) return;
     try {
-      await fetch('/api/leaderboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ initials: clean, score }),
       });
-      trackEvent('score_submitted', { game: 'snake', score, initials: clean });
+      trackEvent("score_submitted", { game: "snake", score, initials: clean });
       loadLeaderboard();
     } finally {
-      setPhase('saved');
+      setPhase("saved");
     }
   };
 
@@ -384,7 +390,7 @@ export default function SnakeGame() {
     <ol className={styles.scoreList}>
       {leaderboard.map((row, i) => (
         <li key={row.id} className={styles.scoreRow}>
-          <span className={styles.rank}>{(i + 1).toString().padStart(2, '0')}</span>
+          <span className={styles.rank}>{(i + 1).toString().padStart(2, "0")}</span>
           <span className={styles.scoreInitials}>{row.initials}</span>
           <span className={styles.scoreValue}>{row.score}</span>
         </li>
@@ -396,7 +402,7 @@ export default function SnakeGame() {
   return (
     <div className={styles.game}>
       <div className={styles.hud}>
-        <span>SCORE: {score.toString().padStart(6, '0')}</span>
+        <span>SCORE: {score.toString().padStart(6, "0")}</span>
         <span>SNAKES ×{alive}</span>
         {ghosts > 0 && <span className={styles.ghostCount}>GHOSTS ×{ghosts}</span>}
         <span>SWIPE · TAP · KEYS · PAD</span>
@@ -405,7 +411,7 @@ export default function SnakeGame() {
       <div ref={stageRef} className={styles.stage}>
         <canvas ref={canvasRef} className={styles.canvas} />
 
-        {phase === 'idle' && (
+        {phase === "idle" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG TINY SNAKE</p>
             <p>One field, one heading, ever more snakes. Eat to multiply — keep them all alive.</p>
@@ -418,7 +424,7 @@ export default function SnakeGame() {
           </div>
         )}
 
-        {phase === 'gameover' && (
+        {phase === "gameover" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>GAME OVER</p>
             <p>FINAL SCORE: {score}</p>
@@ -432,7 +438,7 @@ export default function SnakeGame() {
                   setInitials(
                     e.target.value
                       .toUpperCase()
-                      .replace(/[^A-Z0-9]/g, '')
+                      .replace(/[^A-Z0-9]/g, "")
                       .slice(0, 3),
                   )
                 }
@@ -444,14 +450,14 @@ export default function SnakeGame() {
                 SAVE
               </button>
             </form>
-            <button type="button" className={styles.skipButton} onClick={() => setPhase('saved')}>
+            <button type="button" className={styles.skipButton} onClick={() => setPhase("saved")}>
               skip
             </button>
             <Leaderboard />
           </div>
         )}
 
-        {phase === 'saved' && (
+        {phase === "saved" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>NICE RUN!</p>
             <Leaderboard />

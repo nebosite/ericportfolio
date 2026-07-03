@@ -4,11 +4,7 @@
 
 .page {
   min-height: 100vh;
-  background: radial-gradient(
-    1200px 600px at 50% -10%,
-    #15171f 0%,
-    #0a0b0f 60%
-  );
+  background: radial-gradient(1200px 600px at 50% -10%, #15171f 0%, #0a0b0f 60%);
   color: #c9cdd6;
   font-family: "Spectral", Georgia, serif;
   -webkit-font-smoothing: antialiased;

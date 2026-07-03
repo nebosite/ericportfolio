@@ -151,9 +151,7 @@ function ItemName({ item }: { item: ViewItem }) {
       <a
         href={item.href}
         className={styles.itemName}
-        onClick={() =>
-          trackEvent("outbound_link", { url: item.href, name: item.name })
-        }
+        onClick={() => trackEvent("outbound_link", { url: item.href, name: item.name })}
       >
         {item.name}
       </a>
@@ -257,9 +255,8 @@ export default function HomePage() {
           </div>
           <h1 className={styles.name}>Eric Jorgensen</h1>
           <p className={styles.tagline}>
-            Things I have made, kept as specimens and arranged in a single order
-            — from those grown entirely by the hand to those generated entirely
-            by the machine.
+            Things I have made, kept as specimens and arranged in a single order — from those grown
+            entirely by the hand to those generated entirely by the machine.
           </p>
         </header>
 
@@ -273,9 +270,7 @@ export default function HomePage() {
         </footer>
       </div>
 
-      {visitCount !== null && (
-        <p className={styles.visitCount}>{visitCount.toLocaleString()}</p>
-      )}
+      {visitCount !== null && <p className={styles.visitCount}>{visitCount.toLocaleString()}</p>}
     </div>
   );
 }
@@ -322,9 +317,7 @@ function GuideLayout({ categories }: { categories: ViewCategory[] }) {
                     <h3 className={styles.guideItemH3}>
                       <ItemName item={item} />
                     </h3>
-                    {item.desc && (
-                      <span className={styles.itemDesc}> — {item.desc}</span>
-                    )}
+                    {item.desc && <span className={styles.itemDesc}> — {item.desc}</span>}
                   </div>
                   <div className={styles.plateLabel}>{item.plate}</div>
                 </div>
@@ -377,9 +370,7 @@ function PlatesLayout({ categories }: { categories: ViewCategory[] }) {
                 </div>
               </div>
             ))}
-            {cat.empty && (
-              <div className={styles.platesEmpty}>Awaiting specimens.</div>
-            )}
+            {cat.empty && <div className={styles.platesEmpty}>Awaiting specimens.</div>}
           </div>
         </section>
       ))}
@@ -433,15 +424,11 @@ function SpectrumLayout({ categories }: { categories: ViewCategory[] }) {
                     <div className={styles.spectrumItemName}>
                       <ItemName item={item} />
                     </div>
-                    {item.desc && (
-                      <div className={styles.spectrumItemDesc}>{item.desc}</div>
-                    )}
+                    {item.desc && <div className={styles.spectrumItemDesc}>{item.desc}</div>}
                   </div>
                 </div>
               ))}
-              {cat.empty && (
-                <div className={styles.spectrumEmpty}>Awaiting specimens.</div>
-              )}
+              {cat.empty && <div className={styles.spectrumEmpty}>Awaiting specimens.</div>}
             </div>
           </div>
         ))}

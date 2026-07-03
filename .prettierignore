@@ -1,0 +1,8 @@
+node_modules
+**/dist
+**/build
+**/coverage
+package-lock.json
+**/*.min.*
+# Generated gallery manifests + binary media
+apps/ericjorgensen/server/src/media

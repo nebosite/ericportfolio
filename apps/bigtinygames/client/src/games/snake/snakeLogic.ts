@@ -4,7 +4,7 @@
 // board size is supplied by the caller (the canvas fills the viewport), so
 // dimensions live in the state.
 
-import { Vec } from '../input';
+import { Vec } from "../input";
 
 export const START_LENGTH = 6;
 export const POINTS_PER_APPLE = 10;
@@ -133,7 +133,13 @@ function makeBlast(cx: number, cy: number): Ghost[] {
   const ghosts: Ghost[] = [];
   for (let k = 0; k < GHOST_COUNT; k++) {
     const angle = (2 * Math.PI * k) / GHOST_COUNT;
-    ghosts.push({ hx: cx, hy: cy, dx: Math.cos(angle), dy: Math.sin(angle), trail: [{ x: cx, y: cy }] });
+    ghosts.push({
+      hx: cx,
+      hy: cy,
+      dx: Math.cos(angle),
+      dy: Math.sin(angle),
+      trail: [{ x: cx, y: cy }],
+    });
   }
   return ghosts;
 }
@@ -174,9 +180,7 @@ export function advanceGhost(g: Ghost, cols: number, rows: number): Ghost | null
 
 /** Turn a swipe delta (px or cells) into a 4-way heading by its dominant axis. */
 export function swipeDirection(dx: number, dy: number): Vec {
-  return Math.abs(dx) >= Math.abs(dy)
-    ? { x: dx < 0 ? -1 : 1, y: 0 }
-    : { x: 0, y: dy < 0 ? -1 : 1 };
+  return Math.abs(dx) >= Math.abs(dy) ? { x: dx < 0 ? -1 : 1, y: 0 } : { x: 0, y: dy < 0 ? -1 : 1 };
 }
 
 /**
@@ -204,7 +208,11 @@ export function tapTurn(cur: Vec, head: Vec, tap: Vec): Vec | null {
  * first bite multiplies the flock), plus 3–4 rocks already on the board so the
  * hazard reads immediately.
  */
-export function initialState(cols: number, rows: number, rng: () => number = Math.random): GameState {
+export function initialState(
+  cols: number,
+  rows: number,
+  rng: () => number = Math.random,
+): GameState {
   const cy = Math.floor(rows / 2);
   const headX = Math.max(START_LENGTH - 1, Math.floor(cols / 2) - 5);
   const snake = makeSnake(headX, cy, { x: 1, y: 0 });

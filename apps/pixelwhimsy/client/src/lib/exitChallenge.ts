@@ -14,7 +14,7 @@ export function makeProblem(rng: () => number = Math.random): Problem {
   return { a, b, answer: a * b };
 }
 
-export type AnswerState = 'correct' | 'wrong' | 'incomplete';
+export type AnswerState = "correct" | "wrong" | "incomplete";
 
 /**
  * Evaluate the digits typed so far against the answer, with no Enter key:
@@ -23,9 +23,9 @@ export type AnswerState = 'correct' | 'wrong' | 'incomplete';
  * - 'wrong'      — the typed digits can no longer become the answer.
  */
 export function evaluateAnswer(answer: number, typed: string): AnswerState {
-  if (typed === '') return 'incomplete';
+  if (typed === "") return "incomplete";
   const ans = String(answer);
-  if (typed === ans) return 'correct';
-  if (!ans.startsWith(typed)) return 'wrong';
-  return 'incomplete';
+  if (typed === ans) return "correct";
+  if (!ans.startsWith(typed)) return "wrong";
+  return "incomplete";
 }

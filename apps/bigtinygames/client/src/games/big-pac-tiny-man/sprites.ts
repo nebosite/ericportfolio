@@ -1,11 +1,11 @@
-import { Assets, Texture } from 'pixi.js';
-import pacOpenUrl from './assetts/sprites/pac-open.png';
-import pacClosedUrl from './assetts/sprites/pac-closed.png';
-import ghostUrl from './assetts/sprites/ghost.png';
-import ghostFrightenedUrl from './assetts/sprites/ghost-frightened.png';
-import ghostEyesUrl from './assetts/sprites/ghost-eyes.png';
-import pelletUrl from './assetts/sprites/pellet.png';
-import fruitUrl from './assetts/sprites/fruit.png';
+import { Assets, Texture } from "pixi.js";
+import pacOpenUrl from "./assetts/sprites/pac-open.png";
+import pacClosedUrl from "./assetts/sprites/pac-closed.png";
+import ghostUrl from "./assetts/sprites/ghost.png";
+import ghostFrightenedUrl from "./assetts/sprites/ghost-frightened.png";
+import ghostEyesUrl from "./assetts/sprites/ghost-eyes.png";
+import pelletUrl from "./assetts/sprites/pellet.png";
+import fruitUrl from "./assetts/sprites/fruit.png";
 
 // Every gameplay graphic is an editable PNG checked into this game's
 // assetts/sprites/ folder at its real arcade size (Pac 13x13, ghosts 14x15,
@@ -38,7 +38,7 @@ export async function loadSpriteTextures(): Promise<SpriteTextures> {
   const entries = await Promise.all(
     (Object.keys(SPRITE_URLS) as Array<keyof SpriteTextures>).map(async (key) => {
       const texture: Texture = await Assets.load(SPRITE_URLS[key]);
-      texture.source.scaleMode = 'nearest';
+      texture.source.scaleMode = "nearest";
       return [key, texture] as const;
     }),
   );

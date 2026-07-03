@@ -25,13 +25,7 @@ import {
   phaseOf,
   Phase,
 } from "./src/game/notes";
-import {
-  centsOff,
-  quality,
-  accuracyRatio,
-  tickPoints,
-  VibratoDetector,
-} from "./src/game/scoring";
+import { centsOff, quality, accuracyRatio, tickPoints, VibratoDetector } from "./src/game/scoring";
 
 const ACCENT = "#F4B23E";
 const TEAL = "#35C4B5";
@@ -205,8 +199,7 @@ export class PitchcraftEngine {
     }
     const Ctor =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctor();
     await ctx.resume();
     const src = ctx.createMediaStreamSource(stream);
@@ -304,8 +297,7 @@ export class PitchcraftEngine {
   }
 
   private curNote(now: number): PlayNote | null {
-    for (const n of this.notes)
-      if (now >= n.cycle && now < n.cycle + CYCLE_TOTAL) return n;
+    for (const n of this.notes) if (now >= n.cycle && now < n.cycle + CYCLE_TOTAL) return n;
     return null;
   }
 
@@ -332,8 +324,7 @@ export class PitchcraftEngine {
       cn = this.curNote(now);
       ph = cn ? phaseOf(now - cn.cycle) : "done";
       scoring = cn && ph === "score" ? cn : null;
-      toneNote =
-        cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
+      toneNote = cn && (ph === "preview" || ph === "prep" || ph === "score") ? cn : null;
     } else {
       scoring = null;
       toneNote = null;
@@ -357,9 +348,7 @@ export class PitchcraftEngine {
     // the voice's harmonic structure to tell the singer apart from the tone.
     const pr = this.pitch.read();
     const hz = pr ? pr.f0 : -1;
-    this.harm = pr
-      ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident }
-      : null;
+    this.harm = pr ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident } : null;
 
     if (toneNote) {
       const idx = this.notes.indexOf(toneNote);
@@ -399,11 +388,7 @@ export class PitchcraftEngine {
     this.pushHud(now, cn, ph, scoring, q, vibrato);
   };
 
-  private scoreStep(
-    now: number,
-    scoring: PlayNote | null,
-    vibrato: boolean,
-  ): void {
+  private scoreStep(now: number, scoring: PlayNote | null, vibrato: boolean): void {
     if (this.lastNow == null) this.lastNow = now;
     let dt = now - this.lastNow;
     this.lastNow = now;
@@ -424,9 +409,7 @@ export class PitchcraftEngine {
       this.sess.qSum += ratio;
       if (vibrato && quality(ac) > 0) this.sess.vibTicks++;
       const key = String(scoring.midi);
-      const pn =
-        this.sess.perNote[key] ||
-        (this.sess.perNote[key] = { n: 0, rSum: 0, pts: 0 });
+      const pn = this.sess.perNote[key] || (this.sess.perNote[key] = { n: 0, rSum: 0, pts: 0 });
       pn.n++;
       pn.rSum += ratio;
       pn.pts += pts;
@@ -507,10 +490,7 @@ export class PitchcraftEngine {
       const nyquist = this.fft.context.sampleRate / 2;
       const topBin = Math.max(
         1,
-        Math.min(
-          this.freq.length,
-          Math.round((TOP_HZ / nyquist) * this.freq.length),
-        ),
+        Math.min(this.freq.length, Math.round((TOP_HZ / nyquist) * this.freq.length)),
       );
       const bars = 880;
       const bw = W / bars;
@@ -553,8 +533,7 @@ export class PitchcraftEngine {
           ctx.beginPath();
           ctx.arc(x, H - 108, isFund ? 3.2 : 2.4, 0, 7);
           ctx.fill();
-          ctx.font =
-            (isFund ? "600 11px " : "10px ") + "'Spline Sans Mono', monospace";
+          ctx.font = (isFund ? "600 11px " : "10px ") + "'Spline Sans Mono', monospace";
           ctx.fillText(label, x, H - 116);
         }
         ctx.globalAlpha = 0.85;
@@ -577,17 +556,14 @@ export class PitchcraftEngine {
     for (let m = loM; m <= hiM; m++) {
       const y = this.yFor(m);
       const sharp = isSharp(m);
-      ctx.strokeStyle = sharp
-        ? "rgba(255,255,255,0.025)"
-        : "rgba(255,255,255,0.06)";
+      ctx.strokeStyle = sharp ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.06)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W, y);
       ctx.stroke();
       if (!sharp) {
-        ctx.fillStyle =
-          m % 12 === 0 ? "rgba(243,239,230,0.55)" : "rgba(138,144,160,0.4)";
+        ctx.fillStyle = m % 12 === 0 ? "rgba(243,239,230,0.55)" : "rgba(138,144,160,0.4)";
         ctx.fillText(midiName(m), 8, y);
       }
     }
@@ -660,10 +636,7 @@ export class PitchcraftEngine {
     // The live pitch dot at the playhead, glowing with closeness.
     if (this.cur.midi !== null) {
       const y = this.yFor(this.cur.midi);
-      const ratio =
-        this.cur.cents == null
-          ? 0
-          : Math.max(0, 1 - Math.abs(this.cur.cents) / 100);
+      const ratio = this.cur.cents == null ? 0 : Math.max(0, 1 - Math.abs(this.cur.cents) / 100);
       const col = this.cur.vibrato ? TEAL : ACCENT;
       ctx.shadowColor = col;
       ctx.shadowBlur = 6 + ratio * 22;
@@ -706,9 +679,7 @@ export class PitchcraftEngine {
         ? cn
           ? `Tune ${cn.tune + 1} / ${TUNE_COUNT}`
           : ""
-        : (cn ? this.notes.indexOf(cn) + 1 : this.notes.length) +
-          " / " +
-          this.notes.length;
+        : (cn ? this.notes.indexOf(cn) + 1 : this.notes.length) + " / " + this.notes.length;
 
     let mult = {
       multLabel: "×1",
@@ -798,27 +769,16 @@ export class PitchcraftEngine {
     const pm = phaseMap[ph] || phaseMap.done;
 
     const c = this.cur;
-    const liveColor =
-      c.midi == null
-        ? "#565c6a"
-        : c.vibrato
-          ? TEAL
-          : q >= 2
-            ? ACCENT
-            : "#8a90a0";
+    const liveColor = c.midi == null ? "#565c6a" : c.vibrato ? TEAL : q >= 2 ? ACCENT : "#8a90a0";
     const liveName = c.midi == null ? "—" : midiName(Math.round(c.midi));
     let liveCents = c.midi == null ? "silent" : midiName(Math.round(c.midi));
     if (c.midi != null && scoring)
-      liveCents =
-        c.cents == null
-          ? "—"
-          : (c.cents >= 0 ? "+" : "") + Math.round(c.cents) + "¢";
+      liveCents = c.cents == null ? "—" : (c.cents >= 0 ? "+" : "") + Math.round(c.cents) + "¢";
 
     const timerPct = scoring
       ? Math.max(0, 1 - (now - scoring.scoreStart) / scoring.scoreLen) * 100
       : 0;
-    const targetColor =
-      ph === "preview" ? TEAL : ph === "score" ? ACCENT : "#8a90a0";
+    const targetColor = ph === "preview" ? TEAL : ph === "score" ? ACCENT : "#8a90a0";
 
     this.opts.onHud({
       score: Math.round(this.sess.score),

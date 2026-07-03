@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  PointerEvent as ReactPointerEvent,
-} from "react";
+import { useEffect, useRef, useState, PointerEvent as ReactPointerEvent } from "react";
 import {
   PALETTE,
   CELL,
@@ -55,8 +50,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   const dimsRef = useRef({ cols: 0, rows: 0 });
   // Smaller toy pixels on touch devices so more fit on a phone/tablet screen.
   const cellRef = useRef(
-    typeof window !== "undefined" &&
-      window.matchMedia?.("(pointer: coarse)").matches
+    typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
       ? CELL_MOBILE
       : CELL,
   );
@@ -101,9 +95,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   // The current paint as one solid color, for the brush icons (white stays
   // visible thanks to the icon outline). Animated paint shows its vivid base.
   const currentColor =
-    paint.kind === "static"
-      ? colorAt(paint.index, swatchPhase, dark)
-      : GROUP_COLORS[paint.group];
+    paint.kind === "static" ? colorAt(paint.index, swatchPhase, dark) : GROUP_COLORS[paint.group];
 
   const [gateOpen, setGateOpen] = useState(false);
   const [lockUntil, setLockUntil] = useState(0);
@@ -141,8 +133,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   // the sandbox but not fullscreen (after an F5 reload, or an Esc), show a prompt
   // whose tap re-enters it. Tapping the prompt (not the canvas) means the buffer
   // can still resize to the new fullscreen size.
-  const fsSupported =
-    typeof document.documentElement.requestFullscreen === "function";
+  const fsSupported = typeof document.documentElement.requestFullscreen === "function";
   const [needFullscreen, setNeedFullscreen] = useState(
     () => fsSupported && !document.fullscreenElement,
   );
@@ -176,13 +167,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
       // No top color strip any more, so the canvas fills the full height right
       // of the tool column.
       const cell = cellRef.current;
-      const { cols, rows } = gridSize(
-        host.clientWidth,
-        host.clientHeight,
-        TOOLBAR,
-        0,
-        cell,
-      );
+      const { cols, rows } = gridSize(host.clientWidth, host.clientHeight, TOOLBAR, 0, cell);
       if (cols === dimsRef.current.cols && rows === dimsRef.current.rows) return;
       dimsRef.current = { cols, rows };
       canvas.width = cols * cell;
@@ -385,8 +370,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     // flick still feeds the spline its in-between positions.
     const native = e.nativeEvent;
     const samples =
-      typeof native.getCoalescedEvents === "function" &&
-      native.getCoalescedEvents().length > 0
+      typeof native.getCoalescedEvents === "function" && native.getCoalescedEvents().length > 0
         ? native.getCoalescedEvents()
         : [native];
     for (const s of samples) paintSample(s.clientX, s.clientY);
@@ -448,12 +432,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
             ) : (
               // Brush dots paint-preview the current color; a faint outline keeps
               // a white (eraser) brush visible on the white button.
-              <svg
-                viewBox="0 0 40 40"
-                width="100%"
-                height="100%"
-                aria-hidden="true"
-              >
+              <svg viewBox="0 0 40 40" width="100%" height="100%" aria-hidden="true">
                 <circle
                   cx="20"
                   cy="20"
@@ -551,11 +530,7 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
                     key={s}
                     className={styles.animSlot}
                     style={{
-                      backgroundColor: colorAt(
-                        ANIM_BASE + g * GROUP_SIZE + s,
-                        swatchPhase,
-                        dark,
-                      ),
+                      backgroundColor: colorAt(ANIM_BASE + g * GROUP_SIZE + s, swatchPhase, dark),
                     }}
                   />
                 ))}

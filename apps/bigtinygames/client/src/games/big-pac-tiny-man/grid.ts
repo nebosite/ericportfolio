@@ -2,7 +2,7 @@
 // pixi-coupled engine so the maze topology and ghost-AI math can be unit tested
 // on their own. Nothing here touches the DOM, pixi, or timers.
 
-import { Vec } from '../input';
+import { Vec } from "../input";
 
 /** Toroidal wrap of a coordinate into [0, n). */
 export function wrap(v: number, n: number): number {
@@ -43,9 +43,7 @@ export function torusHypot(
 
 /** Turn a swipe delta (px or cells) into a 4-way heading by its dominant axis. */
 export function swipeDirection(dx: number, dy: number): Vec {
-  return Math.abs(dx) >= Math.abs(dy)
-    ? { x: dx < 0 ? -1 : 1, y: 0 }
-    : { x: 0, y: dy < 0 ? -1 : 1 };
+  return Math.abs(dx) >= Math.abs(dy) ? { x: dx < 0 ? -1 : 1, y: 0 } : { x: 0, y: dy < 0 ? -1 : 1 };
 }
 
 /**
@@ -54,7 +52,11 @@ export function swipeDirection(dx: number, dy: number): Vec {
  * when stopped, head toward the tap by its dominant axis. Returns null when the
  * tap gives no unambiguous turn.
  */
-export function tapTurn(cur: Vec, from: { x: number; y: number }, tap: { x: number; y: number }): Vec | null {
+export function tapTurn(
+  cur: Vec,
+  from: { x: number; y: number },
+  tap: { x: number; y: number },
+): Vec | null {
   if (cur.x === 0 && cur.y === 0) {
     if (tap.x === from.x && tap.y === from.y) return null;
     return swipeDirection(tap.x - from.x, tap.y - from.y);

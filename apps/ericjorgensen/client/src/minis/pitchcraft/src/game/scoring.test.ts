@@ -12,14 +12,8 @@ import {
 describe("centsOff", () => {
   it("is 0 dead-on and signed by direction", () => {
     expect(centsOff(midiHz(69), 69)).toBeCloseTo(0, 6);
-    expect(centsOff(midiHz(69) * Math.pow(2, 50 / 1200), 69)).toBeCloseTo(
-      50,
-      4,
-    ); // 50¢ sharp
-    expect(centsOff(midiHz(69) * Math.pow(2, -50 / 1200), 69)).toBeCloseTo(
-      -50,
-      4,
-    ); // 50¢ flat
+    expect(centsOff(midiHz(69) * Math.pow(2, 50 / 1200), 69)).toBeCloseTo(50, 4); // 50¢ sharp
+    expect(centsOff(midiHz(69) * Math.pow(2, -50 / 1200), 69)).toBeCloseTo(-50, 4); // 50¢ flat
   });
 });
 
@@ -79,8 +73,7 @@ describe("VibratoDetector", () => {
 
   it("resets its window", () => {
     const v = new VibratoDetector();
-    for (let i = 0; i <= 66; i++)
-      v.push(i / 60, 40 * Math.sin(2 * Math.PI * 6 * (i / 60)));
+    for (let i = 0; i <= 66; i++) v.push(i / 60, 40 * Math.sin(2 * Math.PI * 6 * (i / 60)));
     v.reset();
     expect(v.active()).toBe(false);
   });

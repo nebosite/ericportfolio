@@ -1,6 +1,7 @@
 # Handoff: Portfolio Redesign — "A Field Guide to a Body of Work"
 
 ## Overview
+
 A redesign of the ericjorgensen.com home page. The concept: every project is a
 **living specimen** — a small fractal "organism" grown once from a seed, with
 handedness (it curls one way) and non-bilateral branching, so the page feels
@@ -11,6 +12,7 @@ each organism's growth tips. Five square black-and-white portraits sit across th
 top as a frontispiece.
 
 ## About the Design Files
+
 The files in this bundle are **design references** — an HTML prototype showing
 the intended look and behavior, plus a framework-free algorithm. They are **not**
 production code to paste in. The task is to **recreate the design inside the
@@ -19,10 +21,12 @@ established patterns. The one piece meant to be used roughly as-is is
 `src/growMark.ts` (the mark generator) — it is dependency-free TypeScript.
 
 ## Fidelity
+
 **High-fidelity.** Final colors, typography, spacing, and the generative system
 are all specified below. Recreate pixel-accurately using the existing stack.
 
 ## Target codebase (what you are changing)
+
 - `client/src/pages/HomePage.tsx` + `HomePage.module.css` — the page being redesigned.
 - `client/src/components/PortraitStrip.tsx` + `PortraitStrip.module.css` — the
   top portrait strip. Keep its existing data flow (`fetch('/api/portraits')`,
@@ -38,33 +42,37 @@ internal routes (`/art`, `/photography`, `/writing`) and `<a>` for external.
 ## The system
 
 ### Type
+
 - Display / body serif: **Spectral** (weights 300, 400, 500, 600; italic 300/400).
 - Labels / taxonomy / code: **Spline Sans Mono** (400, 500), uppercase, letter-spaced.
 - Google Fonts import:
   `https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap`
 
 ### Color (used sparingly — ink on paper, color only at growth tips)
-| Token | Hex | Use |
-|---|---|---|
-| Paper | `#F3EFE6` | page background |
-| Paper (raised) | `#F7F4EC` | plate cards |
-| Ink | `#1d1b16` | text, strokes, active underline |
-| Muted | `#6b6558` | descriptions |
-| Faint | `#8a8273` | mono kickers |
-| Fainter | `#a39a87` | plate labels |
-| Hairline | `#d8d2c4` | section rules |
-| Dashed rule | `#cfc8b8` | item separators |
+
+| Token          | Hex       | Use                             |
+| -------------- | --------- | ------------------------------- |
+| Paper          | `#F3EFE6` | page background                 |
+| Paper (raised) | `#F7F4EC` | plate cards                     |
+| Ink            | `#1d1b16` | text, strokes, active underline |
+| Muted          | `#6b6558` | descriptions                    |
+| Faint          | `#8a8273` | mono kickers                    |
+| Fainter        | `#a39a87` | plate labels                    |
+| Hairline       | `#d8d2c4` | section rules                   |
+| Dashed rule    | `#cfc8b8` | item separators                 |
 
 **Garnish accents** — one muted tone per category, appearing ONLY as the bud
 fill inside that category's marks and as a small category dot:
-| Category | Accent |
-|---|---|
-| Pure Creative Output | `#B5482E` (terracotta) |
-| Hand-Written Code | `#5E6B36` (olive) |
-| Hand-Written, AI-Enhanced | `#2E6E6A` (teal) |
-| Pure AI Output | `#3A5A8C` (slate blue) |
+
+| Category                  | Accent                 |
+| ------------------------- | ---------------------- |
+| Pure Creative Output      | `#B5482E` (terracotta) |
+| Hand-Written Code         | `#5E6B36` (olive)      |
+| Hand-Written, AI-Enhanced | `#2E6E6A` (teal)       |
+| Pure AI Output            | `#3A5A8C` (slate blue) |
 
 ### The four categories (display order: machine → hand)
+
 The array is built hand→machine then **reversed** for display, so sections read
 I–IV as: Pure AI → AI-Enhanced → Hand-Written → Pure Creative. Roman numerals are
 assigned by display position.
@@ -87,6 +95,7 @@ assigned by display position.
 > final copy/links with the owner.
 
 ### The generative marks — `growMark.ts`
+
 - `growMark(seed, style, strokeScale?, growthSeed?)` returns `{ segments, buds, square, cap }`
   in a `0 0 120 150` viewBox, base at (60,148) growing up.
 - Per item, seed = the project name; per category emblem, seed = `"<key>-emblem"`.
@@ -98,11 +107,13 @@ assigned by display position.
   or `#1d1b16` (garnish off). A reference React renderer is in the file's footer.
 
 ## Screens / Views
+
 One page, three switchable layouts (mono tabs top-right; active tab = 2px ink
 underline). The prototype defaults to **Field Guide**; the owner especially likes
 **Spectrum**. State is a single `layout: 'guide' | 'plates' | 'spectrum'`.
 
 **Shared header**
+
 - Mono kicker (left): "A FIELD GUIDE TO A BODY OF WORK", 11px, letter-spacing .18em, color `#8a8273`.
 - Layout tabs (right): Field Guide / Plates / Spectrum.
 - `h1` "Eric Jorgensen": Spectral 500, 68px, line-height .98, letter-spacing −.02em.
@@ -130,16 +141,17 @@ node dot, a 96×118 emblem, roman + name + principle, then a list of its items
 (24px mark + name + small description).
 
 **Frontispiece — portraits** (above the header, all layouts)
+
 - A `display:flex; gap:16px` row of **5** square slots, 120×120 each, 1px ink
   border, `filter: grayscale(1) contrast(1.06)` to force pure B&W.
 - Slight organic vertical offsets and rotations per slot (hand-pinned feel):
-  | # | translateY | rotate |
-  |---|---|---|
-  | 1 | 0px | −1.1° |
-  | 2 | 2.8px | 0.9° |
-  | 3 | −1.4px | −0.7° |
-  | 4 | 1.8px | 1.3° |
-  | 5 | −0.6px | −0.9° |
+  | #   | translateY | rotate |
+  | --- | ---------- | ------ |
+  | 1   | 0px        | −1.1°  |
+  | 2   | 2.8px      | 0.9°   |
+  | 3   | −1.4px     | −0.7°  |
+  | 4   | 1.8px      | 1.3°   |
+  | 5   | −0.6px     | −0.9°  |
 - Hover: the image lifts `translateY(-5px)`, transition `.4s cubic-bezier(.2,.7,.2,1)`.
 - In the prototype these are drop-slots; in the real app they are the existing
   `PortraitStrip` `<img>`s from `/api/portraits` — apply the same grayscale, size,
@@ -147,6 +159,7 @@ node dot, a 96×118 emblem, roman + name + principle, then a list of its items
   pairs by slot index; the existing rotation-every-10–15s behavior stays.)
 
 ## Interactions & Behavior
+
 - Layout switch: click a tab → set `layout` state → show that layout, move the
   underline. No animation required.
 - Portrait hover lift (above). Existing portrait auto-rotation: keep.
@@ -156,17 +169,20 @@ node dot, a 96×118 emblem, roman + name + principle, then a list of its items
   portraits to 3 (the existing `MOBILE_BP` logic already does the latter).
 
 ## State Management
+
 - `layout` (string enum) — which layout is shown.
 - `growthSeed` (int, default 1) — optional; only if you expose mark reseeding.
 - `garnish` (bool, default true) — optional; ink-only vs. accent buds.
 - Existing: `visitCount`, portrait `pool`/`slots`.
 
 ## Design Tokens
+
 All colors, type, and spacing are in **The system** above. Container: max-width
 1180px, padding 60px 56px 110px. Section vertical rhythm: ~52px. Border radius:
 **0 everywhere** (square, specimen-like). Shadows: none.
 
 ## Assets
+
 - Fonts: Spectral + Spline Sans Mono (Google Fonts).
 - Portraits: the owner's existing 5 square B&W photos via `/api/portraits` — no
   new assets. (The prototype used drag-drop placeholders because the API images
@@ -174,6 +190,7 @@ All colors, type, and spacing are in **The system** above. Container: max-width
 - All marks are generated at runtime by `growMark.ts` — no image assets.
 
 ## Files in this bundle
+
 - `Portfolio.dc.html` — the visual reference prototype (built in the design tool;
   it relies on that tool's runtime to render, so use it for look/behavior
   reference rather than running it standalone).

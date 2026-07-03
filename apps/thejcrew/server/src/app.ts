@@ -1,19 +1,19 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
 
-const APP = 'thejcrew';
+const APP = "thejcrew";
 
 /** Build the (health-only) Express app for this site. */
 export function createApp(): express.Express {
   const app = express();
   app.use(helmet());
   app.use(cors());
-  app.use(morgan('tiny'));
+  app.use(morgan("tiny"));
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', app: APP, timestamp: new Date().toISOString() });
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", app: APP, timestamp: new Date().toISOString() });
   });
 
   return app;

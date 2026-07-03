@@ -2,12 +2,12 @@
 
 Four independent client/server web apps on one VPS, routed by hostname:
 
-| Domain | App | Personality |
-|---|---|---|
+| Domain                                         | App             | Personality                                         |
+| ---------------------------------------------- | --------------- | --------------------------------------------------- |
 | [ericjorgensen.com](https://ericjorgensen.com) | `ericjorgensen` | Professional portfolio + guestbook (primary domain) |
-| [pixelwhimsy.com](https://pixelwhimsy.com) | `pixelwhimsy` | Children's pixel-art toy |
-| [thejcrew.net](https://thejcrew.net) | `thejcrew` | Family bulletin board |
-| [bigtinygames.com](https://bigtinygames.com) | `bigtinygames` | Big Tiny Snake + leaderboard |
+| [pixelwhimsy.com](https://pixelwhimsy.com)     | `pixelwhimsy`   | Children's pixel-art toy                            |
+| [thejcrew.net](https://thejcrew.net)           | `thejcrew`      | Family bulletin board                               |
+| [bigtinygames.com](https://bigtinygames.com)   | `bigtinygames`  | Big Tiny Snake + leaderboard                        |
 
 This README is the **complete rematerialization guide**: starting from a fresh
 Ubuntu 22.04 VPS and this repository, you can bring the entire system back up
@@ -78,10 +78,10 @@ Until certificates exist, nginx serves each domain over plain HTTP.
 
 Create these records at your DNS provider (IONOS) for **each** domain:
 
-| Type | Host | Value |
-|---|---|---|
-| A | `@` | `198.71.56.24` |
-| A | `www` | `198.71.56.24` |
+| Type | Host  | Value          |
+| ---- | ----- | -------------- |
+| A    | `@`   | `198.71.56.24` |
+| A    | `www` | `198.71.56.24` |
 
 Domains: `ericjorgensen.com`, `pixelwhimsy.com`, `thejcrew.net`,
 `bigtinygames.com`. Wait for propagation (`dig +short <domain>` should return
@@ -120,6 +120,7 @@ gracefully reloads the PM2 processes.
 
 **A site returns 502 Bad Gateway**
 nginx is up but the Express process behind it is down.
+
 ```bash
 pm2 status                      # is the app online?
 pm2 logs <slug>-api --lines 50  # why did it crash?
@@ -128,6 +129,7 @@ pm2 restart <slug>-api
 
 **A site returns the wrong app or nginx default page**
 The nginx config for that domain is missing or disabled.
+
 ```bash
 ls /etc/nginx/sites-enabled/
 bash /var/www/portfolio/scripts/nginx-gen.sh
@@ -135,6 +137,7 @@ bash /var/www/portfolio/scripts/nginx-gen.sh
 
 **Certificate expired / renewal issues**
 Certbot installs a systemd timer that renews automatically. To check or force:
+
 ```bash
 systemctl list-timers | grep certbot
 certbot renew --dry-run
@@ -143,6 +146,7 @@ certbot renew
 
 **Changes deployed but the site looks stale**
 The client build may have failed silently in an old deploy. Rebuild and check:
+
 ```bash
 cd /var/www/portfolio && npm run build
 ls -la apps/<slug>/client/dist/
@@ -152,18 +156,19 @@ ls -la apps/<slug>/client/dist/
 Each SQLite DB lives at `apps/<slug>/server/data.db` on the server. They are
 gitignored and self-bootstrap (CREATE TABLE IF NOT EXISTS) on server startup.
 To back them up:
+
 ```bash
 tar czf ~/portfolio-dbs-$(date +%F).tgz /var/www/portfolio/apps/*/server/data.db
 ```
 
 ## 8. Port reference
 
-| App | Domain | Internal port | PM2 process |
-|---|---|---|---|
-| ericjorgensen | ericjorgensen.com | 3001 | `ericjorgensen-api` |
-| pixelwhimsy | pixelwhimsy.com | 3002 | `pixelwhimsy-api` |
-| thejcrew | thejcrew.net | 3003 | `thejcrew-api` |
-| bigtinygames | bigtinygames.com | 3004 | `bigtinygames-api` |
+| App           | Domain            | Internal port | PM2 process         |
+| ------------- | ----------------- | ------------- | ------------------- |
+| ericjorgensen | ericjorgensen.com | 3001          | `ericjorgensen-api` |
+| pixelwhimsy   | pixelwhimsy.com   | 3002          | `pixelwhimsy-api`   |
+| thejcrew      | thejcrew.net      | 3003          | `thejcrew-api`      |
+| bigtinygames  | bigtinygames.com  | 3004          | `bigtinygames-api`  |
 
 Ports are bound to localhost behind nginx and never exposed publicly.
 

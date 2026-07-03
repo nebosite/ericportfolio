@@ -29,8 +29,7 @@ export function isSharp(m: number): boolean {
   return NOTE_NAMES[((m % 12) + 12) % 12].includes("#");
 }
 
-export type VoiceId =
-  "contralto" | "mezzo" | "soprano" | "tenor" | "baritone" | "bass";
+export type VoiceId = "contralto" | "mezzo" | "soprano" | "tenor" | "baritone" | "bass";
 
 export interface Voice {
   id: VoiceId;
@@ -131,8 +130,7 @@ export function buildSequence(set: number[]): number[] {
 
 // ---- per-note cycle timing (seconds) ----
 export const CYCLE = { REST: 2, PREVIEW: 2, PREP: 2, SCORE: 5 } as const;
-export const CYCLE_TOTAL =
-  CYCLE.REST + CYCLE.PREVIEW + CYCLE.PREP + CYCLE.SCORE; // 11
+export const CYCLE_TOTAL = CYCLE.REST + CYCLE.PREVIEW + CYCLE.PREP + CYCLE.SCORE; // 11
 
 export type Phase = "rest" | "preview" | "prep" | "score" | "done";
 
@@ -191,8 +189,7 @@ export function buildTune(voiceId: VoiceId, rng: () => number): Tune {
 
   const nearestCenter = () =>
     tonics.reduce(
-      (best, i) =>
-        Math.abs(pool[i] - center) < Math.abs(pool[best] - center) ? i : best,
+      (best, i) => (Math.abs(pool[i] - center) < Math.abs(pool[best] - center) ? i : best),
       tonics[0],
     );
 

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import TitleScreen from '../components/TitleScreen';
-import PaintApp from '../components/PaintApp';
+import { useState } from "react";
+import TitleScreen from "../components/TitleScreen";
+import PaintApp from "../components/PaintApp";
 
 // PixelWhimsy is a two-state toy: a grown-up title screen, and the full-screen
 // child sandbox. Start requests fullscreen (kiosk) on the user gesture; exiting
@@ -11,11 +11,11 @@ import PaintApp from '../components/PaintApp';
 // grown-up controls. Fullscreen can't be re-entered without a gesture, so after
 // a reload they stay in the sandbox, just windowed.
 
-const PLAY_KEY = 'pw_playing';
+const PLAY_KEY = "pw_playing";
 
 function readPlaying(): boolean {
   try {
-    return sessionStorage.getItem(PLAY_KEY) === '1';
+    return sessionStorage.getItem(PLAY_KEY) === "1";
   } catch {
     return false;
   }
@@ -23,7 +23,7 @@ function readPlaying(): boolean {
 
 function writePlaying(on: boolean): void {
   try {
-    if (on) sessionStorage.setItem(PLAY_KEY, '1');
+    if (on) sessionStorage.setItem(PLAY_KEY, "1");
     else sessionStorage.removeItem(PLAY_KEY);
   } catch {
     /* storage unavailable — state just won't survive a reload */

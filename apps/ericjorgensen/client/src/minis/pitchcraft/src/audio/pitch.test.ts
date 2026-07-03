@@ -20,8 +20,7 @@ const cents = (a: number, b: number) => 1200 * Math.log2(a / b);
 
 function sine(hz: number, phase: number, amp = 1): Float32Array {
   const buf = new Float32Array(N);
-  for (let i = 0; i < N; i++)
-    buf[i] = amp * Math.sin((2 * Math.PI * hz * i) / SR + phase);
+  for (let i = 0; i < N; i++) buf[i] = amp * Math.sin((2 * Math.PI * hz * i) / SR + phase);
   return buf;
 }
 
@@ -104,8 +103,7 @@ describe("detectVoicePitch", () => {
     // Voice at 220 (+ harmonics) plus a strong lone tone at 277 Hz (off-key,
     // not harmonically related): the harmonic set is the voice's, so f0 ≈ 220.
     const b = voice(220, [1, 0.6, 0.4]);
-    for (let i = 0; i < N; i++)
-      b[i] += 1.2 * Math.sin((2 * Math.PI * 277 * i) / SR);
+    for (let i = 0; i < N; i++) b[i] += 1.2 * Math.sin((2 * Math.PI * 277 * i) / SR);
     const r = detectVoicePitch(b, SR);
     expect(r).not.toBeNull();
     expect(Math.abs(cents(r!.f0, 220))).toBeLessThan(25);
@@ -131,8 +129,7 @@ describe("detectVoicePitch", () => {
     // peak as a best guess and flags it as not confident. (Anti-cheat against
     // the reference tone is handled upstream by subtractTone + the RMS gate.)
     const b = new Float32Array(N);
-    for (let i = 0; i < N; i++)
-      b[i] = 0.5 * Math.sin((2 * Math.PI * 330 * i) / SR);
+    for (let i = 0; i < N; i++) b[i] = 0.5 * Math.sin((2 * Math.PI * 330 * i) / SR);
     const r = detectVoicePitch(b, SR);
     expect(r).not.toBeNull();
     expect(r!.confident).toBe(false);

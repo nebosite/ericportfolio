@@ -1,6 +1,6 @@
-import { Application, Container, Graphics, Sprite, Text, Ticker } from 'pixi.js';
-import { attachGameInput, Vec } from '../input';
-import { Maze, TILE, WorldPlan, generateMaze, planWorld } from './maze';
+import { Application, Container, Graphics, Sprite, Text, Ticker } from "pixi.js";
+import { attachGameInput, Vec } from "../input";
+import { Maze, TILE, WorldPlan, generateMaze, planWorld } from "./maze";
 import {
   DIRS,
   aStarPath,
@@ -13,9 +13,9 @@ import {
   torusDist,
   torusHypot,
   wrap,
-} from './grid';
-import { loadSpriteTextures, SpriteTextures } from './sprites';
-import { Sfx } from './sfx';
+} from "./grid";
+import { loadSpriteTextures, SpriteTextures } from "./sprites";
+import { Sfx } from "./sfx";
 
 const BG_COLOR = 0x05050c;
 const MAX_W = 3840; // cap the playfield at 4K
@@ -80,7 +80,7 @@ interface Mover {
   sprite: Sprite;
 }
 
-type GhostState = 'normal' | 'frightened' | 'eyes';
+type GhostState = "normal" | "frightened" | "eyes";
 
 interface Ghost extends Mover {
   home: { x: number; y: number }; // a tile inside its box
@@ -134,8 +134,8 @@ export class BigPacEngine {
     await app.init({ width: pxW, height: pxH, background: BG_COLOR, antialias: false });
     app.canvas.style.width = `${pxW / dpr}px`;
     app.canvas.style.height = `${pxH / dpr}px`;
-    app.canvas.style.setProperty('image-rendering', 'pixelated');
-    app.canvas.style.setProperty('touch-action', 'none'); // touch drives the game
+    app.canvas.style.setProperty("image-rendering", "pixelated");
+    app.canvas.style.setProperty("touch-action", "none"); // touch drives the game
     host.appendChild(app.canvas);
 
     // Sprites (PNG) and sounds (MP3) load up front so the first frame is ready.
@@ -325,12 +325,7 @@ export class BigPacEngine {
 
     // Power pellets: chosen with even spacing (no two within POWERUP_MIN_GAP
     // tiles) from a shuffled candidate pool; everything left becomes a dot.
-    const pelletSet = chooseSpacedTiles(
-      candidates,
-      cols,
-      this.plan.powerPellets,
-      POWERUP_MIN_GAP,
-    );
+    const pelletSet = chooseSpacedTiles(candidates, cols, this.plan.powerPellets, POWERUP_MIN_GAP);
     for (const idx of pelletSet) {
       const sprite = new Sprite(this.tex.pellet);
       sprite.anchor.set(0.5);
@@ -384,7 +379,7 @@ export class BigPacEngine {
           home: { x: room.x + 2, y: room.y + 1 },
           exitAbove: { x: room.x + 2, y: room.y - 1 },
           color,
-          state: 'normal',
+          state: "normal",
           frightUntil: 0,
           pathDirs: [],
           repathAt: 0,
@@ -464,13 +459,13 @@ export class BigPacEngine {
       if (dir) this.desiredDir = dir;
     };
 
-    canvas.addEventListener('touchstart', onStart, { passive: false });
-    canvas.addEventListener('touchmove', onMove, { passive: false });
-    canvas.addEventListener('touchend', onEnd, { passive: false });
+    canvas.addEventListener("touchstart", onStart, { passive: false });
+    canvas.addEventListener("touchmove", onMove, { passive: false });
+    canvas.addEventListener("touchend", onEnd, { passive: false });
     this.detachTouch = () => {
-      canvas.removeEventListener('touchstart', onStart);
-      canvas.removeEventListener('touchmove', onMove);
-      canvas.removeEventListener('touchend', onEnd);
+      canvas.removeEventListener("touchstart", onStart);
+      canvas.removeEventListener("touchmove", onMove);
+      canvas.removeEventListener("touchend", onEnd);
     };
   }
 
@@ -513,17 +508,17 @@ export class BigPacEngine {
     );
 
     for (const ghost of this.ghosts) {
-      if (ghost.state === 'frightened' && this.elapsed >= ghost.frightUntil) this.calm(ghost);
+      if (ghost.state === "frightened" && this.elapsed >= ghost.frightUntil) this.calm(ghost);
       // Commit to a fresh path to Pac every couple of seconds (consumed at the
       // ghost's next tile center, in chooseGhostDir).
-      if (ghost.state === 'normal' && this.elapsed >= ghost.repathAt) {
+      if (ghost.state === "normal" && this.elapsed >= ghost.repathAt) {
         ghost.repathAt = this.elapsed + PATH_RECOMPUTE_MS;
         ghost.repathDue = true;
       }
-      const speed = ghost.state === 'eyes' ? EYES_SPEED : this.ghostSpeed;
+      const speed = ghost.state === "eyes" ? EYES_SPEED : this.ghostSpeed;
       this.advance(ghost, speed * dt, (m) => this.chooseGhostDir(m as Ghost));
       if (
-        ghost.state === 'eyes' &&
+        ghost.state === "eyes" &&
         torusDist(ghost.tx, ghost.ty, ghost.home.x, ghost.home.y, cols, rows) <= 1
       ) {
         this.calm(ghost); // eyes made it home — back to a regular ghost
@@ -543,7 +538,7 @@ export class BigPacEngine {
       // Own the frightened look every frame: solid blue normally, and for the
       // final FRIGHT_FLASH_MS flash blue<->white (ghost.png is a neutral body,
       // so tinting it white reads as a white ghost) to warn the window is ending.
-      if (ghost.state === 'frightened') {
+      if (ghost.state === "frightened") {
         const flashing = ghost.frightUntil - this.elapsed <= FRIGHT_FLASH_MS;
         const showWhite = flashing && Math.floor(this.elapsed / 200) % 2 === 0;
         ghost.sprite.texture = showWhite ? this.tex.ghost : this.tex.ghostFrightened;
@@ -554,19 +549,19 @@ export class BigPacEngine {
     // Pac eats frightened ghosts on contact; they become homebound eyes. Each
     // consecutive ghost in the same fright phase is worth double the last.
     for (const ghost of this.ghosts) {
-      if (ghost.state !== 'frightened') continue;
+      if (ghost.state !== "frightened") continue;
       if (
         Math.abs(ghost.sprite.x - pac.sprite.x) < TILE * 0.7 &&
         Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
       ) {
         const points = GHOST_POINTS * 2 ** this.ghostChain;
         this.ghostChain += 1;
-        ghost.state = 'eyes';
+        ghost.state = "eyes";
         ghost.pathDirs = [];
         ghost.sprite.texture = this.tex.ghostEyes;
         ghost.sprite.tint = 0xffffff;
         this.score += points;
-        this.sfx.play('eatghost', 0.5);
+        this.sfx.play("eatghost", 0.5);
         this.spawnPopup(ghost.sprite.x, ghost.sprite.y, `+${points}`);
         this.pushScore();
       }
@@ -574,7 +569,7 @@ export class BigPacEngine {
 
     // When the fright phase is over (all frightened ghosts eaten or calmed),
     // reset the eat-chain back to the base value for next time.
-    if (this.frightActive && !this.ghosts.some((g) => g.state === 'frightened')) {
+    if (this.frightActive && !this.ghosts.some((g) => g.state === "frightened")) {
       this.frightActive = false;
       this.ghostChain = 0;
     }
@@ -582,7 +577,7 @@ export class BigPacEngine {
     // Touching a REGULAR ghost costs a hitpoint and sets off a blast: every
     // ghost within EXPLOSION_RADIUS is knocked out (sent home as eyes), no points.
     for (const ghost of this.ghosts) {
-      if (ghost.state !== 'normal') continue;
+      if (ghost.state !== "normal") continue;
       if (
         Math.abs(ghost.sprite.x - pac.sprite.x) < TILE * 0.7 &&
         Math.abs(ghost.sprite.y - pac.sprite.y) < TILE * 0.7
@@ -599,12 +594,7 @@ export class BigPacEngine {
   }
 
   /** Walk a mover up to `dist` px, consulting `choose` at each tile center. */
-  private advance(
-    m: Mover,
-    dist: number,
-    choose: (m: Mover) => Vec | null,
-    onArrive?: () => void,
-  ) {
+  private advance(m: Mover, dist: number, choose: (m: Mover) => Vec | null, onArrive?: () => void) {
     const { cols, rows } = this.maze;
     while (dist > 0) {
       if (m.progress === 0) {
@@ -634,11 +624,11 @@ export class BigPacEngine {
     const inBase = this.baseTiles.has(g.ty * cols + g.tx);
     // Box tiles are walkable only for ghosts already inside (heading out) or
     // eyes heading home.
-    const allowBase = g.state === 'eyes' || inBase;
+    const allowBase = g.state === "eyes" || inBase;
 
     // Eyes head straight home along a guaranteed A* path — no wandering and no
     // chasing Pac, so a just-eaten ghost can never get lost circling walls.
-    if (g.state === 'eyes') {
+    if (g.state === "eyes") {
       if (g.pathDirs.length === 0) {
         const gi = g.ty * cols + g.tx;
         const hi = g.home.y * cols + g.home.x;
@@ -653,7 +643,7 @@ export class BigPacEngine {
     // CHASE_RADIUS commits to the shortest path to Pac's current tile, then
     // walks that path (one step per tile) until the next recompute — hunting a
     // remembered position rather than re-steering every frame.
-    if (g.state === 'normal' && !inBase) {
+    if (g.state === "normal" && !inBase) {
       if (g.repathDue) {
         g.repathDue = false;
         const gi = g.ty * cols + g.tx;
@@ -685,13 +675,13 @@ export class BigPacEngine {
     let target: { x: number; y: number } | null = null;
     let directness = 0;
     let flee = false;
-    if (g.state === 'eyes') {
+    if (g.state === "eyes") {
       target = g.home;
       directness = 0.9; // a little wobble keeps eyes from pacing in corners
     } else if (inBase) {
       target = g.exitAbove; // newly spawned or just-respawned: file out the door
       directness = 1;
-    } else if (g.state === 'frightened') {
+    } else if (g.state === "frightened") {
       target = { x: this.pac.tx, y: this.pac.ty };
       flee = true;
       directness = 0.8; // run away from Pac, with a panicked stumble
@@ -721,8 +711,8 @@ export class BigPacEngine {
     this.frightActive = true;
     this.ghostChain = 0;
     for (const g of this.ghosts) {
-      if (g.state === 'eyes') continue; // already eaten — nothing to scare
-      g.state = 'frightened';
+      if (g.state === "eyes") continue; // already eaten — nothing to scare
+      g.state = "frightened";
       g.frightUntil = this.elapsed + FRIGHT_MS;
       g.pathDirs = []; // drop any committed chase path while fleeing
       g.sprite.texture = this.tex.ghostFrightened;
@@ -731,7 +721,7 @@ export class BigPacEngine {
   }
 
   private calm(g: Ghost) {
-    g.state = 'normal';
+    g.state = "normal";
     g.pathDirs = [];
     g.repathAt = 0; // repath toward Pac immediately now that the hunt resumes
     g.sprite.texture = this.tex.ghost;
@@ -776,9 +766,9 @@ export class BigPacEngine {
     const text = new Text({
       text: label,
       style: {
-        fontFamily: 'Arial, Helvetica, sans-serif',
+        fontFamily: "Arial, Helvetica, sans-serif",
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: "bold",
         fill: 0xffffff,
         stroke: { color: 0x000000, width: 3 },
       },
@@ -812,11 +802,11 @@ export class BigPacEngine {
   private explode(tileX: number, tileY: number, px: number, py: number) {
     const { cols, rows } = this.maze;
     this.spawnExplosion(px, py);
-    this.sfx.play('eatghost', 0.4); // reuse the eaten-ghost thump for the blast
+    this.sfx.play("eatghost", 0.4); // reuse the eaten-ghost thump for the blast
     for (const g of this.ghosts) {
-      if (g.state === 'eyes') continue; // already down
+      if (g.state === "eyes") continue; // already down
       if (torusHypot(g.tx, g.ty, tileX, tileY, cols, rows) <= EXPLOSION_RADIUS) {
-        g.state = 'eyes'; // dies as if eaten — but no points for a blast
+        g.state = "eyes"; // dies as if eaten — but no points for a blast
         g.pathDirs = [];
         g.sprite.texture = this.tex.ghostEyes;
         g.sprite.tint = 0xffffff;
@@ -877,7 +867,7 @@ export class BigPacEngine {
       this.baseFruitCount[fruit.base]--;
       fruit.sprite.destroy();
       this.score += this.fruitPoints;
-      this.sfx.play('fruit', 0.45);
+      this.sfx.play("fruit", 0.45);
       this.spawnPopup(px, py, `+${this.fruitPoints}`);
       this.pushScore();
       // A fruit heals one heart (never above the starting maximum).
@@ -903,7 +893,7 @@ export class BigPacEngine {
       this.pelletsByTile.delete(idx);
       pellet.destroy();
       this.score += PELLET_POINTS;
-      this.sfx.play('power', 0.5);
+      this.sfx.play("power", 0.5);
       this.frighten(); // every ghost panics and scatters away from Pac
       this.pushScore();
       this.maybeCompleteLevel();

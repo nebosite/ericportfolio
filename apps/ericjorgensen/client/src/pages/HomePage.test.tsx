@@ -36,12 +36,8 @@ afterEach(() => {
 describe("HomePage — header & frame", () => {
   it("renders the name, kicker, and the three layout tabs", () => {
     renderHome();
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Eric Jorgensen" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("A Field Guide to a Body of Work"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Eric Jorgensen" })).toBeInTheDocument();
+    expect(screen.getByText("A Field Guide to a Body of Work")).toBeInTheDocument();
     for (const t of ["Field Guide", "Plates", "Spectrum"]) {
       expect(screen.getByRole("button", { name: t })).toBeInTheDocument();
     }
@@ -66,9 +62,7 @@ describe("HomePage — header & frame", () => {
 describe("HomePage — categories (machine → hand)", () => {
   it("orders the category headings Pure AI → … → Pure Creative", () => {
     renderHome();
-    const headings = screen
-      .getAllByRole("heading", { level: 2 })
-      .map((h) => h.textContent);
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual([
       "Pure AI Output",
       "Hand-Written, AI-Enhanced",
@@ -83,10 +77,7 @@ describe("HomePage — categories (machine → hand)", () => {
       "href",
       "https://pixelwhimsy.com",
     );
-    expect(screen.getByRole("link", { name: "Drawing" })).toHaveAttribute(
-      "href",
-      "/art",
-    );
+    expect(screen.getByRole("link", { name: "Drawing" })).toHaveAttribute("href", "/art");
   });
 });
 
@@ -103,13 +94,9 @@ describe("HomePage — layout switching & persistence", () => {
     expect(screen.queryByText("The Machine")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Plates" }));
-    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(0);
     expect(
-      screen.queryByText(
-        "No specimens collected yet — this drawer is waiting.",
-      ),
+      screen.queryByText("No specimens collected yet — this drawer is waiting."),
     ).not.toBeInTheDocument();
   });
 
@@ -122,12 +109,7 @@ describe("HomePage — layout switching & persistence", () => {
   it("restores a previously chosen layout on next visit", () => {
     localStorage.setItem("ej_home_layout", "plates");
     renderHome();
-    expect(screen.getByRole("button", { name: "Plates" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getByRole("button", { name: "Plates" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(0);
   });
 });

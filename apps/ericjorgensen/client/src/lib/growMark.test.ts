@@ -3,16 +3,12 @@ import { growMark } from "./growMark";
 
 describe("growMark", () => {
   it("is deterministic: same (seed, style, growthSeed) → identical geometry", () => {
-    expect(growMark("PixelWhimsy", "wild")).toEqual(
-      growMark("PixelWhimsy", "wild"),
-    );
+    expect(growMark("PixelWhimsy", "wild")).toEqual(growMark("PixelWhimsy", "wild"));
   });
 
   it("changes when the seed or the growthSeed changes", () => {
     expect(growMark("a", "wild")).not.toEqual(growMark("b", "wild"));
-    expect(growMark("a", "wild", 1, 1)).not.toEqual(
-      growMark("a", "wild", 1, 2),
-    );
+    expect(growMark("a", "wild", 1, 1)).not.toEqual(growMark("a", "wild", 1, 2));
   });
 
   it("grows from the base at (60, 148)", () => {
@@ -27,10 +23,7 @@ describe("growMark", () => {
     const m = growMark("seed", "wild");
     expect(m.segments[0].gen).toBe(0); // trunk grows first
     // maxGen is the deepest generation across segments and buds
-    const deepest = Math.max(
-      ...m.segments.map((s) => s.gen),
-      ...m.buds.map((b) => b.gen),
-    );
+    const deepest = Math.max(...m.segments.map((s) => s.gen), ...m.buds.map((b) => b.gen));
     expect(m.maxGen).toBe(deepest);
     expect(m.maxGen).toBeGreaterThan(0);
   });

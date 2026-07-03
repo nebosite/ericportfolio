@@ -10,40 +10,86 @@
 //
 // No dependencies. Deterministic: same (seed, style) always grows the same mark.
 
-export type GrowthStyle = 'wild' | 'sapling' | 'grafted' | 'crystal';
+export type GrowthStyle = "wild" | "sapling" | "grafted" | "crystal";
 
-export interface Segment { x1: number; y1: number; x2: number; y2: number; w: number; }
-export interface Bud { x: number; y: number; }
+export interface Segment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  w: number;
+}
+export interface Bud {
+  x: number;
+  y: number;
+}
 export interface Mark {
   segments: Segment[];
   buds: Bud[];
   square: boolean; // true → buds render as squares (crystalline), else circles
-  cap: 'round' | 'butt';
+  cap: "round" | "butt";
 }
 
 interface StyleParams {
-  depth: number;     // recursion depth (trunk = depth, tips = 0)
-  len: number;       // initial segment length
-  decay: number;     // length multiplier per level
-  angle: number;     // base branch spread, degrees
-  jitter: number;    // 0..1 angular randomness (relative to angle)
-  hand: number;      // 0..1 handedness bias — whole organism curls one way
-  splits: number[];  // pool of child counts to pick from
-  graft?: boolean;   // organic base, geometric (machine) tips
+  depth: number; // recursion depth (trunk = depth, tips = 0)
+  len: number; // initial segment length
+  decay: number; // length multiplier per level
+  angle: number; // base branch spread, degrees
+  jitter: number; // 0..1 angular randomness (relative to angle)
+  hand: number; // 0..1 handedness bias — whole organism curls one way
+  splits: number[]; // pool of child counts to pick from
+  graft?: boolean; // organic base, geometric (machine) tips
   geometric?: boolean; // fully ordered/crystalline
 }
 
 export const STYLES: Record<GrowthStyle, StyleParams> = {
-  wild:    { depth: 6, len: 31, decay: 0.74, angle: 30, jitter: 0.55, hand: 0.42, splits: [2, 2, 2, 3] },
-  sapling: { depth: 4, len: 27, decay: 0.72, angle: 24, jitter: 0.4,  hand: 0.26, splits: [2, 2, 1] },
-  grafted: { depth: 6, len: 28, decay: 0.73, angle: 27, jitter: 0.45, hand: 0.3,  splits: [2, 2, 3], graft: true },
-  crystal: { depth: 5, len: 27, decay: 0.76, angle: 38, jitter: 0.06, hand: 0,    splits: [2, 2, 3], geometric: true },
+  wild: {
+    depth: 6,
+    len: 31,
+    decay: 0.74,
+    angle: 30,
+    jitter: 0.55,
+    hand: 0.42,
+    splits: [2, 2, 2, 3],
+  },
+  sapling: {
+    depth: 4,
+    len: 27,
+    decay: 0.72,
+    angle: 24,
+    jitter: 0.4,
+    hand: 0.26,
+    splits: [2, 2, 1],
+  },
+  grafted: {
+    depth: 6,
+    len: 28,
+    decay: 0.73,
+    angle: 27,
+    jitter: 0.45,
+    hand: 0.3,
+    splits: [2, 2, 3],
+    graft: true,
+  },
+  crystal: {
+    depth: 5,
+    len: 27,
+    decay: 0.76,
+    angle: 38,
+    jitter: 0.06,
+    hand: 0,
+    splits: [2, 2, 3],
+    geometric: true,
+  },
 };
 
 // FNV-1a string hash → 32-bit seed
 function hash(str: string): number {
   let h = 2166136261;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
   return h >>> 0;
 }
 
@@ -51,7 +97,8 @@ function hash(str: string): number {
 function rng(seed: number): () => number {
   let a = seed >>> 0;
   return function () {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -72,14 +119,17 @@ export function growMark(
   growthSeed = 1,
 ): Mark {
   const S = STYLES[style];
-  const r = rng(hash(seedStr + '|' + growthSeed));
+  const r = rng(hash(seedStr + "|" + growthSeed));
   const segments: Segment[] = [];
   const buds: Bud[] = [];
   const handSign = r() < 0.5 ? -1 : 1; // handedness
   const pick = (arr: number[]) => arr[Math.floor(r() * arr.length)];
 
   const grow = (x: number, y: number, ang: number, len: number, depth: number) => {
-    if (depth <= 0 || len < 3) { buds.push({ x, y }); return; }
+    if (depth <= 0 || len < 3) {
+      buds.push({ x, y });
+      return;
+    }
     const rad = (ang * Math.PI) / 180;
     const x2 = x + Math.cos(rad) * len;
     const y2 = y + Math.sin(rad) * len;
@@ -102,7 +152,7 @@ export function growMark(
   };
 
   grow(60, 148, -90 + handSign * S.hand * S.angle * 0.6, S.len * (0.92 + r() * 0.18), S.depth);
-  return { segments, buds, square: !!S.geometric, cap: S.geometric ? 'butt' : 'round' };
+  return { segments, buds, square: !!S.geometric, cap: S.geometric ? "butt" : "round" };
 }
 
 /* ----------------------------------------------------------------------------

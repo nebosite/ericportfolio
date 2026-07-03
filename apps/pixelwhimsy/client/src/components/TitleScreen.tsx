@@ -1,5 +1,5 @@
-import FeedbackPanel from './FeedbackPanel';
-import styles from './TitleScreen.module.css';
+import FeedbackPanel from "./FeedbackPanel";
+import styles from "./TitleScreen.module.css";
 
 // The title screen: the only place with grown-up controls. Start drops the child
 // into the full-screen sandbox; the feedback buttons and parent notes live here.
@@ -18,8 +18,8 @@ export default function TitleScreen({ onStart }: { onStart: () => void }) {
         <h2 className={styles.parentsTitle}>For grown-ups</h2>
         <ul className={styles.parentsList}>
           <li>
-            Tap <strong>Start Painting</strong> and the app fills the whole screen, so little
-            hands can't wander off into the rest of the device.
+            Tap <strong>Start Painting</strong> and the app fills the whole screen, so little hands
+            can't wander off into the rest of the device.
           </li>
           <li>
             There's no way to leave by accident: the small <strong>exit button</strong> (top-left

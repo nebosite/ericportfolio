@@ -1,7 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import SnakePage from './games/snake/SnakePage';
-import BigPacTinyManPage from './games/big-pac-tiny-man/BigPacTinyManPage';
+import { Routes, Route, Navigate } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import SnakePage from "./games/snake/SnakePage";
+import BigPacTinyManPage from "./games/big-pac-tiny-man/BigPacTinyManPage";
 
 export default function App() {
   return (

@@ -32,7 +32,7 @@ const STICK_DEADZONE = 0.5;
 /** Attach handlers; returns a cleanup function that detaches everything. */
 export function attachGameInput({ onDirection, onConfirm }: GameInputHandlers): () => void {
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === "Enter" || e.key === " ") {
       if (onConfirm) {
         e.preventDefault();
         onConfirm();
@@ -45,7 +45,7 @@ export function attachGameInput({ onDirection, onConfirm }: GameInputHandlers): 
       onDirection(dir);
     }
   };
-  window.addEventListener('keydown', onKey);
+  window.addEventListener("keydown", onKey);
 
   // The Gamepad API has no events for sticks or the d-pad, so poll once per
   // frame and edge-detect: handlers fire only when the pad's state changes,
@@ -65,10 +65,10 @@ export function attachGameInput({ onDirection, onConfirm }: GameInputHandlers): 
         const ax = pad.axes[0] ?? 0;
         const ay = pad.axes[1] ?? 0;
         if (Math.abs(ax) > STICK_DEADZONE || Math.abs(ay) > STICK_DEADZONE) {
-          dir = Math.abs(ax) >= Math.abs(ay) ? (ax < 0 ? LEFT : RIGHT) : (ay < 0 ? UP : DOWN);
+          dir = Math.abs(ax) >= Math.abs(ay) ? (ax < 0 ? LEFT : RIGHT) : ay < 0 ? UP : DOWN;
         }
       }
-      const key = dir ? `${dir.x},${dir.y}` : '';
+      const key = dir ? `${dir.x},${dir.y}` : "";
       if (dir && key !== lastDir.get(pad.index) && onDirection) onDirection(dir);
       lastDir.set(pad.index, key);
 
@@ -80,7 +80,7 @@ export function attachGameInput({ onDirection, onConfirm }: GameInputHandlers): 
   });
 
   return () => {
-    window.removeEventListener('keydown', onKey);
+    window.removeEventListener("keydown", onKey);
     cancelAnimationFrame(raf);
   };
 }

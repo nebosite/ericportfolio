@@ -13,10 +13,7 @@ const OFFSETS = [
 // The portrait pool is served by the API (src/media/Photos/squares) instead of
 // being bundled, so the browser only downloads the handful of images on screen.
 
-export function pickRandom(
-  pool: readonly string[],
-  exclude: ReadonlySet<string>,
-): string | null {
+export function pickRandom(pool: readonly string[], exclude: ReadonlySet<string>): string | null {
   const choices = pool.filter((p) => !exclude.has(p));
   if (choices.length === 0) return null;
   return choices[Math.floor(Math.random() * choices.length)];

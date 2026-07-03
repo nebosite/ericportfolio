@@ -73,11 +73,7 @@ export function autoCorrelate(buf: Float32Array, sampleRate: number): number {
  * regardless of acoustic delay — which makes it effective for removing a
  * reference tone that has leaked back into the microphone.
  */
-export function subtractTone(
-  buf: Float32Array,
-  sampleRate: number,
-  hz: number,
-): void {
+export function subtractTone(buf: Float32Array, sampleRate: number, hz: number): void {
   const N = buf.length;
   const omega = (2 * Math.PI * hz) / sampleRate;
   const cosStep = Math.cos(omega);
@@ -290,10 +286,7 @@ function findHarmonicSet(peaks: SpectralPeak[]): SpectralPeak[] | null {
     }
     if (members.length < 3) continue;
     const strength = members.reduce((s, p) => s + p.m, 0);
-    if (
-      members.length > bestCount ||
-      (members.length === bestCount && strength > bestStrength)
-    ) {
+    if (members.length > bestCount || (members.length === bestCount && strength > bestStrength)) {
       bestCount = members.length;
       bestStrength = strength;
       best = members;
@@ -320,10 +313,7 @@ export function smoothJump(last: number, next: number): number {
  * Returns the fundamental plus the next two harmonic markers (see block
  * comment above for the algorithm).
  */
-export function detectVoicePitch(
-  buf: Float32Array,
-  sampleRate: number,
-): VoicePitch | null {
+export function detectVoicePitch(buf: Float32Array, sampleRate: number): VoicePitch | null {
   const N0 = buf.length;
   let rms = 0;
   for (let i = 0; i < N0; i++) rms += buf[i] * buf[i];

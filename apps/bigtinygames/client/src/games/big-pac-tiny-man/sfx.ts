@@ -1,7 +1,7 @@
-import wakaUrl from './assetts/sounds/waka.wav';
-import powerUrl from './assetts/sounds/power.mp3';
-import fruitUrl from './assetts/sounds/fruit.wav';
-import eatghostUrl from './assetts/sounds/eatghost.wav';
+import wakaUrl from "./assetts/sounds/waka.wav";
+import powerUrl from "./assetts/sounds/power.mp3";
+import fruitUrl from "./assetts/sounds/fruit.wav";
+import eatghostUrl from "./assetts/sounds/eatghost.wav";
 
 // Sound effects for Big Pac Tiny Man. Plays the clips in this game's
 // assetts/sounds/ folder through the Web Audio API, which decodes them once
@@ -9,7 +9,7 @@ import eatghostUrl from './assetts/sounds/eatghost.wav';
 // Per the repo asset rule, short one-shots (<2s) are hand-editable WAVs; only the
 // longer `power` cue stays MP3. Replace the files to change the sounds.
 
-type SoundName = 'waka' | 'power' | 'fruit' | 'eatghost';
+type SoundName = "waka" | "power" | "fruit" | "eatghost";
 
 const SOUND_FILES: Record<SoundName, string> = {
   waka: wakaUrl,
@@ -46,7 +46,7 @@ export class Sfx {
 
   /** AudioContext starts suspended until a user gesture; call on first input. */
   resume(): void {
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    if (this.ctx.state === "suspended") void this.ctx.resume();
   }
 
   play(name: SoundName, gain = 0.5): void {
@@ -65,7 +65,7 @@ export class Sfx {
     const now = performance.now();
     if (now - this.lastWaka < WAKA_MIN_GAP_MS) return;
     this.lastWaka = now;
-    this.play('waka', 0.35);
+    this.play("waka", 0.35);
   }
 
   destroy(): void {

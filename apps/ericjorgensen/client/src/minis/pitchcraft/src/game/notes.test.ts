@@ -141,9 +141,7 @@ describe("buildTune", () => {
   });
 
   it("is deterministic for a given rng seed", () => {
-    expect(buildTune("bass", rngFrom(7)).notes).toEqual(
-      buildTune("bass", rngFrom(7)).notes,
-    );
+    expect(buildTune("bass", rngFrom(7)).notes).toEqual(buildTune("bass", rngFrom(7)).notes);
   });
 });
 

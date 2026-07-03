@@ -30,12 +30,7 @@ const mix = (a: Pt, b: Pt, wa: number, wb: number): Pt => ({
  * EXCLUDING the start cell (it was already painted). 8-connected, so the result
  * is contiguous — consecutive cells are always touching.
  */
-export function lineCells(
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-): Array<[number, number]> {
+export function lineCells(x0: number, y0: number, x1: number, y1: number): Array<[number, number]> {
   const out: Array<[number, number]> = [];
   const dx = Math.abs(x1 - x0);
   const dy = Math.abs(y1 - y0);
@@ -64,8 +59,7 @@ export function lineCells(
 function sampleSegment(p0: Pt, p1: Pt, p2: Pt, p3: Pt, samples: number): Pt[] {
   const ALPHA = 0.5;
   // Knot times; the epsilon keeps coincident/duplicated points from dividing by 0.
-  const knot = (t: number, a: Pt, b: Pt) =>
-    t + Math.max(Math.pow(dist(a, b), ALPHA), 1e-4);
+  const knot = (t: number, a: Pt, b: Pt) => t + Math.max(Math.pow(dist(a, b), ALPHA), 1e-4);
   const t0 = 0;
   const t1 = knot(t0, p0, p1);
   const t2 = knot(t1, p1, p2);
@@ -93,12 +87,7 @@ function sampleSegment(p0: Pt, p1: Pt, p2: Pt, p3: Pt, samples: number): Pt[] {
  * Excludes `p1`'s own cell (already painted on the previous step). Consecutive
  * returned cells are always touching (≤ 1 cell apart), so the stroke never skips.
  */
-export function strokeCells(
-  p0: Pt,
-  p1: Pt,
-  p2: Pt,
-  p3: Pt,
-): Array<[number, number]> {
+export function strokeCells(p0: Pt, p1: Pt, p2: Pt, p3: Pt): Array<[number, number]> {
   // Oversample relative to the chord so even a curved segment steps well under a
   // cell each sample; the Bresenham bridge covers anything that slips through.
   const samples = Math.max(2, Math.ceil(dist(p1, p2) * 4));

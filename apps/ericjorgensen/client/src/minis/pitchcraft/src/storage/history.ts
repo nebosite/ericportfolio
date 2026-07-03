@@ -52,8 +52,7 @@ const DB_VERSION = 1;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    if (!("indexedDB" in window))
-      return reject(new Error("IndexedDB unavailable"));
+    if (!("indexedDB" in window)) return reject(new Error("IndexedDB unavailable"));
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -117,8 +116,7 @@ export async function addHistory(rec: SessionRecord): Promise<void> {
  * Implement POST <base>/highscores on the server; never put secrets in the client.
  */
 export function submitHighScore(rec: SessionRecord): void {
-  const base = (import.meta as any)?.env?.VITE_PITCHCRAFT_API as
-    string | undefined;
+  const base = (import.meta as any)?.env?.VITE_PITCHCRAFT_API as string | undefined;
   if (!base) return;
   fetch(base.replace(/\/$/, "") + "/highscores", {
     method: "POST",
@@ -144,10 +142,7 @@ export function applySession(
   if (stats.lastDate !== dkey) {
     const y = new Date(today);
     y.setDate(y.getDate() - 1);
-    stats.streak =
-      stats.lastDate === y.toISOString().slice(0, 10)
-        ? (stats.streak || 0) + 1
-        : 1;
+    stats.streak = stats.lastDate === y.toISOString().slice(0, 10) ? (stats.streak || 0) + 1 : 1;
     stats.lastDate = dkey;
   }
   stats.sessions = (stats.sessions || 0) + 1;
@@ -159,8 +154,7 @@ export function applySession(
   stats.best = Math.max(stats.best || 0, opts.score);
   for (const m in opts.perNote) {
     const pn = opts.perNote[m];
-    const ns =
-      stats.notes[m] || (stats.notes[m] = { n: 0, rSum: 0, best: 0, pts: 0 });
+    const ns = stats.notes[m] || (stats.notes[m] = { n: 0, rSum: 0, best: 0, pts: 0 });
     ns.n += pn.n;
     ns.rSum += pn.rSum;
     ns.pts += pn.pts;

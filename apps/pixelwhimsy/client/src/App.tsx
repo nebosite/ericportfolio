@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import { installNavContainment } from './lib/containNav';
+import { useEffect } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import { installNavContainment } from "./lib/containNav";
 
 export default function App() {
   // Trap the browser's back/forward (and the mouse side buttons) so a random

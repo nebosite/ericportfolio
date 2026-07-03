@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  DEFAULT_STATS,
-  applySession,
-  bestFor,
-  bestKey,
-  Stats,
-} from "./history";
+import { DEFAULT_STATS, applySession, bestFor, bestKey, Stats } from "./history";
 
 function freshStats(): Stats {
   return { ...DEFAULT_STATS, bests: {}, notes: {} };

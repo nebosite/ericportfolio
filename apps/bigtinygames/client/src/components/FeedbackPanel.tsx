@@ -1,6 +1,6 @@
-import { useEffect, useState, FormEvent } from 'react';
-import { trackEvent } from '../lib/analytics';
-import styles from './FeedbackPanel.module.css';
+import { useEffect, useState, FormEvent } from "react";
+import { trackEvent } from "../lib/analytics";
+import styles from "./FeedbackPanel.module.css";
 
 // Standard per-entity feedback feature: two buttons on a title screen that let
 // players leave feedback (<=1000 chars) or vote on three random active items.
@@ -8,7 +8,7 @@ import styles from './FeedbackPanel.module.css';
 // or app slug (e.g. "snake", "big-pac-tiny-man", "pixelwhimsy").
 
 export const MAX_FEEDBACK = 1000;
-const VOTED_KEY = 'feedback_voted';
+const VOTED_KEY = "feedback_voted";
 
 interface FeedbackItem {
   id: number;
@@ -35,56 +35,56 @@ function rememberVote(id: number): void {
   }
 }
 
-type Mode = 'buttons' | 'leave' | 'vote';
+type Mode = "buttons" | "leave" | "vote";
 
 export default function FeedbackPanel({ entity }: { entity: string }) {
-  const [mode, setMode] = useState<Mode>('buttons');
+  const [mode, setMode] = useState<Mode>("buttons");
 
   return (
     // Stop keystrokes from bubbling to window-level game input listeners, so
     // typing feedback (or pressing space/enter in the form) never trips game
     // controls on a title screen.
     <div className={styles.panel} onKeyDown={(e) => e.stopPropagation()}>
-      {mode === 'buttons' && (
+      {mode === "buttons" && (
         <div className={styles.buttons}>
-          <button type="button" className={styles.action} onClick={() => setMode('leave')}>
+          <button type="button" className={styles.action} onClick={() => setMode("leave")}>
             Feature Request
           </button>
-          <button type="button" className={styles.action} onClick={() => setMode('vote')}>
+          <button type="button" className={styles.action} onClick={() => setMode("vote")}>
             Vote on feature requests
           </button>
         </div>
       )}
-      {mode === 'leave' && <LeaveForm entity={entity} onDone={() => setMode('buttons')} />}
-      {mode === 'vote' && <VoteList entity={entity} onDone={() => setMode('buttons')} />}
+      {mode === "leave" && <LeaveForm entity={entity} onDone={() => setMode("buttons")} />}
+      {mode === "vote" && <VoteList entity={entity} onDone={() => setMode("buttons")} />}
     </div>
   );
 }
 
 function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
-  const [text, setText] = useState('');
-  const [status, setStatus] = useState<'editing' | 'submitting' | 'done' | 'error'>('editing');
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<"editing" | "submitting" | "done" | "error">("editing");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    setStatus('submitting');
+    setStatus("submitting");
     try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entity, text: trimmed }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setStatus('done');
-      trackEvent('feedback_submitted', { entity, text_length: trimmed.length });
+      setStatus("done");
+      trackEvent("feedback_submitted", { entity, text_length: trimmed.length });
     } catch {
-      setStatus('error');
+      setStatus("error");
     }
   };
 
-  if (status === 'done') {
+  if (status === "done") {
     return (
       <div className={styles.notice}>
         <p>Thanks for the feedback!</p>
@@ -112,7 +112,7 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
       <div className={styles.counter}>
         {text.length}/{MAX_FEEDBACK}
       </div>
-      {status === 'error' && <p className={styles.error}>Could not send — please try again.</p>}
+      {status === "error" && <p className={styles.error}>Could not send — please try again.</p>}
       <div className={styles.row}>
         <button type="button" className={styles.back} onClick={onDone}>
           Cancel
@@ -120,9 +120,9 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
         <button
           type="submit"
           className={styles.action}
-          disabled={!text.trim() || status === 'submitting'}
+          disabled={!text.trim() || status === "submitting"}
         >
-          {status === 'submitting' ? 'Sending…' : 'Submit'}
+          {status === "submitting" ? "Sending…" : "Submit"}
         </button>
       </div>
     </form>
@@ -151,11 +151,11 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
   const upvote = async (item: FeedbackItem) => {
     if (voted.has(item.id)) return;
     try {
-      const res = await fetch(`/api/feedback/${item.id}/vote`, { method: 'POST' });
+      const res = await fetch(`/api/feedback/${item.id}/vote`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { votes } = (await res.json()) as { votes: number };
       rememberVote(item.id);
-      trackEvent('feedback_voted', { entity, feedback_id: item.id, votes });
+      trackEvent("feedback_voted", { entity, feedback_id: item.id, votes });
       setVoted(readVoted());
       setItems((cur) => (cur ? cur.map((i) => (i.id === item.id ? { ...i, votes } : i)) : cur));
     } catch {

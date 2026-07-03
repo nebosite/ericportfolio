@@ -85,9 +85,7 @@ describe("strokeCells", () => {
     // p0 duplicates p1 (start of a stroke) and p3 duplicates p2 (flush at the end).
     const cells = strokeCells(p1, p1, p2, p2);
     assertContiguous(cells);
-    expect(
-      cells.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
-    ).toBe(true);
+    expect(cells.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))).toBe(true);
     expect(cells[cells.length - 1]).toEqual([6, 2]);
   });
 });

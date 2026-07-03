@@ -216,7 +216,8 @@ export function generateMaze(plan: WorldPlan): Maze {
       const exitX = x + 2; // top middle (odd column — on the corridor lattice)
       for (let ry = y; ry < y + BASE_ROOM_H; ry++) {
         for (let rx = x; rx < x + BASE_ROOM_W; rx++) {
-          const isBorder = rx === x || rx === x + BASE_ROOM_W - 1 || ry === y || ry === y + BASE_ROOM_H - 1;
+          const isBorder =
+            rx === x || rx === x + BASE_ROOM_W - 1 || ry === y || ry === y + BASE_ROOM_H - 1;
           const isExit = rx === exitX && ry === y;
           grid[at(rx, ry)] = isBorder && !isExit ? 0 : 1;
         }

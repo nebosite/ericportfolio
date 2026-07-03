@@ -1,16 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  cleanup,
-  within,
-  waitFor,
-} from "@testing-library/react";
-import FeedbackAdminPage, {
-  sortItems,
-  type AdminItem,
-} from "./FeedbackAdminPage";
+import { render, screen, fireEvent, cleanup, within, waitFor } from "@testing-library/react";
+import FeedbackAdminPage, { sortItems, type AdminItem } from "./FeedbackAdminPage";
 
 const ITEMS: AdminItem[] = [
   {
@@ -50,12 +40,8 @@ const ITEMS: AdminItem[] = [
 
 describe("sortItems", () => {
   it("sorts by votes ascending and descending", () => {
-    expect(sortItems(ITEMS, "votes", "asc").map((i) => i.votes)).toEqual([
-      2, 5, 9,
-    ]);
-    expect(sortItems(ITEMS, "votes", "desc").map((i) => i.votes)).toEqual([
-      9, 5, 2,
-    ]);
+    expect(sortItems(ITEMS, "votes", "asc").map((i) => i.votes)).toEqual([2, 5, 9]);
+    expect(sortItems(ITEMS, "votes", "desc").map((i) => i.votes)).toEqual([9, 5, 2]);
   });
   it("sorts by entity, status, and date", () => {
     expect(sortItems(ITEMS, "entity", "asc").map((i) => i.entity)).toEqual([
@@ -68,9 +54,7 @@ describe("sortItems", () => {
       "Suggested",
       "Suggested",
     ]);
-    expect(sortItems(ITEMS, "created_at", "desc").map((i) => i.id)).toEqual([
-      2, 3, 1,
-    ]);
+    expect(sortItems(ITEMS, "created_at", "desc").map((i) => i.id)).toEqual([2, 3, 1]);
   });
   it("does not mutate the input", () => {
     const copy = [...ITEMS];
@@ -196,9 +180,7 @@ describe("FeedbackAdminPage — table", () => {
       "/api/admin/feedback/1",
       expect.objectContaining({ method: "DELETE" }),
     );
-    await waitFor(() =>
-      expect(screen.queryByText("pause button")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByText("pause button")).not.toBeInTheDocument());
   });
 
   it("changes status via the admin API", async () => {
@@ -214,9 +196,9 @@ describe("FeedbackAdminPage — table", () => {
       expect.objectContaining({ method: "PATCH" }),
     );
     await waitFor(() =>
-      expect(
-        (screen.getByLabelText("Status for item 1") as HTMLSelectElement).value,
-      ).toBe("Implemented"),
+      expect((screen.getByLabelText("Status for item 1") as HTMLSelectElement).value).toBe(
+        "Implemented",
+      ),
     );
   });
 
@@ -227,9 +209,9 @@ describe("FeedbackAdminPage — table", () => {
     await unlock();
 
     // Existing note is shown.
-    expect(
-      (screen.getByLabelText("Notes for item 2") as HTMLTextAreaElement).value,
-    ).toBe("shipped in v2");
+    expect((screen.getByLabelText("Notes for item 2") as HTMLTextAreaElement).value).toBe(
+      "shipped in v2",
+    );
 
     // Save is disabled until the note actually changes.
     const saveBtn = screen.getByRole("button", {
@@ -248,17 +230,13 @@ describe("FeedbackAdminPage — table", () => {
       expect.objectContaining({ method: "PATCH" }),
     );
     const patchCall = fetchMock.mock.calls.find(
-      (c) =>
-        c[0] === "/api/admin/feedback/1" &&
-        (c[1] as RequestInit)?.method === "PATCH",
+      (c) => c[0] === "/api/admin/feedback/1" && (c[1] as RequestInit)?.method === "PATCH",
     );
     expect(JSON.parse((patchCall![1] as RequestInit).body as string)).toEqual({
       notes: "planned for next release",
     });
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Save notes for item 1" }),
-      ).toBeDisabled(),
+      expect(screen.getByRole("button", { name: "Save notes for item 1" })).toBeDisabled(),
     );
   });
 });

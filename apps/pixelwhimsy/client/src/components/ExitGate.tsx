@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { makeProblem, evaluateAnswer, Problem } from '../lib/exitChallenge';
-import styles from './ExitGate.module.css';
+import { useEffect, useRef, useState } from "react";
+import { makeProblem, evaluateAnswer, Problem } from "../lib/exitChallenge";
+import styles from "./ExitGate.module.css";
 
 // A grown-up-only gate: solve a small multiplication problem to leave. Digits
 // are evaluated as they're typed (no Enter). A wrong answer bails out and tells
@@ -22,7 +22,7 @@ export default function ExitGate({
   problem?: Problem;
 }) {
   const [problem] = useState<Problem>(() => injected ?? makeProblem());
-  const [typed, setTyped] = useState('');
+  const [typed, setTyped] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus on open so a physical keyboard works immediately and mobile has the
@@ -32,13 +32,13 @@ export default function ExitGate({
   }, []);
 
   const handle = (raw: string) => {
-    const digits = raw.replace(/\D/g, ''); // ignore anything but digits
+    const digits = raw.replace(/\D/g, ""); // ignore anything but digits
     const state = evaluateAnswer(problem.answer, digits);
-    if (state === 'correct') {
+    if (state === "correct") {
       onSolved();
       return;
     }
-    if (state === 'wrong') {
+    if (state === "wrong") {
       onWrong();
       return;
     }
@@ -50,7 +50,7 @@ export default function ExitGate({
       <div className={styles.box} onPointerDown={(e) => e.stopPropagation()}>
         <p className={styles.prompt}>A grown-up question to leave:</p>
         <p className={styles.problem}>
-          {problem.a} × {problem.b} ={' '}
+          {problem.a} × {problem.b} ={" "}
           <input
             ref={inputRef}
             className={styles.answer}

@@ -46,37 +46,23 @@ export default function FeedbackPanel({ entity }: { entity: string }) {
     <div className={styles.panel} onKeyDown={(e) => e.stopPropagation()}>
       {mode === "buttons" && (
         <div className={styles.buttons}>
-          <button
-            type="button"
-            className={styles.action}
-            onClick={() => setMode("leave")}
-          >
+          <button type="button" className={styles.action} onClick={() => setMode("leave")}>
             Feature Request
           </button>
-          <button
-            type="button"
-            className={styles.action}
-            onClick={() => setMode("vote")}
-          >
+          <button type="button" className={styles.action} onClick={() => setMode("vote")}>
             Vote on feature requests
           </button>
         </div>
       )}
-      {mode === "leave" && (
-        <LeaveForm entity={entity} onDone={() => setMode("buttons")} />
-      )}
-      {mode === "vote" && (
-        <VoteList entity={entity} onDone={() => setMode("buttons")} />
-      )}
+      {mode === "leave" && <LeaveForm entity={entity} onDone={() => setMode("buttons")} />}
+      {mode === "vote" && <VoteList entity={entity} onDone={() => setMode("buttons")} />}
     </div>
   );
 }
 
 function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
   const [text, setText] = useState("");
-  const [status, setStatus] = useState<
-    "editing" | "submitting" | "done" | "error"
-  >("editing");
+  const [status, setStatus] = useState<"editing" | "submitting" | "done" | "error">("editing");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -124,9 +110,7 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
       <div className={styles.counter}>
         {text.length}/{MAX_FEEDBACK}
       </div>
-      {status === "error" && (
-        <p className={styles.error}>Could not send — please try again.</p>
-      )}
+      {status === "error" && <p className={styles.error}>Could not send — please try again.</p>}
       <div className={styles.row}>
         <button type="button" className={styles.back} onClick={onDone}>
           Cancel
@@ -172,9 +156,7 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
       const { votes } = (await res.json()) as { votes: number };
       rememberVote(item.id);
       setVoted(readVoted());
-      setItems((cur) =>
-        cur ? cur.map((i) => (i.id === item.id ? { ...i, votes } : i)) : cur,
-      );
+      setItems((cur) => (cur ? cur.map((i) => (i.id === item.id ? { ...i, votes } : i)) : cur));
     } catch {
       /* leave the item as-is; the visitor can try again */
     }
@@ -185,9 +167,7 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
       {error && <p className={styles.error}>Could not load feedback.</p>}
       {!error && items === null && <p className={styles.muted}>Loading…</p>}
       {items && items.length === 0 && (
-        <p className={styles.muted}>
-          No feedback yet — be the first to leave some!
-        </p>
+        <p className={styles.muted}>No feedback yet — be the first to leave some!</p>
       )}
       {items?.map((item) => {
         const hasVoted = voted.has(item.id);
@@ -197,9 +177,7 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
               type="button"
               className={styles.upvote}
               disabled={hasVoted}
-              aria-label={
-                hasVoted ? `Voted (${item.votes})` : `Upvote (${item.votes})`
-              }
+              aria-label={hasVoted ? `Voted (${item.votes})` : `Upvote (${item.votes})`}
               onClick={() => upvote(item)}
             >
               ▲ {item.votes}

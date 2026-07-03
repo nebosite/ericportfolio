@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
-import SnakeGame from './SnakeGame';
-import styles from './SnakePage.module.css';
+import { Link } from "react-router-dom";
+import SnakeGame from "./SnakeGame";
+import styles from "./SnakePage.module.css";
 
 export default function SnakePage() {
   return (

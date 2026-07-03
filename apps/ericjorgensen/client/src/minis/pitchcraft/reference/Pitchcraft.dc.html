@@ -58,11 +58,7 @@
       <div
         style="
           min-height: 100vh;
-          background: radial-gradient(
-            1200px 600px at 50% -10%,
-            #15171f 0%,
-            #0a0b0f 60%
-          );
+          background: radial-gradient(1200px 600px at 50% -10%, #15171f 0%, #0a0b0f 60%);
           color: #c9cdd6;
           font-family: &quot;Spectral&quot;, Georgia, serif;
           -webkit-font-smoothing: antialiased;
@@ -71,12 +67,7 @@
         <div style="max-width: 1080px; margin: 0 auto; padding: 30px 40px 70px">
           <!-- TOP BAR -->
           <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              gap: 20px;
-            "
+            style="display: flex; justify-content: space-between; align-items: center; gap: 20px"
           >
             <a
               href="Portfolio.dc.html"
@@ -137,8 +128,8 @@
                 max-width: 540px;
               "
             >
-              Hear the tone, then find it in your voice. A pitch-matching
-              trainer that meets you in your range.
+              Hear the tone, then find it in your voice. A pitch-matching trainer that meets you in
+              your range.
             </p>
           </div>
 
@@ -174,12 +165,7 @@
                   Your voice
                 </div>
                 <div
-                  style="
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 8px;
-                    margin-top: 14px;
-                  "
+                  style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px"
                 >
                   <sc-for list="{{ voices }}" as="v" hint-placeholder-count="6">
                     <div
@@ -187,9 +173,7 @@
                       onClick="{{ v.click }}"
                       style="border:1px solid {{ v.border }}; background:{{ v.bg }}; border-radius:3px; padding:11px 13px;"
                     >
-                      <div
-                        style="font-family:'Spectral',serif; font-size:17px; color:{{ v.fg }};"
-                      >
+                      <div style="font-family:'Spectral',serif; font-size:17px; color:{{ v.fg }};">
                         {{ v.label }}
                       </div>
                       <div
@@ -221,11 +205,7 @@
                     margin-top: 14px;
                   "
                 >
-                  <sc-for
-                    list="{{ levels }}"
-                    as="lv"
-                    hint-placeholder-count="3"
-                  >
+                  <sc-for list="{{ levels }}" as="lv" hint-placeholder-count="3">
                     <div
                       class="pc-opt"
                       onClick="{{ lv.click }}"
@@ -287,10 +267,7 @@
                 >
                   Enable microphone &amp; start
                 </button>
-                <sc-if
-                  value="{{ micError }}"
-                  hint-placeholder-val="{{ false }}"
-                >
+                <sc-if value="{{ micError }}" hint-placeholder-val="{{ false }}">
                   <p
                     style="
                       margin: 12px 0 0;
@@ -445,11 +422,7 @@
                   Pitch map · {{ mapRange }}
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 3px">
-                  <sc-for
-                    list="{{ pitchMap }}"
-                    as="cell"
-                    hint-placeholder-count="13"
-                  >
+                  <sc-for list="{{ pitchMap }}" as="cell" hint-placeholder-count="13">
                     <div
                       title="{{ cell.title }}"
                       style="width:26px; height:26px; border-radius:2px; background:{{ cell.bg }}; border:1px solid {{ cell.border }}; display:flex; align-items:center; justify-content:center; font-family:'Spline Sans Mono',monospace; font-size:8px; color:{{ cell.fg }};"
@@ -477,21 +450,13 @@
                       flex: 1;
                       height: 5px;
                       border-radius: 3px;
-                      background: linear-gradient(
-                        90deg,
-                        #1a1d25,
-                        #7a5a22,
-                        #f4b23e
-                      );
+                      background: linear-gradient(90deg, #1a1d25, #7a5a22, #f4b23e);
                     "
                   ></span>
                   <span>strong</span>
                 </div>
 
-                <sc-if
-                  value="{{ hasHistory }}"
-                  hint-placeholder-val="{{ false }}"
-                >
+                <sc-if value="{{ hasHistory }}" hint-placeholder-val="{{ false }}">
                   <div
                     style="
                       font-family: &quot;Spline Sans Mono&quot;, monospace;
@@ -594,9 +559,7 @@
                       margin-top: 2px;
                     "
                   >
-                    {{ hud.targetHz }}<span style="color: #565c6a">
-                      · {{ hud.noteCount }}</span
-                    >
+                    {{ hud.targetHz }}<span style="color: #565c6a"> · {{ hud.noteCount }}</span>
                   </div>
                 </div>
                 <div style="min-width: 150px; text-align: right">
@@ -642,10 +605,7 @@
                   ref="{{ canvasRef }}"
                   style="display: block; width: 100%; height: 460px"
                 ></canvas>
-                <sc-if
-                  value="{{ hud.vibrato }}"
-                  hint-placeholder-val="{{ false }}"
-                >
+                <sc-if value="{{ hud.vibrato }}" hint-placeholder-val="{{ false }}">
                   <div
                     style="
                       position: absolute;
@@ -699,8 +659,7 @@
                     letter-spacing: 0.06em;
                   "
                 >
-                  Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone
-                  ×1
+                  Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone ×1
                 </div>
                 <button
                   class="pc-btn"
@@ -728,9 +687,7 @@
           <!-- ================= SUMMARY ================= -->
           <sc-if value="{{ isSummary }}" hint-placeholder-val="{{ false }}">
             <div style="margin-top: 28px">
-              <div
-                style="display: grid; grid-template-columns: 1fr 1fr; gap: 22px"
-              >
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 22px">
                 <div
                   style="
                     background: linear-gradient(180deg, #16181f, #101218);
@@ -750,14 +707,7 @@
                   >
                     Session complete
                   </div>
-                  <div
-                    style="
-                      display: flex;
-                      align-items: baseline;
-                      gap: 14px;
-                      margin-top: 14px;
-                    "
-                  >
+                  <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 14px">
                     <div
                       style="
                         font-family: &quot;Spline Sans Mono&quot;, monospace;
@@ -768,9 +718,7 @@
                     >
                       {{ summary.score }}
                     </div>
-                    <sc-if
-                      value="{{ summary.isBest }}"
-                      hint-placeholder-val="{{ false }}"
+                    <sc-if value="{{ summary.isBest }}" hint-placeholder-val="{{ false }}"
                       ><span
                         style="
                           font-family: &quot;Spline Sans Mono&quot;, monospace;
@@ -921,19 +869,8 @@
                   >
                     Pitch map · {{ mapRange }}
                   </div>
-                  <div
-                    style="
-                      display: flex;
-                      flex-wrap: wrap;
-                      gap: 3px;
-                      margin-top: 16px;
-                    "
-                  >
-                    <sc-for
-                      list="{{ pitchMap }}"
-                      as="cell"
-                      hint-placeholder-count="13"
-                    >
+                  <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 16px">
+                    <sc-for list="{{ pitchMap }}" as="cell" hint-placeholder-count="13">
                       <div
                         title="{{ cell.title }}"
                         style="width:26px; height:26px; border-radius:2px; background:{{ cell.bg }}; border:1px solid {{ cell.border }}; display:flex; align-items:center; justify-content:center; font-family:'Spline Sans Mono',monospace; font-size:8px; color:{{ cell.fg }};"
@@ -1020,11 +957,7 @@
         </div>
       </div>
     </x-dc>
-    <script
-      type="text/x-dc"
-      data-dc-script
-      data-props='{"$preview":{"width":1080,"height":880}}'
-    >
+    <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":880}}'>
       class Component extends DCLogic {
         state = {
           phase: 'intro',
