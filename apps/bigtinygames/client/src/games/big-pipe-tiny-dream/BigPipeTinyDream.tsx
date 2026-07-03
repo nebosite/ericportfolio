@@ -29,6 +29,9 @@ import styles from "./BigPipeTinyDream.module.css";
 const TILE = 40;
 const WATER_W = 8; // the stream drawn inside the pipe casing
 const GAME_SLUG = "big-pipe-tiny-dream";
+const FAST_SPEED = 100; // px/s when the speed toggle is on "fast"
+const HALO_RADIUS = 75; // ~150px-wide source glow that rides the water head
+const SHADOW_RADIUS = 100; // ~200px-wide dark pool behind the drain
 
 const WATER = "#37b6ff";
 const WATER_GLOW = "#bff0ff";
@@ -127,7 +130,9 @@ function pointAlong(pts: Array<[number, number]>, len: number): [number, number]
   return pts[pts.length - 1];
 }
 
-// Draw one tile's pipe sprite onto the (static) base layer at its grid cell.
+// Draw one tile's pipe sprite onto the (transparent) pipe layer at its grid
+// cell. The layer is transparent so the textured green ground and the animated
+// halo/shadow drawn beneath it show through around every casing.
 function drawTile(
   ctx: CanvasRenderingContext2D,
   imgs: SpriteImages,
@@ -137,8 +142,7 @@ function drawTile(
 ) {
   const px = cx * TILE;
   const py = cy * TILE;
-  ctx.fillStyle = BG;
-  ctx.fillRect(px, py, TILE, TILE);
+  ctx.clearRect(px, py, TILE, TILE);
   const { name, steps } = spriteFor(t);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
@@ -148,10 +152,36 @@ function drawTile(
   ctx.restore();
 }
 
+// A small tileable canvas of mottled green — used as a repeating pattern for the
+// grid's textured ground. Built once and memoised.
+let greenTexture: HTMLCanvasElement | null = null;
+function getGreenTexture(): HTMLCanvasElement | null {
+  if (greenTexture) return greenTexture;
+  const tex = document.createElement("canvas");
+  tex.width = 64;
+  tex.height = 64;
+  const ctx = tex.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#1c3a22";
+  ctx.fillRect(0, 0, 64, 64);
+  // Scatter darker/lighter green flecks for a soft, organic mottle.
+  for (let i = 0; i < 900; i++) {
+    const x = Math.floor(Math.random() * 64);
+    const y = Math.floor(Math.random() * 64);
+    const lighten = Math.random() < 0.5;
+    const a = 0.04 + Math.random() * 0.1;
+    ctx.fillStyle = lighten ? `rgba(120,180,110,${a})` : `rgba(10,30,14,${a})`;
+    ctx.fillRect(x, y, 1 + Math.floor(Math.random() * 2), 1 + Math.floor(Math.random() * 2));
+  }
+  greenTexture = tex;
+  return tex;
+}
+
 export default function BigPipeTinyDream() {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const baseRef = useRef<HTMLCanvasElement | null>(null); // static pipe layer
+  const bgRef = useRef<HTMLCanvasElement | null>(null); // textured green ground
+  const pipesRef = useRef<HTMLCanvasElement | null>(null); // transparent pipe layer
   const spritesRef = useRef<SpriteImages | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
   const gridRef = useRef<Grid | null>(null);
@@ -160,6 +190,7 @@ export default function BigPipeTinyDream() {
   const levelRef = useRef(1);
   const scoreRef = useRef(0);
   const traveledRef = useRef(0); // pixels the water has travelled — the score
+  const fastRef = useRef(false); // speed toggle: fast (100px/s) vs level speed
   const rafRef = useRef(0);
   const lastTsRef = useRef(0);
   const flowAtRef = useRef(0); // performance.now() when the flood begins
@@ -168,12 +199,18 @@ export default function BigPipeTinyDream() {
   const [phase, setPhaseState] = useState<Phase>("idle");
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
+  const [fast, setFast] = useState(false);
   const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
 
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhaseState(p);
+  }, []);
+
+  const toggleFast = useCallback(() => {
+    fastRef.current = !fastRef.current;
+    setFast(fastRef.current);
   }, []);
 
   // Load sprite PNGs and prime the sound effects once, on mount.
@@ -184,7 +221,7 @@ export default function BigPipeTinyDream() {
         if (!alive) return;
         spritesRef.current = imgs;
         if (gridRef.current) {
-          renderBase();
+          renderPipes();
           draw();
         }
       })
@@ -214,13 +251,14 @@ export default function BigPipeTinyDream() {
 
   useEffect(loadLeaderboard, [loadLeaderboard]);
 
-  // Repaint the whole static pipe layer (once per new board / on rotation).
-  const renderBase = useCallback(() => {
+  // Repaint the whole transparent pipe layer (once per new board / on rotation).
+  const renderPipes = useCallback(() => {
     const grid = gridRef.current;
-    const base = baseRef.current;
+    const pipes = pipesRef.current;
     const imgs = spritesRef.current;
-    const ctx = base?.getContext("2d");
-    if (!grid || !base || !ctx || !imgs) return;
+    const ctx = pipes?.getContext("2d");
+    if (!grid || !pipes || !ctx || !imgs) return;
+    ctx.clearRect(0, 0, pipes.width, pipes.height);
     for (let y = 0; y < grid.rows; y++) {
       for (let x = 0; x < grid.cols; x++) {
         drawTile(ctx, imgs, tileAt(grid, x, y), x, y);
@@ -228,40 +266,88 @@ export default function BigPipeTinyDream() {
     }
   }, []);
 
-  // Composite one frame: static pipes, then water, then the countdown badge.
+  // Composite one frame, bottom to top: textured green ground, the drain's dark
+  // pool and the source halo (which rides the water head), the pipes, the water,
+  // then the countdown badge.
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    const base = baseRef.current;
+    const pipes = pipesRef.current;
     const ctx = canvas?.getContext("2d");
     const grid = gridRef.current;
-    if (!canvas || !base || !ctx || !grid) return;
+    if (!canvas || !pipes || !ctx || !grid) return;
+    const now = performance.now();
 
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(base, 0, 0);
+    const bg = bgRef.current;
+    if (bg) {
+      ctx.drawImage(bg, 0, 0);
+    } else {
+      ctx.fillStyle = BG;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
-    // A soft ring around the drain so it's findable on a monitor-sized board.
+    const trail = trailRef.current;
+    const flow = flowRef.current;
+    const sx = grid.start.x * TILE;
+    const sy = grid.start.y * TILE;
     const tx = grid.terminus.x * TILE;
     const ty = grid.terminus.y * TILE;
+
+    // The drain's pulsating dark pool (~200px), always on.
+    const shadowR = SHADOW_RADIUS * (0.85 + 0.15 * Math.sin(now / 700 + 1));
+    const shadow = ctx.createRadialGradient(
+      tx + TILE / 2,
+      ty + TILE / 2,
+      0,
+      tx + TILE / 2,
+      ty + TILE / 2,
+      shadowR,
+    );
+    shadow.addColorStop(0, "rgba(0,0,0,0.55)");
+    shadow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = shadow;
+    ctx.beginPath();
+    ctx.arc(tx + TILE / 2, ty + TILE / 2, shadowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // The source halo (~150px), pulsating and tracking the leading water edge.
+    let haloX = sx + TILE / 2;
+    let haloY = sy + TILE / 2;
+    if (flow && !flow.dead && trail.length > 0) {
+      const head = trail[trail.length - 1];
+      const frac = Math.min(flow.progress, flow.won ? 0.5 : 1);
+      const pts = centreline(head.entry, head.exit).map(
+        ([lx, ly]) => [head.x * TILE + lx, head.y * TILE + ly] as [number, number],
+      );
+      [haloX, haloY] = pointAlong(pts, frac * TILE);
+    }
+    const haloR = HALO_RADIUS * (0.8 + 0.2 * Math.sin(now / 500));
+    const halo = ctx.createRadialGradient(haloX, haloY, 0, haloX, haloY, haloR);
+    halo.addColorStop(0, "rgba(255,238,170,0.5)");
+    halo.addColorStop(1, "rgba(255,238,170,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(haloX, haloY, haloR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // The pipes sit above the ground and the glows.
+    ctx.drawImage(pipes, 0, 0);
+
+    // A soft ring around the drain so it's findable on a monitor-sized board.
     ctx.strokeStyle = DRAIN_RING;
     ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(performance.now() / 400);
+    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now / 400);
     ctx.beginPath();
     ctx.arc(tx + TILE / 2, ty + TILE / 2, TILE * 0.46, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
 
     // Source is always wet: a small water pip at the spring.
-    const sx = grid.start.x * TILE;
-    const sy = grid.start.y * TILE;
     ctx.fillStyle = WATER;
     ctx.beginPath();
     ctx.arc(sx + TILE / 2, sy + TILE / 2, TILE * 0.1, 0, Math.PI * 2);
     ctx.fill();
 
     // Water: every trail tile is full except the head, which fills to progress.
-    const trail = trailRef.current;
-    const flow = flowRef.current;
     for (let i = 0; i < trail.length; i++) {
       const seg = trail[i];
       const isHead = i === trail.length - 1 && flow != null && !flow.dead;
@@ -310,10 +396,27 @@ export default function BigPipeTinyDream() {
       const rows = Math.max(6, Math.floor(stage.clientHeight / TILE));
       canvas.width = cols * TILE;
       canvas.height = rows * TILE;
-      const base = document.createElement("canvas");
-      base.width = canvas.width;
-      base.height = canvas.height;
-      baseRef.current = base;
+
+      // Textured green ground layer, painted once from a repeating noise tile.
+      const bg = document.createElement("canvas");
+      bg.width = canvas.width;
+      bg.height = canvas.height;
+      const bgCtx = bg.getContext("2d");
+      const tex = getGreenTexture();
+      if (bgCtx && tex) {
+        const pat = bgCtx.createPattern(tex, "repeat");
+        if (pat) {
+          bgCtx.fillStyle = pat;
+          bgCtx.fillRect(0, 0, bg.width, bg.height);
+        }
+      }
+      bgRef.current = bg;
+
+      // Transparent pipe layer, redrawn per tile on rotation.
+      const pipes = document.createElement("canvas");
+      pipes.width = canvas.width;
+      pipes.height = canvas.height;
+      pipesRef.current = pipes;
 
       gridRef.current = generateGrid(cols, rows, Math.random);
       flowRef.current = null;
@@ -323,10 +426,10 @@ export default function BigPipeTinyDream() {
       levelRef.current = lvl;
       setLevel(lvl);
       setPhase("playing");
-      renderBase();
+      renderPipes();
       draw();
     },
-    [draw, renderBase, setPhase],
+    [draw, renderPipes, setPhase],
   );
 
   const startGame = useCallback(() => {
@@ -361,7 +464,8 @@ export default function BigPipeTinyDream() {
 
       let flow = flowRef.current;
       if (flow && !flow.dead) {
-        const delta = flowRate(lvl) * dt;
+        const speed = fastRef.current ? FAST_SPEED : flowRate(lvl);
+        const delta = speed * dt;
         traveledRef.current += delta;
         flow.progress += delta / TILE;
         // Cross into as many tiles as this frame's travel spans (a drain tile
@@ -419,9 +523,9 @@ export default function BigPipeTinyDream() {
 
     const rotateAt = (clientX: number, clientY: number) => {
       const grid = gridRef.current;
-      const base = baseRef.current;
+      const pipes = pipesRef.current;
       const imgs = spritesRef.current;
-      if (!grid || !base || !imgs) return;
+      if (!grid || !pipes || !imgs) return;
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       const gx = Math.floor(((clientX - rect.left) * (canvas.width / rect.width)) / TILE);
@@ -430,8 +534,8 @@ export default function BigPipeTinyDream() {
       const t = tileAt(grid, gx, gy);
       if (isLocked(t)) return;
       grid.tiles[idx(grid, gx, gy)] = rotateTile(t);
-      const bctx = base.getContext("2d");
-      if (bctx) drawTile(bctx, imgs, grid.tiles[idx(grid, gx, gy)], gx, gy);
+      const pctx = pipes.getContext("2d");
+      if (pctx) drawTile(pctx, imgs, grid.tiles[idx(grid, gx, gy)], gx, gy);
       sfxRef.current?.resume();
       sfxRef.current?.play("rotate", 0.4);
       draw();
@@ -486,6 +590,14 @@ export default function BigPipeTinyDream() {
       <div className={styles.hud}>
         <span>SCORE: {score.toString().padStart(6, "0")}</span>
         <span>LEVEL {level}</span>
+        <button
+          type="button"
+          className={styles.speedToggle}
+          onClick={toggleFast}
+          aria-pressed={fast}
+        >
+          SPEED: {fast ? "FAST ⏩" : "NORMAL"}
+        </button>
         <span className={styles.drainHint}>◎ GUIDE WATER TO THE DRAIN</span>
         <span>CLICK / TAP TO ROTATE</span>
       </div>

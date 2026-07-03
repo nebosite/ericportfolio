@@ -22,6 +22,23 @@
   text-shadow: 0 0 6px rgba(138, 255, 200, 0.6);
 }
 
+.speedToggle {
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  padding: 0.15rem 0.7rem;
+  color: var(--crt-black);
+  background: var(--phosphor);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.speedToggle[aria-pressed="true"] {
+  background: var(--coin-gold);
+  box-shadow: 0 0 8px rgba(255, 210, 90, 0.7);
+}
+
 /* The play field fills the remaining space; the canvas is sized to it in JS. */
 .stage {
   flex: 1;
