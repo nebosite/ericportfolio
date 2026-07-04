@@ -74,17 +74,19 @@ mean deviation < 110 cents over a ~1.1s window.)
 
 ### Difficulty
 
-- **Level 1 — Beginner:** one octave centered on the range's sweet spot (middle note):
-  `[center-6, center+6]`.
-- **Level 2 — Practiced:** the full chosen range `[lo, hi]`.
-- **Level 3 — Advanced:** the range plus four semitones each end `[lo-4, hi+4]`.
-
-### Session sequence
-
-Build the note set for (voice, level), then play **every note three times**, in order:
-
-1. chromatic **ascending**, 2. chromatic **descending**, 3. **random** shuffle.
-   (`buildSequence` in `src/game/notes.ts` returns the full ordered list.)
+- **Level 0 — Training:** a guided scale drill — the five notes centred on the range's
+  sweet spot `[center-2, center+2]`, played up then down with a guide tone (the only
+  level that uses the rest/preview/prep/sing note cycle and `buildSequence`).
+- **Levels 1–4 — tune levels:** each plays **10 short made-up tunes**; you hear a tune,
+  then sing it back from memory (no guide tone during the sing). Every tune is stretched
+  to **5 seconds** regardless of note count (`buildTunePlan`/`buildTune`, `TUNE_COUNT`,
+  `TUNE_SECONDS`, `notesPerTune`, `tuneBand`). Note band and tune length per level:
+  - **1 — Beginner:** an octave starting 25% up from the bottom `[lo+25%, +12]`; 3-note tunes.
+  - **2 — Intermediate:** bottom of the range up to 25% below the top `[lo, hi-25%]`; 5-note tunes.
+  - **3 — Accomplished:** the full range `[lo, hi]`; 7-note tunes.
+  - **4 — Expert:** the full range plus two each end `[lo-2, hi+2]`; 8-note tunes, and the
+    pitch target is **hidden** — dim full-height timing columns replace the note bars so
+    the visual can't be used to check pitch.
 
 Note: pitch detection is clamped to 70–1200 Hz so Soprano's C6 (~1046 Hz) registers.
 

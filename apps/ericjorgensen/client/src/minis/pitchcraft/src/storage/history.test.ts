@@ -66,22 +66,32 @@ describe("recentNoteStats", () => {
       rec(3, 0, { "60": { cN: 3, cSum: 30, cSqSum: 400 }, "62": { cN: 2, cSum: 10, cSqSum: 80 } }),
       rec(4, 0, { "60": { cN: 1, cSum: 5, cSqSum: 25 } }),
     ];
-    const agg = recentNoteStats(history, "soprano", 2); // last two soprano sessions w/ notes: 3 & 4
+    const agg = recentNoteStats(history, "soprano", 1, 2); // last two soprano L1 sessions w/ notes: 3 & 4
     expect(agg["60"]).toEqual({ cN: 4, cSum: 35, cSqSum: 425 });
     expect(agg["62"]).toEqual({ cN: 2, cSum: 10, cSqSum: 80 });
   });
 
-  it("only counts sessions for the requested voice", () => {
+  it("only counts sessions for the requested voice and level", () => {
     const history: SessionRecord[] = [
       rec(1, 0, { "60": { cN: 5, cSum: 50, cSqSum: 600 } }, "soprano"),
       rec(2, 0, { "60": { cN: 9, cSum: 90, cSqSum: 900 } }, "bass"),
+      { ...rec(3, 0, { "60": { cN: 7, cSum: 70, cSqSum: 700 } }, "soprano"), level: 2 },
     ];
-    expect(recentNoteStats(history, "soprano", 10)["60"]).toEqual({ cN: 5, cSum: 50, cSqSum: 600 });
-    expect(recentNoteStats(history, "tenor", 10)).toEqual({});
+    expect(recentNoteStats(history, "soprano", 1, 10)["60"]).toEqual({
+      cN: 5,
+      cSum: 50,
+      cSqSum: 600,
+    });
+    expect(recentNoteStats(history, "soprano", 2, 10)["60"]).toEqual({
+      cN: 7,
+      cSum: 70,
+      cSqSum: 700,
+    });
+    expect(recentNoteStats(history, "tenor", 1, 10)).toEqual({});
   });
 
   it("returns an empty map when no session has note data", () => {
-    expect(recentNoteStats([rec(1, 100), rec(2, 200)], "soprano", 10)).toEqual({});
+    expect(recentNoteStats([rec(1, 100), rec(2, 200)], "soprano", 1, 10)).toEqual({});
   });
 });
 

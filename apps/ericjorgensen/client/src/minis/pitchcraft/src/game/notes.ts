@@ -80,43 +80,31 @@ export interface Level {
 }
 export const LEVELS: Level[] = [
   { n: 0, title: "Training", detail: "5 notes · up & down · guided" },
-  { n: 1, title: "Beginner", detail: "One octave · sweet spot" },
-  { n: 2, title: "Practiced", detail: "Full chosen range" },
-  { n: 3, title: "Advanced", detail: "Range + 4 each end" },
-  { n: 4, title: "From Memory", detail: "8 short tunes · no guide tone" },
+  { n: 1, title: "Beginner", detail: "3-note tunes · octave from 25% up" },
+  { n: 2, title: "Intermediate", detail: "5-note tunes · lower ¾ of range" },
+  { n: 3, title: "Accomplished", detail: "7-note tunes · full range" },
+  { n: 4, title: "Expert", detail: "8-note tunes · full range +2 · pitch hidden" },
 ];
 
 export function getVoice(id: VoiceId): Voice {
   return VOICES.find((v) => v.id === id) ?? VOICES[0];
 }
 
-/** The set of MIDI notes for a given voice + difficulty level. */
+/** The MIDI range for a given voice + level: the five-note training set at
+ *  level 0, otherwise the tune level's note band. `set` is every note in it. */
 export function noteSet(
   voiceId: VoiceId,
   level: LevelId,
 ): { lo: number; hi: number; set: number[] } {
-  const v = getVoice(voiceId);
   let lo: number, hi: number;
   if (level === 0) {
     // Training: just the five notes centred on the range's sweet spot.
+    const v = getVoice(voiceId);
     const c = Math.round((v.lo + v.hi) / 2);
     lo = c - 2;
     hi = c + 2;
-  } else if (level === 1) {
-    const c = Math.round((v.lo + v.hi) / 2);
-    lo = c - 6;
-    hi = c + 6;
-  } else if (level === 2) {
-    lo = v.lo;
-    hi = v.hi;
-  } else if (level === 3) {
-    lo = v.lo - 4;
-    hi = v.hi + 4;
   } else {
-    // Level 4 "From Memory" works in a comfortable band around the centre.
-    const c = Math.round((v.lo + v.hi) / 2);
-    lo = c - 7;
-    hi = c + 7;
+    ({ lo, hi } = tuneBand(voiceId, level));
   }
   const set: number[] = [];
   for (let m = lo; m <= hi; m++) set.push(m);
@@ -162,15 +150,34 @@ export function phaseOf(elapsedInCycle: number): Phase {
   return "done";
 }
 
-// ---- Level 4: short made-up tunes (sung from memory, no guide tone) ----
+// ---- Tune levels (1–4): short made-up tunes, sung back from memory ----
 
 // Scale-degree semitone offsets from the tonic.
 export const MAJOR_STEPS: readonly number[] = [0, 2, 4, 5, 7, 9, 11];
 export const MINOR_STEPS: readonly number[] = [0, 2, 3, 5, 7, 8, 10];
 
-// How many tunes per level-4 session, and how many notes per tune.
-export const TUNE_COUNT = 8;
-export const TUNE_NOTES = 5;
+// Every tune level plays this many tunes; each is stretched to TUNE_SECONDS long
+// (so note lengths shrink as the tune gets more notes, keeping the tune 5s).
+export const TUNE_COUNT = 10;
+export const TUNE_SECONDS = 5;
+
+/** How many notes each tune has at a given tune level (1–4). */
+export function notesPerTune(level: LevelId): number {
+  return level === 1 ? 3 : level === 2 ? 5 : level === 3 ? 7 : 8;
+}
+
+/** The MIDI band a tune level draws its notes from. */
+export function tuneBand(voiceId: VoiceId, level: LevelId): { lo: number; hi: number } {
+  const v = getVoice(voiceId);
+  const q = Math.round((v.hi - v.lo) * 0.25);
+  if (level === 1) {
+    const b = v.lo + q; // an octave starting 25% up from the bottom
+    return { lo: b, hi: b + 12 };
+  }
+  if (level === 2) return { lo: v.lo, hi: v.hi - q }; // bottom up to 25% from the top
+  if (level === 3) return { lo: v.lo, hi: v.hi }; // the full range
+  return { lo: v.lo - 2, hi: v.hi + 2 }; // level 4: full range + 2 each end
+}
 
 // Note values, in beats (quarter / half / whole).
 const QUARTER = 1;
@@ -180,46 +187,45 @@ const WHOLE = 4;
 export interface Tune {
   key: number; // tonic pitch class 0–11
   minor: boolean;
-  notes: number[]; // 8 MIDI notes
-  durations: number[]; // beats per note (1 = quarter, 2 = half, 4 = whole)
+  notes: number[]; // MIDI notes (notesPerTune long)
+  durations: number[]; // relative beats per note (scaled to seconds on layout)
 }
 
 /**
- * Make up a simple, well-structured 8-note tune for a voice: pick a random key,
- * draw scale notes from a comfortable band around the centre of the range, and
- * walk them as a small arch (rise then fall) that begins and ends on the tonic,
- * mostly by step with the odd third. `rng` is injectable for deterministic tests.
+ * Make up a simple, singable tune for a tune level: pick a random key, draw
+ * scale notes from the level's band, and walk them as a small arch (rise then
+ * fall) that begins and ends on the same tonic, mostly by step. The home tonic
+ * is chosen randomly within the band so tunes explore the whole range across a
+ * session. `rng` is injectable for deterministic tests.
  */
-export function buildTune(voiceId: VoiceId, rng: () => number): Tune {
-  const v = getVoice(voiceId);
-  const center = Math.round((v.lo + v.hi) / 2);
+export function buildTune(voiceId: VoiceId, level: LevelId, rng: () => number): Tune {
+  const band = tuneBand(voiceId, level);
+  const n = notesPerTune(level);
   const key = Math.min(11, Math.floor(rng() * 12));
   const minor = rng() < 0.5;
   const steps = minor ? MINOR_STEPS : MAJOR_STEPS;
   const inScale = (m: number) => steps.includes((((m - key) % 12) + 12) % 12);
 
-  // Scale notes in a comfortable band, low→high; adjacent = a scale step.
+  // Scale notes across the band, low→high; adjacent = a scale step.
   const pool: number[] = [];
-  for (let m = center - 7; m <= center + 7; m++) if (inScale(m)) pool.push(m);
+  for (let m = band.lo; m <= band.hi; m++) if (inScale(m)) pool.push(m);
   const tonics: number[] = [];
   for (let i = 0; i < pool.length; i++)
     if ((((pool[i] - key) % 12) + 12) % 12 === 0) tonics.push(i);
 
-  const nearestCenter = () =>
-    tonics.reduce(
-      (best, i) => (Math.abs(pool[i] - center) < Math.abs(pool[best] - center) ? i : best),
-      tonics[0],
-    );
+  // A random home tonic so tunes land in different parts of the range.
+  const home = tonics.length
+    ? tonics[Math.min(tonics.length - 1, Math.floor(rng() * tonics.length))]
+    : Math.floor(pool.length / 2);
 
-  // Stay within a comfortable ambit (±3 scale steps) of the home tonic so the
-  // tune is singable and the final return home is a small interval.
-  const home = nearestCenter();
+  // Stay within a comfortable ambit (±3 scale steps) of home so the tune is
+  // singable and the final return home is a small interval.
   const minI = Math.max(0, home - 3);
   const maxI = Math.min(pool.length - 1, home + 3);
   const idx: number[] = [home];
   let cur = home;
-  for (let j = 1; j < TUNE_NOTES - 1; j++) {
-    const rising = j < TUNE_NOTES / 2; // simple arch: up then back down
+  for (let j = 1; j < n - 1; j++) {
+    const rising = j < n / 2; // simple arch: up then back down
     const mag = rng() < 0.7 ? 1 : 2; // mostly steps, the occasional third
     let dir = rising ? 1 : -1;
     if (rng() < 0.2) dir = -dir; // a little wander for interest
@@ -245,10 +251,8 @@ export function buildTune(voiceId: VoiceId, rng: () => number): Tune {
   return { key, minor, notes: idx.map((i) => pool[i]), durations };
 }
 
-// Level-4 timeline (seconds). Each tune: hear it played in rhythm, a short prep
-// gap, then sing the same notes back at the SAME tempo and note lengths — but
-// with no guide tone. The sing window for a note matches its listen tone.
-const L4_BEAT = 0.55; // seconds per quarter note (listen and sing share this)
+// Tune-level timeline (seconds): hear the tune played in rhythm, a short prep
+// gap, then sing the same notes back at the same tempo — but with no guide tone.
 const L4_LEAD = 0.6; // silence before the listen melody starts
 const L4_PREP = 1.5; // gap between hearing the tune and singing it
 const L4_TAIL = 1.0; // gap after a tune before the next
@@ -276,23 +280,25 @@ export interface TunePlan {
   tunes: Tune[];
 }
 
-/** Lay out TUNE_COUNT tunes back to back into a single playable timeline. */
-export function buildTunePlan(voiceId: VoiceId, rng: () => number): TunePlan {
+/** Lay out TUNE_COUNT tunes back to back into a single playable timeline, each
+ *  tune stretched to exactly TUNE_SECONDS regardless of its note count. */
+export function buildTunePlan(voiceId: VoiceId, level: LevelId, rng: () => number): TunePlan {
   const notes: PlayNote[] = [];
   const tunes: Tune[] = [];
   let lo = Infinity;
   let hi = -Infinity;
   let cursor = 0; // start time of the current tune
   for (let t = 0; t < TUNE_COUNT; t++) {
-    const tune = buildTune(voiceId, rng);
+    const tune = buildTune(voiceId, level, rng);
     tunes.push(tune);
-    const dur = tune.durations.map((b) => b * L4_BEAT); // seconds per note
-    const total = dur.reduce((a, b) => a + b, 0);
+    const totalBeats = tune.durations.reduce((a, b) => a + b, 0);
+    const beatSec = TUNE_SECONDS / totalBeats; // stretch the tune to exactly 5s
+    const dur = tune.durations.map((b) => b * beatSec); // seconds per note
     const listenBase = cursor + L4_LEAD;
-    const singBase = listenBase + total + L4_PREP;
+    const singBase = listenBase + TUNE_SECONDS + L4_PREP;
     let lc = listenBase; // listen cursor
     let sc = singBase; // sing cursor
-    for (let j = 0; j < TUNE_NOTES; j++) {
+    for (let j = 0; j < tune.notes.length; j++) {
       const midi = tune.notes[j];
       lo = Math.min(lo, midi);
       hi = Math.max(hi, midi);
@@ -308,7 +314,7 @@ export function buildTunePlan(voiceId: VoiceId, rng: () => number): TunePlan {
       lc += dur[j];
       sc += dur[j];
     }
-    cursor = singBase + total + L4_TAIL; // next tune starts here
+    cursor = singBase + TUNE_SECONDS + L4_TAIL; // next tune starts here
   }
   return { notes, lo, hi, endAt: cursor, tunes };
 }

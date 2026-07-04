@@ -13,11 +13,13 @@ import {
   SCORE_OFFSET,
   buildTune,
   buildTunePlan,
+  tuneBand,
+  notesPerTune,
   stepsRemaining,
   MAJOR_STEPS,
   MINOR_STEPS,
   TUNE_COUNT,
-  TUNE_NOTES,
+  TUNE_SECONDS,
 } from "./notes";
 
 // Deterministic PRNG (mulberry32) so the generative tests are repeatable.
@@ -65,23 +67,43 @@ describe("noteSet", () => {
     expect(set).toHaveLength(5);
   });
 
-  it("level 1 is one octave centered on the range's sweet spot", () => {
+  it("levels 1–4 span the tune band for that level", () => {
+    for (const level of [1, 2, 3, 4] as const) {
+      const band = tuneBand("contralto", level);
+      const { lo, hi, set } = noteSet("contralto", level);
+      expect([lo, hi]).toEqual([band.lo, band.hi]);
+      expect(set).toHaveLength(hi - lo + 1);
+    }
+  });
+});
+
+describe("tuneBand", () => {
+  it("level 1 is an octave starting 25% up from the bottom", () => {
     const v = getVoice("contralto"); // 53–76
-    const center = Math.round((v.lo + v.hi) / 2);
-    const { lo, hi, set } = noteSet("contralto", 1);
-    expect(lo).toBe(center - 6);
-    expect(hi).toBe(center + 6);
-    expect(set).toHaveLength(13); // inclusive octave
+    const q = Math.round((v.hi - v.lo) * 0.25);
+    expect(tuneBand("contralto", 1)).toEqual({ lo: v.lo + q, hi: v.lo + q + 12 });
   });
 
-  it("level 2 is the full chosen range", () => {
-    const { lo, hi } = noteSet("soprano", 2);
-    expect([lo, hi]).toEqual([60, 84]);
+  it("level 2 runs from the bottom up to 25% below the top", () => {
+    const v = getVoice("soprano"); // 60–84
+    const q = Math.round((v.hi - v.lo) * 0.25);
+    expect(tuneBand("soprano", 2)).toEqual({ lo: v.lo, hi: v.hi - q });
   });
 
-  it("level 3 extends four semitones each end", () => {
-    const { lo, hi } = noteSet("tenor", 3); // 48–72
-    expect([lo, hi]).toEqual([44, 76]);
+  it("level 3 is the full range", () => {
+    const v = getVoice("tenor");
+    expect(tuneBand("tenor", 3)).toEqual({ lo: v.lo, hi: v.hi });
+  });
+
+  it("level 4 is the full range plus two semitones each end", () => {
+    const v = getVoice("bass");
+    expect(tuneBand("bass", 4)).toEqual({ lo: v.lo - 2, hi: v.hi + 2 });
+  });
+
+  it("notes per tune grow with level (3/5/7/8)", () => {
+    expect([notesPerTune(1), notesPerTune(2), notesPerTune(3), notesPerTune(4)]).toEqual([
+      3, 5, 7, 8,
+    ]);
   });
 });
 
@@ -136,76 +158,76 @@ describe("stepsRemaining", () => {
   });
 });
 
-describe("noteSet level 4", () => {
-  it("is a comfortable band centred on the range (±7 semitones)", () => {
-    const v = getVoice("soprano");
-    const center = Math.round((v.lo + v.hi) / 2);
-    const { lo, hi, set } = noteSet("soprano", 4);
-    expect([lo, hi]).toEqual([center - 7, center + 7]);
-    expect(set).toHaveLength(15);
-  });
-});
-
 describe("buildTune", () => {
-  it("makes an in-key, in-range tune that begins and ends on the tonic", () => {
-    const v = getVoice("tenor");
-    const center = Math.round((v.lo + v.hi) / 2);
-    const last = TUNE_NOTES - 1;
-    for (let seed = 1; seed <= 25; seed++) {
-      const t = buildTune("tenor", rngFrom(seed));
-      const scale = t.minor ? MINOR_STEPS : MAJOR_STEPS;
-      expect(t.notes).toHaveLength(TUNE_NOTES);
-      expect(t.durations).toHaveLength(TUNE_NOTES);
-      // every note value is a quarter, half, or whole; the tune ends long
-      for (const d of t.durations) expect([1, 2, 4]).toContain(d);
-      expect([2, 4]).toContain(t.durations[last]);
-      expect(t.key).toBeGreaterThanOrEqual(0);
-      expect(t.key).toBeLessThanOrEqual(11);
-      // first and last are the tonic
-      expect(pc(t.notes[0] - t.key)).toBe(0);
-      expect(pc(t.notes[last] - t.key)).toBe(0);
-      for (let i = 0; i < t.notes.length; i++) {
-        const m = t.notes[i];
-        // every note is in the chosen key and within the comfortable band
-        expect(scale.includes(pc(m - t.key))).toBe(true);
-        expect(m).toBeGreaterThanOrEqual(center - 7);
-        expect(m).toBeLessThanOrEqual(center + 7);
-        // no wild leaps — stepwise tune, at most about a fifth
-        if (i > 0) expect(Math.abs(m - t.notes[i - 1])).toBeLessThanOrEqual(7);
+  it("makes an in-key, in-band tune that begins and ends on the tonic", () => {
+    for (const level of [1, 2, 3, 4] as const) {
+      const band = tuneBand("tenor", level);
+      const n = notesPerTune(level);
+      for (let seed = 1; seed <= 20; seed++) {
+        const t = buildTune("tenor", level, rngFrom(seed));
+        const scale = t.minor ? MINOR_STEPS : MAJOR_STEPS;
+        expect(t.notes).toHaveLength(n);
+        expect(t.durations).toHaveLength(n);
+        // every note value is a quarter, half, or whole; the tune ends long
+        for (const d of t.durations) expect([1, 2, 4]).toContain(d);
+        expect([2, 4]).toContain(t.durations[n - 1]);
+        // first and last are the tonic
+        expect(pc(t.notes[0] - t.key)).toBe(0);
+        expect(pc(t.notes[n - 1] - t.key)).toBe(0);
+        for (let i = 0; i < t.notes.length; i++) {
+          const m = t.notes[i];
+          // every note is in the chosen key and within the level's band
+          expect(scale.includes(pc(m - t.key))).toBe(true);
+          expect(m).toBeGreaterThanOrEqual(band.lo);
+          expect(m).toBeLessThanOrEqual(band.hi);
+          // no wild leaps — stepwise tune, at most about a fifth
+          if (i > 0) expect(Math.abs(m - t.notes[i - 1])).toBeLessThanOrEqual(7);
+        }
       }
     }
   });
 
   it("is deterministic for a given rng seed", () => {
-    expect(buildTune("bass", rngFrom(7)).notes).toEqual(buildTune("bass", rngFrom(7)).notes);
+    expect(buildTune("bass", 3, rngFrom(7)).notes).toEqual(buildTune("bass", 3, rngFrom(7)).notes);
   });
 });
 
 describe("buildTunePlan", () => {
-  it("lays out 8 tunes of 8 notes on a monotonic, tone-before-sing timeline", () => {
-    const plan = buildTunePlan("mezzo", rngFrom(3));
-    expect(plan.tunes).toHaveLength(TUNE_COUNT);
-    expect(plan.notes).toHaveLength(TUNE_COUNT * TUNE_NOTES);
+  it("lays out TUNE_COUNT 5-second tunes on a monotonic, tone-before-sing timeline", () => {
+    for (const level of [1, 2, 3, 4] as const) {
+      const n = notesPerTune(level);
+      const plan = buildTunePlan("mezzo", level, rngFrom(3));
+      expect(plan.tunes).toHaveLength(TUNE_COUNT);
+      expect(plan.notes).toHaveLength(TUNE_COUNT * n);
 
-    let lastScore = -Infinity;
-    let realLo = Infinity;
-    let realHi = -Infinity;
-    plan.notes.forEach((n, k) => {
-      expect(n.tune).toBe(Math.floor(k / TUNE_NOTES));
-      expect(n.scoreLen).toBeGreaterThan(0);
-      // the sing window matches the length of the note as it was heard
-      expect(n.toneEnd - n.toneStart).toBeCloseTo(n.scoreLen, 6);
-      // the guide tone sounds during the "listen" phase, before the sing window
-      expect(n.toneStart).toBeGreaterThanOrEqual(0);
-      expect(n.toneEnd).toBeLessThan(n.scoreStart);
-      // sing windows advance monotonically and never overlap (allow fp slop)
-      expect(n.scoreStart).toBeGreaterThanOrEqual(lastScore - 1e-6);
-      lastScore = n.scoreStart + n.scoreLen;
-      realLo = Math.min(realLo, n.midi);
-      realHi = Math.max(realHi, n.midi);
-    });
-    expect(plan.lo).toBe(realLo);
-    expect(plan.hi).toBe(realHi);
-    expect(plan.endAt).toBeGreaterThan(lastScore);
+      // every tune's listen and sing spans are exactly TUNE_SECONDS long
+      for (let t = 0; t < TUNE_COUNT; t++) {
+        const tn = plan.notes.filter((x) => x.tune === t);
+        const last = tn[tn.length - 1];
+        expect(last.toneEnd - tn[0].toneStart).toBeCloseTo(TUNE_SECONDS, 5);
+        expect(last.scoreStart + last.scoreLen - tn[0].scoreStart).toBeCloseTo(TUNE_SECONDS, 5);
+      }
+
+      let lastScore = -Infinity;
+      let realLo = Infinity;
+      let realHi = -Infinity;
+      plan.notes.forEach((x, k) => {
+        expect(x.tune).toBe(Math.floor(k / n));
+        expect(x.scoreLen).toBeGreaterThan(0);
+        // the sing window matches the length of the note as it was heard
+        expect(x.toneEnd - x.toneStart).toBeCloseTo(x.scoreLen, 6);
+        // the guide tone sounds during "listen", before the sing window
+        expect(x.toneStart).toBeGreaterThanOrEqual(0);
+        expect(x.toneEnd).toBeLessThan(x.scoreStart);
+        // sing windows advance monotonically and never overlap (allow fp slop)
+        expect(x.scoreStart).toBeGreaterThanOrEqual(lastScore - 1e-6);
+        lastScore = x.scoreStart + x.scoreLen;
+        realLo = Math.min(realLo, x.midi);
+        realHi = Math.max(realHi, x.midi);
+      });
+      expect(plan.lo).toBe(realLo);
+      expect(plan.hi).toBe(realHi);
+      expect(plan.endAt).toBeGreaterThan(lastScore);
+    }
   });
 });

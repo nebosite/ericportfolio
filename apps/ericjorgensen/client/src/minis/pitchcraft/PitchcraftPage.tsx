@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
-import { VOICES, LEVELS, VoiceId, LevelId, noteSet, midiName } from "./src/game/notes";
+import { VOICES, LEVELS, VoiceId, LevelId, noteSet, midiName, notesPerTune } from "./src/game/notes";
 import { drawPitchGraph, meanStd, niceAxisStep, GraphBar } from "./src/game/pitchGraph";
 import {
   Stats,
@@ -186,16 +186,15 @@ export default function PitchcraftPage() {
 
   const endSession = () => engineRef.current?.stop();
 
-  const { lo, hi, set } = noteSet(voiceId, level);
+  const { lo, hi } = noteSet(voiceId, level);
+  const levelTitle = LEVELS.find((l) => l.n === level)?.title ?? "";
   const planText =
     level === 0
       ? `Training · ${midiName(lo)}–${midiName(hi)} · 5 notes · up then down, guided`
-      : level === 4
-        ? `LV 4 · 8 short tunes · 5 notes each · sing from memory, no guide tone`
-        : `LV ${level} · ${midiName(lo)}–${midiName(hi)} · ${set.length} notes × 3 passes (up · down · shuffle)`;
+      : `${levelTitle} · ${notesPerTune(level)}-note tunes × 10 · listen, then repeat from memory · ${midiName(lo)}–${midiName(hi)}${level === 4 ? " · pitch hidden" : ""}`;
   const mapRange = `${midiName(lo)}–${midiName(hi)}`;
-  // Home pitch graph: the most recent 10 sessions for the selected voice.
-  const recentNotes = recentNoteStats(history, voiceId, 10);
+  // Home pitch graph: the most recent 10 sessions for the selected voice + level.
+  const recentNotes = recentNoteStats(history, voiceId, level, 10);
 
   return (
     <div className={styles.page}>
@@ -586,9 +585,9 @@ export default function PitchcraftPage() {
             {phase === "playing" && (
               <div className={styles.playFooter}>
                 <div className={styles.hint}>
-                  {level === 4
-                    ? "Hear the tune, then sing it back from memory · no guide tone"
-                    : "Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone ×1"}
+                  {level === 0
+                    ? "Listen 2s · ready 2s · then sing · ⅛ step ×5 · ¼ ×2 · semitone ×1"
+                    : "Listen to the short tune, then repeat it from memory"}
                 </div>
                 <button type="button" className={styles.endBtn} onClick={endSession}>
                   Quit round

@@ -62,14 +62,15 @@ export function bestFor(stats: Stats, voiceId: string, level: number): number {
 }
 
 /** Aggregate per-note cents sums across the most recent `n` sessions for a given
- *  voice that carry note data — the source for the home-screen pitch graph. */
+ *  voice + level that carry note data — the source for the home-screen pitch graph. */
 export function recentNoteStats(
   history: SessionRecord[],
   voice: string,
+  level: number,
   n = 10,
 ): Record<string, NoteCents> {
   const out: Record<string, NoteCents> = {};
-  const recent = history.filter((r) => r.notes && r.voice === voice).slice(-n);
+  const recent = history.filter((r) => r.notes && r.voice === voice && r.level === level).slice(-n);
   for (const rec of recent) {
     const notes = rec.notes!;
     for (const m in notes) {

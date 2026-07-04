@@ -147,6 +147,9 @@ export class PitchcraftEngine {
 
   private notes: PlayNote[] = [];
   private mode: "scale" | "tune" = "scale";
+  // Expert level: hide the pitch target (dim full-height columns for timing only)
+  // so the visual can't be used to check pitch.
+  private hidePitch = false;
   private endAt = 0;
   private dLow = 0;
   private dHigh = 0;
@@ -292,9 +295,11 @@ export class PitchcraftEngine {
   }
 
   private beginSession(): void {
-    if (this.opts.level === 4) {
-      // Level 4: a series of made-up tunes, sung from memory with no guide tone.
-      const plan = buildTunePlan(this.opts.voiceId, Math.random);
+    this.hidePitch = this.opts.level === 4;
+    if (this.opts.level !== 0) {
+      // Tune levels (1–4): short made-up tunes, sung back from memory. Level 4
+      // (Expert) also hides the pitch target.
+      const plan = buildTunePlan(this.opts.voiceId, this.opts.level, Math.random);
       this.notes = plan.notes;
       this.mode = "tune";
       this.rangeLo = plan.lo;
@@ -303,9 +308,9 @@ export class PitchcraftEngine {
       this.dHigh = plan.hi + 1.5;
       this.endAt = plan.endAt;
     } else {
+      // Training (level 0): the five-note set, up then down, with a guide tone.
       const { lo, hi, set } = noteSet(this.opts.voiceId, this.opts.level);
-      // Training (level 0) is up-then-down only; levels 1–3 add the shuffle pass.
-      const seq = buildSequence(set, this.opts.level !== 0);
+      const seq = buildSequence(set, false);
       this.notes = seq.map((m, i) => {
         const c = i * CYCLE_TOTAL;
         return {
@@ -695,10 +700,23 @@ export class PitchcraftEngine {
       const x1 = playX + (sStart - now) * pps;
       const x2 = playX + (sStart + n.scoreLen - now) * pps;
       if (x2 < -40 || x1 > W) continue;
-      const y = this.yFor(n.midi);
-      const h = Math.min(laneH * 0.82, 20);
       const isScore = now >= sStart && now <= sStart + n.scoreLen;
       const isPrev = this.isPreview(n, now);
+
+      // Expert level: reveal only timing, never pitch — a dim full-height column
+      // where the note's sing window crosses, brighter while it's being scored.
+      if (this.hidePitch) {
+        const cbx = Math.max(x1, 0);
+        const cw = Math.min(x2, W) - cbx;
+        if (cw > 0) {
+          ctx.fillStyle = isScore ? "rgba(244,178,62,0.12)" : "rgba(255,255,255,0.05)";
+          ctx.fillRect(cbx, 0, cw, H);
+        }
+        continue;
+      }
+
+      const y = this.yFor(n.midi);
+      const h = Math.min(laneH * 0.82, 20);
       if (isScore) {
         ctx.fillStyle = "rgba(244,178,62,0.07)";
         ctx.fillRect(0, y - laneH / 2, W, laneH);
