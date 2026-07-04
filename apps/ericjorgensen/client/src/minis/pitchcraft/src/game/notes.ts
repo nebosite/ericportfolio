@@ -72,12 +72,14 @@ export const VOICES: Voice[] = [
   { id: "bass", label: "Bass", detail: "Low Male · E2–E4", lo: 40, hi: 64 },
 ];
 
+export type LevelId = 0 | 1 | 2 | 3 | 4;
 export interface Level {
-  n: 1 | 2 | 3 | 4;
+  n: LevelId;
   title: string;
   detail: string;
 }
 export const LEVELS: Level[] = [
+  { n: 0, title: "Training", detail: "5 notes · up & down · guided" },
   { n: 1, title: "Beginner", detail: "One octave · sweet spot" },
   { n: 2, title: "Practiced", detail: "Full chosen range" },
   { n: 3, title: "Advanced", detail: "Range + 4 each end" },
@@ -91,11 +93,16 @@ export function getVoice(id: VoiceId): Voice {
 /** The set of MIDI notes for a given voice + difficulty level. */
 export function noteSet(
   voiceId: VoiceId,
-  level: 1 | 2 | 3 | 4,
+  level: LevelId,
 ): { lo: number; hi: number; set: number[] } {
   const v = getVoice(voiceId);
   let lo: number, hi: number;
-  if (level === 1) {
+  if (level === 0) {
+    // Training: just the five notes centred on the range's sweet spot.
+    const c = Math.round((v.lo + v.hi) / 2);
+    lo = c - 2;
+    hi = c + 2;
+  } else if (level === 1) {
     const c = Math.round((v.lo + v.hi) / 2);
     lo = c - 6;
     hi = c + 6;
@@ -116,16 +123,27 @@ export function noteSet(
   return { lo, hi, set };
 }
 
-/** Full session order: every note ascending, then descending, then shuffled. */
-export function buildSequence(set: number[]): number[] {
+/** Full session order: every note ascending, then descending, then shuffled.
+ *  With `includeShuffle` false (the Training level) it's just up then down. */
+export function buildSequence(set: number[], includeShuffle = true): number[] {
   const asc = set.slice();
   const desc = set.slice().reverse();
+  if (!includeShuffle) return asc.concat(desc);
   const rand = set.slice();
   for (let i = rand.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [rand[i], rand[j]] = [rand[j], rand[i]];
   }
   return asc.concat(desc, rand);
+}
+
+/** How many steps remain in the session, counting the one in play. `index` is
+ *  the current item's position (note index in scale mode, tune index in tune
+ *  mode) or null when nothing is active (session done); `total` is the count of
+ *  items. First item → `total` left; last → 1 left; done → 0. */
+export function stepsRemaining(total: number, index: number | null): number {
+  if (index == null) return 0;
+  return Math.max(0, total - index);
 }
 
 // ---- per-note cycle timing (seconds) ----

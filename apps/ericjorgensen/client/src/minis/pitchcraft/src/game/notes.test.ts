@@ -13,6 +13,7 @@ import {
   SCORE_OFFSET,
   buildTune,
   buildTunePlan,
+  stepsRemaining,
   MAJOR_STEPS,
   MINOR_STEPS,
   TUNE_COUNT,
@@ -55,6 +56,15 @@ describe("note math", () => {
 });
 
 describe("noteSet", () => {
+  it("training (level 0) is the five notes centered on the sweet spot", () => {
+    const v = getVoice("contralto"); // 53–76
+    const center = Math.round((v.lo + v.hi) / 2);
+    const { lo, hi, set } = noteSet("contralto", 0);
+    expect(lo).toBe(center - 2);
+    expect(hi).toBe(center + 2);
+    expect(set).toHaveLength(5);
+  });
+
   it("level 1 is one octave centered on the range's sweet spot", () => {
     const v = getVoice("contralto"); // 53–76
     const center = Math.round((v.lo + v.hi) / 2);
@@ -85,6 +95,12 @@ describe("buildSequence", () => {
     // the final pass is a permutation of the set
     expect([...seq.slice(8)].sort((a, b) => a - b)).toEqual(set);
   });
+
+  it("without the shuffle pass (Training) it is just up then down", () => {
+    const set = [60, 61, 62, 63, 64];
+    const seq = buildSequence(set, false);
+    expect(seq).toEqual([60, 61, 62, 63, 64, 64, 63, 62, 61, 60]);
+  });
 });
 
 describe("cycle timing", () => {
@@ -97,6 +113,26 @@ describe("cycle timing", () => {
     expect(phaseOf(6)).toBe("score");
     expect(phaseOf(10.9)).toBe("score");
     expect(phaseOf(11)).toBe("done");
+  });
+});
+
+describe("stepsRemaining", () => {
+  it("counts the item in play: first → total, last → 1, done → 0", () => {
+    expect(stepsRemaining(39, 0)).toBe(39); // first of 39
+    expect(stepsRemaining(39, 38)).toBe(1); // last of 39
+    expect(stepsRemaining(39, null)).toBe(0); // session finished
+  });
+
+  it("mirrors a full scale sequence as it advances", () => {
+    const total = buildSequence([60, 61, 62, 63]).length; // 12
+    expect(stepsRemaining(total, 0)).toBe(12);
+    expect(stepsRemaining(total, 11)).toBe(1);
+  });
+
+  it("works for tune counts and never goes negative", () => {
+    expect(stepsRemaining(TUNE_COUNT, 0)).toBe(TUNE_COUNT);
+    expect(stepsRemaining(TUNE_COUNT, TUNE_COUNT - 1)).toBe(1);
+    expect(stepsRemaining(5, 9)).toBe(0); // index past the end clamps to 0
   });
 });
 

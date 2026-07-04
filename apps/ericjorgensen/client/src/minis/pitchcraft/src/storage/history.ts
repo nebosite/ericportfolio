@@ -1,5 +1,12 @@
 // history.ts — IndexedDB persistence for sessions/stats + server high-score stub.
 
+/** Per-note cents running sums stored on a session, for the recent pitch graph. */
+export interface NoteCents {
+  cN: number;
+  cSum: number;
+  cSqSum: number;
+}
+
 export interface SessionRecord {
   id?: number;
   ts: number; // Date.now()
@@ -8,6 +15,8 @@ export interface SessionRecord {
   accuracy: number; // 0..100
   voice: string;
   level: number;
+  // Per-note cents sums for this session, keyed by MIDI (absent on old records).
+  notes?: Record<string, NoteCents>;
 }
 
 export interface NoteStat {
@@ -15,6 +24,11 @@ export interface NoteStat {
   rSum: number;
   best: number;
   pts: number;
+  // Cents-off running sums (count, Σcents, Σcents²) for the pitch graph's
+  // per-note mean/std. Optional so older saved stats stay valid.
+  cN?: number;
+  cSum?: number;
+  cSqSum?: number;
 }
 
 export interface Stats {
@@ -45,6 +59,46 @@ export function bestKey(voiceId: string, level: number): string {
 /** Best score recorded for a given voice + level (0 if none yet). */
 export function bestFor(stats: Stats, voiceId: string, level: number): number {
   return (stats.bests && stats.bests[bestKey(voiceId, level)]) || 0;
+}
+
+/** Aggregate per-note cents sums across the most recent `n` sessions for a given
+ *  voice that carry note data — the source for the home-screen pitch graph. */
+export function recentNoteStats(
+  history: SessionRecord[],
+  voice: string,
+  n = 10,
+): Record<string, NoteCents> {
+  const out: Record<string, NoteCents> = {};
+  const recent = history.filter((r) => r.notes && r.voice === voice).slice(-n);
+  for (const rec of recent) {
+    const notes = rec.notes!;
+    for (const m in notes) {
+      const s = notes[m];
+      const o = out[m] || (out[m] = { cN: 0, cSum: 0, cSqSum: 0 });
+      o.cN += s.cN || 0;
+      o.cSum += s.cSum || 0;
+      o.cSqSum += s.cSqSum || 0;
+    }
+  }
+  return out;
+}
+
+/** Sessions for a given voice + level within the last `maxDays`, as {daysAgo,
+ *  score} points sorted oldest → newest, for the "recent scores" chart. `now` is
+ *  passed in for testability. */
+export function recentScorePoints(
+  history: SessionRecord[],
+  voice: string,
+  level: number,
+  now: number,
+  maxDays = 90,
+): { daysAgo: number; score: number }[] {
+  const DAY = 86400000;
+  return history
+    .filter((h) => h.voice === voice && h.level === level)
+    .map((h) => ({ daysAgo: (now - h.ts) / DAY, score: h.score }))
+    .filter((p) => p.daysAgo >= 0 && p.daysAgo <= maxDays)
+    .sort((a, b) => b.daysAgo - a.daysAgo);
 }
 
 const DB_NAME = "pitchcraft";
@@ -132,7 +186,10 @@ export function applySession(
   stats: Stats,
   opts: {
     score: number;
-    perNote: Record<string, { n: number; rSum: number; pts: number }>;
+    perNote: Record<
+      string,
+      { n: number; rSum: number; pts: number; cN?: number; cSum?: number; cSqSum?: number }
+    >;
     voiceId: string;
     difficulty: number;
   },
@@ -159,6 +216,9 @@ export function applySession(
     ns.rSum += pn.rSum;
     ns.pts += pn.pts;
     ns.best = Math.max(ns.best, pn.n ? pn.rSum / pn.n : 0);
+    ns.cN = (ns.cN || 0) + (pn.cN || 0);
+    ns.cSum = (ns.cSum || 0) + (pn.cSum || 0);
+    ns.cSqSum = (ns.cSqSum || 0) + (pn.cSqSum || 0);
   }
   stats.prefs = { voiceId: opts.voiceId, difficulty: opts.difficulty };
   return { stats, isBest, date: dkey };

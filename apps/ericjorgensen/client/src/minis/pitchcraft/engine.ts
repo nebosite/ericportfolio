@@ -9,6 +9,7 @@ import { PitchAnalyser } from "./src/audio/pitch";
 import { TonePlayer } from "./src/audio/tone";
 import {
   VoiceId,
+  LevelId,
   noteSet,
   buildSequence,
   buildTunePlan,
@@ -23,9 +24,17 @@ import {
   CYCLE_TOTAL,
   SCORE_OFFSET,
   phaseOf,
+  stepsRemaining,
   Phase,
 } from "./src/game/notes";
 import { centsOff, quality, accuracyRatio, tickPoints, VibratoDetector } from "./src/game/scoring";
+import {
+  drawPitchGraph,
+  meanStd,
+  isContinuous,
+  GRAPH_CENTS,
+  GraphBar,
+} from "./src/game/pitchGraph";
 
 const ACCENT = "#F4B23E";
 const TEAL = "#35C4B5";
@@ -53,6 +62,8 @@ export interface Hud {
   targetName: string;
   targetHz: string;
   noteCount: string;
+  stepsLeft: number;
+  stepsUnit: string;
   targetColor: string;
   liveName: string;
   liveCents: string;
@@ -65,6 +76,10 @@ export interface PerNote {
   n: number;
   rSum: number;
   pts: number;
+  // Cents-off running sums for the pitch graph (continuous samples only).
+  cN: number;
+  cSum: number;
+  cSqSum: number;
 }
 
 export interface SessionResult {
@@ -77,7 +92,7 @@ export interface SessionResult {
 
 export interface EngineOpts {
   voiceId: VoiceId;
-  level: 1 | 2 | 3 | 4;
+  level: LevelId;
   onHud: (hud: Hud) => void;
   onEnd: (result: SessionResult) => void;
 }
@@ -100,6 +115,8 @@ export function blankHud(): Hud {
     targetName: "—",
     targetHz: "",
     noteCount: "",
+    stepsLeft: 0,
+    stepsUnit: "steps left",
     targetColor: "#6b7180",
     liveName: "—",
     liveCents: "",
@@ -116,6 +133,12 @@ export class PitchcraftEngine {
   private W = 0;
   private H = 0;
 
+  // The pitch graph to the right of the grid (its own canvas, same pitch axis).
+  private graphCanvas: HTMLCanvasElement | null = null;
+  private gctx: CanvasRenderingContext2D | null = null;
+  private gW = 0;
+  private gH = 0;
+
   private audio: { stream: MediaStream; ctx: AudioContext } | null = null;
   private pitch: PitchAnalyser | null = null;
   private tone: TonePlayer | null = null;
@@ -127,9 +150,19 @@ export class PitchcraftEngine {
   private endAt = 0;
   private dLow = 0;
   private dHigh = 0;
+  // The singer's actual note range (for the graph's note labels).
+  private rangeLo = 0;
+  private rangeHi = 0;
+  // Discontinuity filter for the graph: the last note we sampled and the last
+  // cents value, so we can drop jumps (octave/harmonic glitches, slides).
+  private statNote: number | null = null;
+  private statPrev: number | null = null;
   private t0 = 0;
   private raf = 0;
   private toneFor = -1;
+  // When (session-relative seconds) the very first guide tone sounded; drives the
+  // Training level's "start singing as soon as you hear the tone" coaching line.
+  private toneStartedAt = -1;
   private lastNow: number | null = null;
   private tickAcc = 0;
   private lastHud = 0;
@@ -153,11 +186,40 @@ export class PitchcraftEngine {
     perNote: {} as Record<string, PerNote>,
   };
 
-  private onResize = () => this.sizeCanvas();
+  private onResize = () => {
+    this.sizeCanvas();
+    this.sizeGraphCanvas();
+    this.drawGraph();
+  };
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
     window.addEventListener("resize", this.onResize);
+  }
+
+  /** Ref callback from React: attach (or detach with null) the pitch graph canvas. */
+  setGraphCanvas = (el: HTMLCanvasElement | null): void => {
+    if (el === this.graphCanvas) return;
+    this.graphCanvas = el;
+    this.gctx = el ? el.getContext("2d") : null;
+    if (el) {
+      this.sizeGraphCanvas();
+      this.drawGraph(); // show the empty axis before the session begins
+    }
+  };
+
+  private sizeGraphCanvas(): void {
+    const el = this.graphCanvas;
+    if (!el || !this.gctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (!w || !h) return;
+    el.width = Math.round(w * dpr);
+    el.height = Math.round(h * dpr);
+    this.gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.gW = w;
+    this.gH = h;
   }
 
   /** Ref callback from React: attach (or detach with null) the play canvas. */
@@ -218,7 +280,15 @@ export class PitchcraftEngine {
     this.fft = fft;
     this.freq = new Uint8Array(fft.frequencyBinCount);
     this.audio = { stream, ctx };
-    this.beginSession();
+    // The mic + audio graph are live, but the note session waits for begin() so
+    // the page can show its "before you begin" card first without the clock
+    // (and scoring) already running behind it.
+  }
+
+  /** Start the note session. Call once start() has resolved and the player has
+   *  dismissed the intro card. No-op if the mic never came up. */
+  begin(): void {
+    if (this.audio) this.beginSession();
   }
 
   private beginSession(): void {
@@ -227,12 +297,15 @@ export class PitchcraftEngine {
       const plan = buildTunePlan(this.opts.voiceId, Math.random);
       this.notes = plan.notes;
       this.mode = "tune";
+      this.rangeLo = plan.lo;
+      this.rangeHi = plan.hi;
       this.dLow = plan.lo - 1.5;
       this.dHigh = plan.hi + 1.5;
       this.endAt = plan.endAt;
     } else {
       const { lo, hi, set } = noteSet(this.opts.voiceId, this.opts.level);
-      const seq = buildSequence(set);
+      // Training (level 0) is up-then-down only; levels 1–3 add the shuffle pass.
+      const seq = buildSequence(set, this.opts.level !== 0);
       this.notes = seq.map((m, i) => {
         const c = i * CYCLE_TOTAL;
         return {
@@ -246,6 +319,8 @@ export class PitchcraftEngine {
         };
       });
       this.mode = "scale";
+      this.rangeLo = lo;
+      this.rangeHi = hi;
       this.dLow = lo - 1.5;
       this.dHigh = hi + 1.5;
       this.endAt = seq.length * CYCLE_TOTAL + 0.3;
@@ -257,10 +332,14 @@ export class PitchcraftEngine {
     this.tickAcc = 0;
     this.lastNow = null;
     this.toneFor = -1;
+    this.toneStartedAt = -1;
+    this.statNote = null;
+    this.statPrev = null;
     this.lastHud = 0;
     this.cur = { hz: -1, midi: null, cents: null, q: 0, vibrato: false };
     this.sess = { score: 0, ticks: 0, qSum: 0, vibTicks: 0, perNote: {} };
     this.sizeCanvas();
+    this.sizeGraphCanvas();
     cancelAnimationFrame(this.raf);
     this.loop();
   }
@@ -351,6 +430,7 @@ export class PitchcraftEngine {
     this.harm = pr ? { f: [pr.f0, pr.f1, pr.f2], confident: pr.confident } : null;
 
     if (toneNote) {
+      if (this.toneStartedAt < 0) this.toneStartedAt = now;
       const idx = this.notes.indexOf(toneNote);
       if (this.toneFor !== idx) {
         this.tone?.play(toneNote.midi);
@@ -384,9 +464,30 @@ export class PitchcraftEngine {
       return;
     }
 
-    this.draw(now, ph);
+    this.draw(now, ph, cn);
+    this.drawGraph();
     this.pushHud(now, cn, ph, scoring, q, vibrato);
   };
+
+  /** Repaint the pitch graph from the session's per-note cents stats. Renders an
+   *  empty axis (falling back to the opts range) before the session begins. */
+  private drawGraph(): void {
+    if (!this.gctx) return;
+    let { dLow, dHigh, rangeLo: lo, rangeHi: hi } = this;
+    if (dHigh <= dLow) {
+      const r = noteSet(this.opts.voiceId, this.opts.level);
+      lo = r.lo;
+      hi = r.hi;
+      dLow = lo - 1.5;
+      dHigh = hi + 1.5;
+    }
+    const bars: Record<number, GraphBar> = {};
+    for (const key in this.sess.perNote) {
+      const pn = this.sess.perNote[key];
+      if (pn.cN > 0) bars[Number(key)] = meanStd(pn.cN, pn.cSum, pn.cSqSum);
+    }
+    drawPitchGraph(this.gctx, { W: this.gW, H: this.gH, dLow, dHigh, lo, hi, bars });
+  }
 
   private scoreStep(now: number, scoring: PlayNote | null, vibrato: boolean): void {
     if (this.lastNow == null) this.lastNow = now;
@@ -395,6 +496,7 @@ export class PitchcraftEngine {
     if (dt < 0 || dt > 0.5) dt = 0;
     if (!scoring) {
       this.tickAcc = 0;
+      this.statPrev = null; // between notes: the next note starts a fresh run
       return;
     }
     this.tickAcc += dt;
@@ -409,16 +511,34 @@ export class PitchcraftEngine {
       this.sess.qSum += ratio;
       if (vibrato && quality(ac) > 0) this.sess.vibTicks++;
       const key = String(scoring.midi);
-      const pn = this.sess.perNote[key] || (this.sess.perNote[key] = { n: 0, rSum: 0, pts: 0 });
+      const pn =
+        this.sess.perNote[key] ||
+        (this.sess.perNote[key] = { n: 0, rSum: 0, pts: 0, cN: 0, cSum: 0, cSqSum: 0 });
       pn.n++;
       pn.rSum += ratio;
       pn.pts += pts;
+
+      // Feed the pitch graph: only continuous samples within the ±graph window,
+      // so octave/harmonic glitches and slides don't skew a note's average.
+      if (cents != null && Math.abs(cents) <= GRAPH_CENTS) {
+        if (this.statNote !== scoring.midi) {
+          this.statNote = scoring.midi;
+          this.statPrev = null;
+        }
+        if (isContinuous(this.statPrev, cents)) {
+          pn.cN++;
+          pn.cSum += cents;
+          pn.cSqSum += cents * cents;
+        }
+        this.statPrev = cents;
+      }
     }
   }
 
   private endSession(): void {
     cancelAnimationFrame(this.raf);
     this.teardownAudio();
+    this.drawGraph(); // freeze the final graph for the "done" screen
     const s = this.sess;
     const score = Math.round(s.score);
     const accuracy = s.ticks ? Math.round((s.qSum / s.ticks) * 100) : 0;
@@ -472,7 +592,7 @@ export class PitchcraftEngine {
     ctx.closePath();
   }
 
-  private draw(now: number, _ph: Phase): void {
+  private draw(now: number, _ph: Phase, cn: PlayNote | null): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const W = this.W;
@@ -661,6 +781,33 @@ export class PitchcraftEngine {
     ctx.moveTo(playX, 0);
     ctx.lineTo(playX, H);
     ctx.stroke();
+
+    // Training coach: a pill sitting just above the current note's lane, its left
+    // edge on the playhead, prompting the player to sing the moment the tone lands.
+    if (this.opts.level === 0 && this.toneStartedAt >= 0 && cn && this.notes.indexOf(cn) === 0) {
+      const msg = "Start singing as soon as you hear the tone";
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (now - this.toneStartedAt) / 0.5); // brief fade-in
+      ctx.font = "13px 'Spline Sans Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const padX = 13;
+      const boxH = 28;
+      const tw = ctx.measureText(msg).width;
+      const laneH = H / (this.dHigh - this.dLow);
+      const barTop = this.yFor(cn.midi) - Math.min(laneH * 0.82, 20) / 2;
+      const cy = barTop - 10 - boxH / 2; // centre the pill 10px above the bar
+      const bx = Math.max(4, Math.min(playX, W - tw - padX * 2 - 4));
+      this.roundRect(ctx, bx, cy - boxH / 2, tw + padX * 2, boxH, boxH / 2);
+      ctx.fillStyle = "rgba(20,16,8,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = ACCENT;
+      ctx.fillText(msg, bx + padX, cy + 0.5);
+      ctx.restore();
+    }
   }
 
   // ---------- HUD ----------
@@ -680,6 +827,13 @@ export class PitchcraftEngine {
           ? `Tune ${cn.tune + 1} / ${TUNE_COUNT}`
           : ""
         : (cn ? this.notes.indexOf(cn) + 1 : this.notes.length) + " / " + this.notes.length;
+
+    // "Steps left" for the prominent upper-right indicator: notes remaining in
+    // scale mode, tunes remaining at level 4 (both count the item in play).
+    const stepsTotal = this.mode === "tune" ? TUNE_COUNT : this.notes.length;
+    const stepIdx = cn ? (this.mode === "tune" ? cn.tune : this.notes.indexOf(cn)) : null;
+    const stepsLeft = stepsRemaining(stepsTotal, stepIdx);
+    const stepsUnit = this.mode === "tune" ? "tunes left" : "steps left";
 
     let mult = {
       multLabel: "×1",
@@ -787,6 +941,8 @@ export class PitchcraftEngine {
       targetName: cn ? midiName(cn.midi) : "—",
       targetHz: cn ? midiHz(cn.midi).toFixed(1) + " Hz" : "",
       noteCount,
+      stepsLeft,
+      stepsUnit,
       targetColor,
       liveName,
       liveCents,
