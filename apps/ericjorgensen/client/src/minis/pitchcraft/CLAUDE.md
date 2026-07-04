@@ -66,10 +66,10 @@ mean deviation < 110 cents over a ~1.1s window.)
 | Voice                      | Range | lo–hi MIDI |
 | -------------------------- | ----- | ---------- |
 | Contralto (Low Female)     | F3–E5 | 53–76      |
-| Mezzo-Soprano (Med Female) | A3–F5 | 57–77      |
+| Mezzo-Soprano (Med Female) | A3–A5 | 57–81      |
 | Soprano (High Female)      | C4–C6 | 60–84      |
-| Tenor (High Male)          | C3–E5 | 48–76      |
-| Baritone (Med Male)        | G2–E4 | 43–64      |
+| Tenor (High Male)          | C3–C5 | 48–72      |
+| Baritone (Med Male)        | A2–A4 | 45–69      |
 | Bass (Low Male)            | E2–E4 | 40–64      |
 
 ### Difficulty

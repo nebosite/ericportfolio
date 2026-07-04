@@ -80,8 +80,8 @@ describe("noteSet", () => {
   });
 
   it("level 3 extends four semitones each end", () => {
-    const { lo, hi } = noteSet("tenor", 3); // 48–76
-    expect([lo, hi]).toEqual([44, 80]);
+    const { lo, hi } = noteSet("tenor", 3); // 48–72
+    expect([lo, hi]).toEqual([44, 76]);
   });
 });
 

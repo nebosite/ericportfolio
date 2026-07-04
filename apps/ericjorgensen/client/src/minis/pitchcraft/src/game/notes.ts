@@ -50,9 +50,9 @@ export const VOICES: Voice[] = [
   {
     id: "mezzo",
     label: "Mezzo-Soprano",
-    detail: "Med Female · A3–F5",
+    detail: "Med Female · A3–A5",
     lo: 57,
-    hi: 77,
+    hi: 81,
   },
   {
     id: "soprano",
@@ -61,13 +61,13 @@ export const VOICES: Voice[] = [
     lo: 60,
     hi: 84,
   },
-  { id: "tenor", label: "Tenor", detail: "High Male · C3–E5", lo: 48, hi: 76 },
+  { id: "tenor", label: "Tenor", detail: "High Male · C3–C5", lo: 48, hi: 72 },
   {
     id: "baritone",
     label: "Baritone",
-    detail: "Med Male · G2–E4",
-    lo: 43,
-    hi: 64,
+    detail: "Med Male · A2–A4",
+    lo: 45,
+    hi: 69,
   },
   { id: "bass", label: "Bass", detail: "Low Male · E2–E4", lo: 40, hi: 64 },
 ];
