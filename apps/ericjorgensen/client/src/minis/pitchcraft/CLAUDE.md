@@ -88,7 +88,11 @@ mean deviation < 110 cents over a ~1.1s window.)
     pitch target is **hidden** — dim full-height timing columns replace the note bars so
     the visual can't be used to check pitch.
 
-Note: pitch detection is clamped to 70–1200 Hz so Soprano's C6 (~1046 Hz) registers.
+Note: pitch detection is clamped to 70–1250 Hz so Soprano's C6 (~1046 Hz) registers
+with headroom. The live detector (`detectVoicePitch`) deduces the fundamental from
+the harmonic set (not the lowest peak) so a high note whose fundamental partial is
+weak/masked doesn't read an octave high; a per-frame median octave-snap catches
+residual single-frame flips.
 
 ## Persistence
 
@@ -133,8 +137,12 @@ Note: pitch detection is clamped to 70–1200 Hz so Soprano's C6 (~1046 Hz) regi
 
 ## File map (`src/`)
 
-- `audio/pitch.ts` — `autoCorrelate(buf, sampleRate)` (ACF + parabolic interpolation,
-  RMS gate) and `PitchAnalyser` (wraps an `AnalyserNode`, returns Hz per frame).
+- `audio/pitch.ts` — `detectVoicePitch(buf, sampleRate)` (FFT harmonic-set matcher:
+  finds the peaks, groups them by a common fundamental, and reports the DEDUCED
+  fundamental with a consecutive-harmonic guard) and `PitchAnalyser` (wraps an
+  `AnalyserNode`, adds the per-frame octave-snap/smoothing, returns Hz per frame).
+  `autoCorrelate` is an older ACF detector kept for reference; the game uses
+  `detectVoicePitch`.
 - `audio/tone.ts` — `TonePlayer` (click-free sine preview of a target note).
 - `game/notes.ts` — note math (`midiName/midiHz/hzMidi`), `VOICES`, `LEVELS`,
   `noteSet(voiceId, level)`, `buildSequence(set)`, cycle timing + `phaseOf`.

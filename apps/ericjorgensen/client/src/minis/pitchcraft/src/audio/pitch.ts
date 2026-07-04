@@ -1,8 +1,10 @@
 // pitch.ts — microphone pitch detection (framework-free)
 //
-// autoCorrelate() finds the fundamental frequency of a time-domain buffer using
-// autocorrelation with parabolic interpolation and an RMS silence gate. Tuned for
-// the singing voice and clamped to 70–1200 Hz (covers Bass E2 up to Soprano C6).
+// detectVoicePitch() is the live detector: an FFT harmonic-set matcher tuned for
+// the singing voice, clamped to 70–1250 Hz (covers Bass E2 up to Soprano C6 with
+// headroom). See the block comment above findHarmonicSet for the algorithm.
+// (autoCorrelate() below is an older autocorrelation detector, kept for
+// reference; the game does not use it.)
 //
 // PitchAnalyser wraps a Web Audio AnalyserNode so you can read one pitch per frame.
 
@@ -131,18 +133,19 @@ export function subtractTone(buf: Float32Array, sampleRate: number, hz: number):
  *     near integer multiples of a common fundamental); aim for ≥ 3. If none is
  *     found, loosen the peak criteria and pull in 4 more peaks, up to two more
  *     tries.
- *  3. If a set is found, f0/f1/f2 are its first/second/third peaks.
+ *  3. If a set is found, f0 is the fundamental DEDUCED from it — a weighted
+ *     average of each member's frequency divided by its harmonic number — so a
+ *     set of [2·f0, 3·f0, 4·f0] with the fundamental partial missing still reads
+ *     ≈f0, not 2·f0 (the octave-high error). f1/f2 are 2·f0 / 3·f0.
  *  4. If not, f0 is the best-guess peak and f1/f2 are its expected harmonics.
  *
- * Jump smoothing (applied per-frame in PitchAnalyser, see smoothJump): if f0
- * leaps more than 10 semitones from the last reported value, the report only
- * moves 10 % of the way there, so a one-frame octave glitch can't whip the
- * pitch around.
- *
- * NOTE: f0 is the lowest peak of the set. subtractTone() cancels the singer's
- * own fundamental while they are on-pitch, which can leave the 2nd harmonic as
- * the lowest peak (an octave-high read). The markers drawn on the live spectrum
- * make that visible.
+ * Octave robustness: (a) deducing the fundamental (step 3) rather than reporting
+ * the lowest peak fixes the top-of-soprano-range octave-up read where a formant
+ * boosts a harmonic above the fundamental; (b) per-frame the PitchAnalyser
+ * applies a short median + octave-snap and an octave-aware low-confidence
+ * fallback (see medianF0 / octaveSnap / smoothJump) so residual single-frame
+ * flips can't whip the pitch around. The live-spectrum markers make f0/f1/f2
+ * visible for debugging.
  * ------------------------------------------------------------------------ */
 
 // In-place iterative radix-2 Cooley–Tukey FFT; length must be a power of two.
@@ -195,9 +198,17 @@ interface SpectralPeak {
   m: number; // peak amplitude
 }
 
-const SEARCH_HZ = 4000; // search peaks past 2400 so 3 harmonics fit for high notes
+const SEARCH_HZ = 4400; // search high enough that 4 harmonics of Soprano C6 (~1046
+// Hz → 4184 Hz) fit, so the top note still forms a harmonic set when its own
+// fundamental partial is weak.
 const MERGE_HZ = 40; // a peak must dominate ±this; rejects window side lobes
 const HARMONIC_TOL = 0.04; // a peak counts as harmonic h if within 4 % of h·f0
+
+// Reported-fundamental clamp. Ceiling sits a little above Soprano C6 (~1046 Hz)
+// so a slightly sharp top note isn't distorted.
+const F0_MIN = 70;
+const F0_MAX = 1250;
+const clampF0 = (f: number): number => Math.min(F0_MAX, Math.max(F0_MIN, f));
 
 // Noise-floor cutoff as a fraction of the strongest peak. Scales with the
 // signal, so a quiet low note isn't lost the way a fixed amplitude cutoff would
@@ -205,9 +216,9 @@ const HARMONIC_TOL = 0.04; // a peak counts as harmonic h if within 4 % of h·f0
 export const PEAK_CUTOFF_FRAC = 0.05;
 
 export interface VoicePitch {
-  f0: number; // reported fundamental (Hz) — used for scoring
-  f1: number; // 2nd harmonic marker (detected, or 2·f0 when guessing)
-  f2: number; // 3rd harmonic marker (detected, or 3·f0 when guessing)
+  f0: number; // reported fundamental (Hz) — deduced from the set, used for scoring
+  f1: number; // 2nd harmonic marker (2·f0)
+  f2: number; // 3rd harmonic marker (3·f0)
   confident: boolean; // true = a harmonic set was found; false = best-guess
 }
 
@@ -251,13 +262,22 @@ function findPeaks(
   return peaks;
 }
 
+interface HarmonicSet {
+  members: SpectralPeak[]; // the harmonic peaks, sorted by frequency
+  f0: number; // the deduced fundamental (may sit below members[0] if it's absent)
+}
+
 /**
  * Largest subset of `peaks` whose frequencies are near-integer multiples of a
- * common fundamental, returned sorted by frequency. Ties prefer the larger
- * fundamental (so f0 and not f0/2 explains the same peaks). Null if no set of
- * three or more is found.
+ * common fundamental. Returns the members (sorted by frequency) AND the deduced
+ * fundamental — a magnitude-weighted average of each member's implied f0
+ * (memberFreq / its harmonic number). So a set like [2·f0, 3·f0, 4·f0] (the
+ * fundamental partial missing, as at the top of a soprano's range) yields ≈f0
+ * rather than the lowest peak 2·f0 — the classic octave-high error. Ties in
+ * membership prefer the larger fundamental (so f0, not f0/2, explains the same
+ * peaks). Null if no set of three or more is found.
  */
-function findHarmonicSet(peaks: SpectralPeak[]): SpectralPeak[] | null {
+function findHarmonicSet(peaks: SpectralPeak[]): HarmonicSet | null {
   if (peaks.length < 3) return null;
 
   // Candidate fundamentals: each peak read as harmonic 1..4.
@@ -270,6 +290,7 @@ function findHarmonicSet(peaks: SpectralPeak[]): SpectralPeak[] | null {
   cands.sort((a, b) => b - a); // descending → ties keep the larger fundamental
 
   let best: SpectralPeak[] | null = null;
+  let bestF0c = 0;
   let bestCount = 0;
   let bestStrength = 0;
   for (const f0c of cands) {
@@ -290,11 +311,36 @@ function findHarmonicSet(peaks: SpectralPeak[]): SpectralPeak[] | null {
       bestCount = members.length;
       bestStrength = strength;
       best = members;
+      bestF0c = f0c;
     }
   }
   if (!best) return null;
   best.sort((a, b) => a.f - b.f);
-  return best;
+
+  // Deduce the fundamental: magnitude-weighted mean of memberFreq / harmonicNo,
+  // precise even when the fundamental peak itself is missing.
+  const hOf = (p: SpectralPeak) => Math.round(p.f / bestF0c);
+  let wsum = 0;
+  let msum = 0;
+  for (const p of best) {
+    wsum += p.m * (p.f / hOf(p));
+    msum += p.m;
+  }
+  let f0 = msum > 0 ? wsum / msum : bestF0c;
+
+  // Guard against inferring a fundamental BELOW the lowest detected peak on a
+  // sparse/coincidental set: trust the deduced value outright when the lowest
+  // member IS the fundamental (h=1); otherwise only divide down when the members
+  // form a genuine harmonic run (contain a consecutive pair h, h+1). Failing
+  // that, fall back to the lowest peak (the old behavior).
+  const lowestH = hOf(best[0]);
+  if (lowestH > 1) {
+    const hs = best.map(hOf).sort((a, b) => a - b);
+    const run = hs.some((h, i) => i > 0 && h === hs[i - 1] + 1);
+    if (!run) f0 = best[0].f;
+  }
+
+  return { members: best, f0 };
 }
 
 /**
@@ -306,6 +352,27 @@ export function smoothJump(last: number, next: number): number {
   const semis = Math.abs(12 * Math.log2(next / last));
   if (semis <= 10) return next;
   return last * Math.pow(next / last, 0.1);
+}
+
+/**
+ * Snap `f0` back to a reference pitch's octave when it lands within `tolCents`
+ * of exactly an octave above or below `ref` — i.e. correct a single-frame octave
+ * flip against a recent stable pitch. Only fires very near ±1200 cents, so real
+ * stepwise motion (and deliberate non-octave intervals) pass through untouched.
+ */
+export function octaveSnap(f0: number, ref: number, tolCents = 40): number {
+  if (f0 <= 0 || ref <= 0) return f0;
+  const c = 1200 * Math.log2(f0 / ref);
+  if (Math.abs(c - 1200) < tolCents) return f0 / 2; // an octave high → down
+  if (Math.abs(c + 1200) < tolCents) return f0 * 2; // an octave low → up
+  return f0;
+}
+
+/** Median of up to three recent values (log-domain order == linear order here). */
+export function median3(vals: number[]): number {
+  if (vals.length === 0) return 0;
+  const s = [...vals].sort((a, b) => a - b);
+  return s[s.length >> 1];
 }
 
 /**
@@ -378,15 +445,15 @@ export function detectVoicePitch(buf: Float32Array, sampleRate: number): VoicePi
         }
     }
     const set = findHarmonicSet(peaks.slice(0, passes[t].count));
-    if (set && set.length >= 3) {
-      const f0 = Math.min(1200, Math.max(70, set[0].f));
-      return { f0, f1: set[1].f, f2: set[2].f, confident: true };
+    if (set && set.members.length >= 3) {
+      const f0 = clampF0(set.f0);
+      return { f0, f1: 2 * f0, f2: 3 * f0, confident: true };
     }
   }
 
   // No harmonic set: fall back to the best-guess peak and its expected partials.
   if (guess > 0) {
-    const f0 = Math.min(1200, Math.max(70, guess));
+    const f0 = clampF0(guess);
     return { f0, f1: f0 * 2, f2: f0 * 3, confident: false };
   }
   return null;
@@ -396,6 +463,8 @@ export class PitchAnalyser {
   readonly analyser: AnalyserNode;
   private buf: Float32Array<ArrayBuffer>;
   private lastF0 = -1; // for jump smoothing across frames
+  private lastConfidentF0 = -1; // for the octave-aware low-confidence fallback
+  private recent: number[] = []; // last few confident f0s, for the median snap
 
   constructor(ctx: AudioContext, source: AudioNode, fftSize = 2048) {
     this.analyser = ctx.createAnalyser();
@@ -408,9 +477,13 @@ export class PitchAnalyser {
   /**
    * Detect the vocal pitch this frame, or null for silence. Returns the
    * fundamental plus the next two harmonic markers. Pass `cancelHz` to subtract
-   * a known reference tone before detection. f0 is jump-smoothed across frames
-   * (see smoothJump); a silent frame resets the smoother so the next note reads
-   * directly.
+   * a known reference tone before detection.
+   *
+   * Octave robustness across frames: a low-confidence guess sitting an octave
+   * above the last confident pitch is pulled down; f0 is then octave-snapped to
+   * the median of the recent confident reads (killing single-frame flips) and
+   * jump-smoothed (see octaveSnap / median3 / smoothJump). A silent frame resets
+   * this history so a legitimately different next note reads directly.
    */
   read(cancelHz?: number): VoicePitch | null {
     this.analyser.getFloatTimeDomainData(this.buf);
@@ -419,10 +492,28 @@ export class PitchAnalyser {
     const r = detectVoicePitch(this.buf, this.analyser.context.sampleRate);
     if (!r) {
       this.lastF0 = -1;
+      this.lastConfidentF0 = -1;
+      this.recent = [];
       return null;
     }
+
+    // A formant-boosted 2nd-harmonic best-guess reads ~2× the last confident
+    // pitch; snap it back down.
+    if (!r.confident) r.f0 = octaveSnap(r.f0, this.lastConfidentF0);
+
+    // Correct a residual single-frame octave flip against the recent median.
+    r.f0 = octaveSnap(r.f0, median3(this.recent));
+
     r.f0 = smoothJump(this.lastF0, r.f0);
+    r.f1 = 2 * r.f0;
+    r.f2 = 3 * r.f0;
     this.lastF0 = r.f0;
+
+    if (r.confident) {
+      this.lastConfidentF0 = r.f0;
+      this.recent.push(r.f0);
+      if (this.recent.length > 3) this.recent.shift();
+    }
     return r;
   }
 }
