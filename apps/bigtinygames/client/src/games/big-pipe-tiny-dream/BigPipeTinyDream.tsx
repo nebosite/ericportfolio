@@ -21,6 +21,7 @@ import {
 import { loadSprites, spriteUrl, SpriteImages, SpriteName } from "./sprites";
 import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
+import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
 import styles from "./BigPipeTinyDream.module.css";
 
@@ -30,7 +31,7 @@ import styles from "./BigPipeTinyDream.module.css";
 const TILE = 40;
 const WATER_W = 8; // the stream drawn inside the pipe casing
 const GAME_SLUG = "big-pipe-tiny-dream";
-const FAST_SPEED = 100; // px/s when the speed toggle is on "fast"
+const FAST_SPEED = 200; // px/s when the speed toggle is on "fast"
 const HALO_RADIUS = 70; // ~140px-wide glow that rides each advancing stream head
 const SHADOW_RADIUS = 100; // ~200px-wide dark pool behind every drain
 const MAX_HALOS = 24; // cap the per-head glows so a wide split stays cheap
@@ -264,6 +265,12 @@ export default function BigPipeTinyDream() {
   const toggleFast = useCallback(() => {
     fastRef.current = !fastRef.current;
     setFast(fastRef.current);
+    sfxRef.current?.resume();
+    // Hitting the speed control also releases the water immediately (skips any
+    // remaining countdown).
+    if (phaseRef.current === "playing" && !floodStartedRef.current) {
+      flowAtRef.current = performance.now();
+    }
   }, []);
 
   // Click a bank slot: pick up a free piece (cursor becomes it), or click the
@@ -654,7 +661,11 @@ export default function BigPipeTinyDream() {
         // Drop the free piece here (can't replace the source, a drain, or a wet
         // pipe); the piece is spent and its slot stays empty.
         if (isLocked(t) || t.kind === "terminus") return;
-        grid.tiles[idx(grid, gx, gy)] = { kind: cur.kind, rot: 0, water: [false, false, false, false] };
+        grid.tiles[idx(grid, gx, gy)] = {
+          kind: cur.kind,
+          rot: 0,
+          water: [false, false, false, false],
+        };
         setCursor(null);
       } else {
         if (isLocked(t)) return;
@@ -753,11 +764,7 @@ export default function BigPipeTinyDream() {
               onClick={() => onSlot(i)}
               disabled={phase !== "playing"}
               aria-label={
-                kind
-                  ? `Take ${kind} piece`
-                  : cursor?.fromSlot === i
-                    ? "Return piece"
-                    : "Empty slot"
+                kind ? `Take ${kind} piece` : cursor?.fromSlot === i ? "Return piece" : "Empty slot"
               }
               title={kind ? `Place a ${kind}` : "Empty"}
             >
@@ -792,6 +799,7 @@ export default function BigPipeTinyDream() {
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
             </button>
+            <VolumeControl />
             <FeedbackPanel entity={GAME_SLUG} />
           </div>
         )}

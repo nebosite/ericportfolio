@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BigPacEngine, StartOpts } from "./engine";
 import FeedbackPanel from "../../components/FeedbackPanel";
+import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
 import styles from "./BigPacTinyMan.module.css";
 
@@ -217,6 +218,7 @@ export default function BigPacTinyManPage() {
               Arrow keys / WASD / gamepad — or swipe &amp; tap on touch. Clear every dot to level
               up.
             </p>
+            <VolumeControl />
             <FeedbackPanel entity={GAME} />
           </div>
         )}

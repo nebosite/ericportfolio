@@ -2,6 +2,7 @@ import rotateUrl from "./assets/sounds/rotate.wav";
 import flowUrl from "./assets/sounds/flow.wav";
 import levelupUrl from "./assets/sounds/levelup.wav";
 import gameoverUrl from "./assets/sounds/gameover.wav";
+import { getVolume } from "../../lib/volume";
 
 // Sound effects for Big Pipe Tiny Dream. Plays the clips in this game's
 // assets/sounds/ folder through the Web Audio API (decoded once, fired as cheap
@@ -46,12 +47,14 @@ export class Sfx {
   }
 
   play(name: SoundName, gain = 0.5): void {
+    const master = getVolume();
+    if (master <= 0) return; // muted
     const buffer = this.buffers.get(name);
     if (!buffer) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     const vol = this.ctx.createGain();
-    vol.gain.value = gain;
+    vol.gain.value = gain * master;
     source.connect(vol).connect(this.ctx.destination);
     source.start();
   }

@@ -131,7 +131,10 @@ itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
   water is a **collision** — only that branch dies.
 - **Score** = **one point per pixel the water travels**, summed over all live
   streams, accumulated across levels; submitted to the leaderboard on game over.
-- **Speed toggle** overrides level speed with a flat fast 100 px/s.
+- **Speed toggle** overrides level speed with a flat fast 200 px/s, and hitting
+  it also releases the water at once (skips any remaining countdown).
+- **Volume** is a shared master setting (`src/lib/volume.ts` + the
+  `VolumeControl` on the title screen), applied by every game's `Sfx.play`.
 - **Sound** = placeholder beeps (`assets/sounds/*.wav`) for rotate / flow-start /
   level-complete / game-over. Swap the WAVs for nicer cues when ready.
 

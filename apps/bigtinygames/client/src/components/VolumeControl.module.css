@@ -1,0 +1,38 @@
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 6px;
+  background: rgba(13, 13, 20, 0.5);
+}
+
+.mute {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.label {
+  color: var(--coin-gold);
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+}
+
+.slider {
+  width: 8rem;
+  max-width: 40vw;
+  accent-color: var(--phosphor);
+  cursor: pointer;
+}
+
+.pct {
+  color: var(--phosphor-dim);
+  font-size: 0.8rem;
+  min-width: 3.2rem;
+  text-align: right;
+}

@@ -2,6 +2,7 @@ import wakaUrl from "./assetts/sounds/waka.wav";
 import powerUrl from "./assetts/sounds/power.mp3";
 import fruitUrl from "./assetts/sounds/fruit.wav";
 import eatghostUrl from "./assetts/sounds/eatghost.wav";
+import { getVolume } from "../../lib/volume";
 
 // Sound effects for Big Pac Tiny Man. Plays the clips in this game's
 // assetts/sounds/ folder through the Web Audio API, which decodes them once
@@ -50,12 +51,14 @@ export class Sfx {
   }
 
   play(name: SoundName, gain = 0.5): void {
+    const master = getVolume();
+    if (master <= 0) return; // muted
     const buffer = this.buffers.get(name);
     if (!buffer) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     const vol = this.ctx.createGain();
-    vol.gain.value = gain;
+    vol.gain.value = gain * master;
     source.connect(vol).connect(this.ctx.destination);
     source.start();
   }

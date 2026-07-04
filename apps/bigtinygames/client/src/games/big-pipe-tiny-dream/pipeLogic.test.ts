@@ -218,13 +218,7 @@ describe("startFlow", () => {
 describe("advanceHead", () => {
   it("wraps across the edge into an aligned neighbour", () => {
     // (2,0) heads east; the board wraps to column 0, which opens west → continue.
-    const g = makeGrid(
-      3,
-      1,
-      [tile("straight", 1), tile("start", 0, E), tile("straight", 1)],
-      1,
-      0,
-    );
+    const g = makeGrid(3, 1, [tile("straight", 1), tile("start", 0, E), tile("straight", 1)], 1, 0);
     const results = advanceHead(g, head(2, 0, W, [E]));
     expect(results[0].type).toBe("continue");
     if (results[0].type === "continue") expect(results[0].head).toMatchObject({ x: 0, y: 0 });
