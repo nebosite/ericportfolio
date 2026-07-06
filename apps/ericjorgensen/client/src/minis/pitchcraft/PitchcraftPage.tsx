@@ -2,7 +2,18 @@ import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
-import { VOICES, LEVELS, VoiceId, LevelId, noteSet, midiName, notesPerTune } from "./src/game/notes";
+import { RangeExplorerEngine, RangeHud, blankRangeHud } from "./rangeEngine";
+import { RangeResult, spanText } from "./src/game/rangeFlower";
+import { trackEvent } from "../../lib/analytics";
+import {
+  VOICES,
+  LEVELS,
+  VoiceId,
+  LevelId,
+  noteSet,
+  midiName,
+  notesPerTune,
+} from "./src/game/notes";
 import { drawPitchGraph, meanStd, niceAxisStep, GraphBar } from "./src/game/pitchGraph";
 import {
   Stats,
@@ -34,7 +45,7 @@ const VOICE_DISPLAY_ORDER: VoiceId[] = [
   "bass",
 ];
 
-type Phase = "intro" | "playing" | "done";
+type Phase = "intro" | "playing" | "done" | "range" | "rangeDone";
 
 const label: CSSProperties = {
   fontFamily: MONO,
@@ -46,6 +57,7 @@ const label: CSSProperties = {
 
 export default function PitchcraftPage() {
   const engineRef = useRef<PitchcraftEngine | null>(null);
+  const rangeRef = useRef<RangeExplorerEngine | null>(null);
   const statsRef = useRef<Stats>({ ...DEFAULT_STATS });
 
   const [phase, setPhase] = useState<Phase>("intro");
@@ -57,7 +69,10 @@ export default function PitchcraftPage() {
   const [micError, setMicError] = useState<MicError | null>(null);
   // The "before you begin" card fades in over the stage on start; the note
   // session waits until the player dismisses it (see startSession / dismissIntro).
+  // The Range Explorer game reuses it for its own intro card.
   const [showIntro, setShowIntro] = useState(false);
+  const [rangeHud, setRangeHud] = useState<RangeHud>(blankRangeHud());
+  const [rangeResult, setRangeResult] = useState<RangeResult | null>(null);
 
   // Load saved stats/history and restore the last voice/level.
   useEffect(() => {
@@ -73,6 +88,7 @@ export default function PitchcraftPage() {
     return () => {
       alive = false;
       engineRef.current?.destroy();
+      rangeRef.current?.destroy();
     };
   }, []);
 
@@ -82,7 +98,7 @@ export default function PitchcraftPage() {
   // we reach home. phaseRef lets the (dep-stable) listener read the live phase.
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
-  const inRound = phase === "playing" || phase === "done";
+  const inRound = phase !== "intro";
   useEffect(() => {
     if (!inRound) return;
     window.history.pushState({ pitchcraft: true }, "");
@@ -90,6 +106,9 @@ export default function PitchcraftPage() {
       if (phaseRef.current === "playing") {
         engineRef.current?.stop(); // quit → "done" recap
         window.history.pushState({ pitchcraft: true }, ""); // re-arm for the next Back
+      } else if (phaseRef.current === "range") {
+        rangeRef.current?.finish(); // quit exploring → range verdict
+        window.history.pushState({ pitchcraft: true }, "");
       } else {
         returnHome(); // recap → home
       }
@@ -147,10 +166,13 @@ export default function PitchcraftPage() {
     setPhase("done");
   };
 
-  // Leave the finished level and go back to the home screen.
+  // Leave the finished level (or game) and go back to the home screen.
   const returnHome = () => {
     engineRef.current?.destroy();
     engineRef.current = null;
+    rangeRef.current?.destroy();
+    rangeRef.current = null;
+    setRangeResult(null);
     setPhase("intro");
   };
 
@@ -185,6 +207,50 @@ export default function PitchcraftPage() {
   };
 
   const endSession = () => engineRef.current?.stop();
+
+  // ---- Range Explorer game ----
+
+  const handleRangeEnd = (result: RangeResult | null) => {
+    setRangeResult(result);
+    setPhase("rangeDone");
+    trackEvent("game_over", {
+      game: "range_explorer",
+      span: result ? result.hiMidi - result.loMidi : 0,
+      voice: result?.voice.id ?? "none",
+    });
+  };
+
+  const startRange = () => {
+    rangeRef.current?.destroy(); // a retry replaces the finished engine
+    const engine = new RangeExplorerEngine({ onHud: setRangeHud, onEnd: handleRangeEnd });
+    rangeRef.current = engine;
+    setMicError(null);
+    setRangeHud(blankRangeHud());
+    setRangeResult(null);
+    setShowIntro(true);
+    setPhase("range");
+    trackEvent("game_start", { game: "range_explorer" });
+    engine.start().catch((err: MicError) => {
+      engine.destroy();
+      rangeRef.current = null;
+      setShowIntro(false);
+      setPhase("intro");
+      setMicError(err === "denied" ? "denied" : "error");
+    });
+  };
+
+  const dismissRangeIntro = () => {
+    setShowIntro(false);
+    rangeRef.current?.begin();
+  };
+
+  const finishRange = () => rangeRef.current?.finish();
+
+  // Adopt the suggested voice as the session's voice range and head home.
+  const adoptVoice = () => {
+    if (rangeResult) chooseVoice(rangeResult.voice.id);
+    returnHome();
+  };
 
   const { lo, hi } = noteSet(voiceId, level);
   const levelTitle = LEVELS.find((l) => l.n === level)?.title ?? "";
@@ -261,6 +327,31 @@ export default function PitchcraftPage() {
                     </button>
                   );
                 })}
+              </div>
+
+              <div style={{ ...label, marginTop: 24 }}>Games</div>
+              <div className={styles.gamesGrid}>
+                <button
+                  type="button"
+                  className={styles.opt}
+                  style={optStyle(false)}
+                  onClick={startRange}
+                >
+                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
+                    Range Explorer <span style={{ color: "#F4B23E" }}>❀</span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#565c6a",
+                      marginTop: 3,
+                    }}
+                  >
+                    Grow a flower with your voice — sing high and low, and it maps your range
+                  </div>
+                </button>
               </div>
 
               <div style={{ ...label, marginTop: 24 }}>Difficulty</div>
@@ -520,40 +611,41 @@ export default function PitchcraftPage() {
                 {phase === "playing" && hud.vibrato && (
                   <div className={styles.vibBadge}>Vibrato ×10</div>
                 )}
-              {showIntro && (
-                <div className={styles.introCard}>
-                  <div className={styles.introInner}>
-                    <div className={styles.introKicker}>Before you begin</div>
-                    <p className={styles.introText}>
-                      It helps to be somewhere <em>quiet</em>, and to sing out with your full voice —
-                      the way you&rsquo;d call a friend&rsquo;s name from across the street. Don&rsquo;t
-                      hold back.
-                    </p>
-                    <p className={styles.introText}>
-                      You&rsquo;ll hear a tone. When the colored bar crosses the play line, match it
-                      by singing <em>&ldquo;ooo,&rdquo; &ldquo;ooh,&rdquo;</em> or{" "}
-                      <em>&ldquo;aah&rdquo;</em> — loudly. A wiggly line traces your actual pitch, and
-                      you earn more points the more of it you keep inside the bar.
-                    </p>
-                    <p className={styles.introText}>
-                      Keep trying. Even practiced singers struggle with pitch, and you&rsquo;ll get
-                      better over time. Challenge yourself to sing every day for two weeks and watch
-                      your score change.
-                    </p>
-                    <button type="button" className={styles.introBtn} onClick={dismissIntro}>
-                      I&rsquo;m ready — start singing
-                    </button>
+                {showIntro && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>Before you begin</div>
+                      <p className={styles.introText}>
+                        It helps to be somewhere <em>quiet</em>, and to sing out with your full
+                        voice — the way you&rsquo;d call a friend&rsquo;s name from across the
+                        street. Don&rsquo;t hold back.
+                      </p>
+                      <p className={styles.introText}>
+                        You&rsquo;ll hear a tone. When the colored bar crosses the play line, match
+                        it by singing <em>&ldquo;ooo,&rdquo; &ldquo;ooh,&rdquo;</em> or{" "}
+                        <em>&ldquo;aah&rdquo;</em> — loudly. A wiggly line traces your actual pitch,
+                        and you earn more points the more of it you keep inside the bar.
+                      </p>
+                      <p className={styles.introText}>
+                        Keep trying. Even practiced singers struggle with pitch, and you&rsquo;ll
+                        get better over time. Challenge yourself to sing every day for two weeks and
+                        watch your score change.
+                      </p>
+                      <button type="button" className={styles.introBtn} onClick={dismissIntro}>
+                        I&rsquo;m ready — start singing
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
                 {phase === "done" && (
                   <div className={styles.introCard}>
                     <div className={styles.introInner}>
                       <div className={styles.introKicker}>Level complete</div>
                       <p className={styles.introText}>
-                        Nice work. Look at the graph on the right <span className={styles.arrow}>→</span>{" "}
-                        to see how <em>flat</em> or <em>sharp</em> you landed on each note, and how
-                        steady your pitch was — the wider the bar, the more it wandered.
+                        Nice work. Look at the graph on the right{" "}
+                        <span className={styles.arrow}>→</span> to see how <em>flat</em> or{" "}
+                        <em>sharp</em> you landed on each note, and how steady your pitch was — the
+                        wider the bar, the more it wandered.
                       </p>
                       <button type="button" className={styles.introBtn} onClick={returnHome}>
                         Return home
@@ -597,6 +689,192 @@ export default function PitchcraftPage() {
           </div>
         )}
 
+        {(phase === "range" || phase === "rangeDone") && (
+          <div style={{ marginTop: 24 }}>
+            <div className={styles.hudRow}>
+              <div style={{ minWidth: 150 }}>
+                <div style={{ ...label, fontSize: 10 }}>Petals</div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 42,
+                    lineHeight: 1,
+                    color: "#f3efe6",
+                    marginTop: 4,
+                  }}
+                >
+                  {rangeHud.petals}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 8 }}>
+                  {rangeHud.heldSec.toFixed(0)}s held
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", flex: 1 }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "3px 12px",
+                    borderRadius: 20,
+                    background: "rgba(244,178,62,0.06)",
+                    border: "1px solid #3a3320",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      color: "#b9863a",
+                    }}
+                  >
+                    {phase === "range" ? "Explore" : "Your range"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: SERIF,
+                    fontStyle: "italic",
+                    fontWeight: 300,
+                    fontSize: 21,
+                    lineHeight: 1.35,
+                    color: "#c9cdd6",
+                    marginTop: 8,
+                    maxWidth: 520,
+                    marginLeft: "auto",
+                    marginRight: "auto",
+                  }}
+                >
+                  {phase === "range" ? rangeHud.prompt : "The flower you grew."}
+                </div>
+              </div>
+
+              <div style={{ minWidth: 150, textAlign: "right" }}>
+                <div style={{ ...label, fontSize: 10 }}>You</div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 42,
+                    lineHeight: 1,
+                    color: rangeHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    marginTop: 4,
+                  }}
+                >
+                  {rangeHud.liveName}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                  {rangeHud.liveHz || "silent"}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.board}>
+              <div className={`${styles.stage} ${styles.stageWide}`}>
+                <canvas ref={(el) => rangeRef.current?.setCanvas(el)} className={styles.canvas} />
+                {showIntro && phase === "range" && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>Range Explorer</div>
+                      <p className={styles.introText}>
+                        Sing any note and <em>hold it</em>. A petal blooms where your pitch lands —
+                        low notes glow red, high notes violet — and the longer you hold, the further
+                        it grows.
+                      </p>
+                      <p className={styles.introText}>
+                        Explore <em>low</em> and <em>high</em>. Push to the edges of your voice and
+                        hold your strongest notes. When your flower is as big as you can make it,
+                        we&rsquo;ll read it and suggest your singing range.
+                      </p>
+                      <button type="button" className={styles.introBtn} onClick={dismissRangeIntro}>
+                        I&rsquo;m ready — let&rsquo;s explore
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {phase === "rangeDone" && rangeResult && (
+                  <div className={styles.introCard}>
+                    <div className={styles.rangeResultInner}>
+                      <div className={styles.introKicker}>Your flower says&hellip;</div>
+                      <div
+                        style={{
+                          fontFamily: SERIF,
+                          fontWeight: 500,
+                          fontSize: 40,
+                          lineHeight: 1,
+                          color: "#F4B23E",
+                        }}
+                      >
+                        {rangeResult.voice.label}
+                      </div>
+                      <p className={styles.introText}>
+                        You held notes from <em>{rangeResult.loName}</em> to{" "}
+                        <em>{rangeResult.hiName}</em> — a span of{" "}
+                        {spanText(rangeResult.loMidi, rangeResult.hiMidi)}. Your range against the
+                        six voice types:
+                      </p>
+                      <RangeChart result={rangeResult} />
+                      <div className={styles.rangeLegend}>
+                        <span className={styles.rangeLegendItem}>
+                          <i style={{ background: "#f3efe6" }} /> Your range
+                        </span>
+                        <span className={styles.rangeLegendItem}>
+                          <i style={{ background: "#F4B23E" }} /> Best female ·{" "}
+                          {rangeResult.female.label}
+                        </span>
+                        <span className={styles.rangeLegendItem}>
+                          <i style={{ background: "#35C4B5" }} /> Best male ·{" "}
+                          {rangeResult.male.label}
+                        </span>
+                      </div>
+                      <div className={styles.introBtnRow}>
+                        <button type="button" className={styles.introBtn} onClick={adoptVoice}>
+                          Sing as {rangeResult.voice.label}
+                        </button>
+                        <button type="button" className={styles.introBtnGhost} onClick={returnHome}>
+                          Return home
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {phase === "rangeDone" && !rangeResult && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>Keep exploring</div>
+                      <p className={styles.introText}>
+                        There wasn&rsquo;t enough <em>strongly sustained</em> singing to read a
+                        range yet. Hold each note steady for a couple of seconds — a long, clear{" "}
+                        <em>&ldquo;ahh&rdquo;</em> — and grow a few solid petals near each other.
+                      </p>
+                      <div className={styles.introBtnRow}>
+                        <button type="button" className={styles.introBtn} onClick={startRange}>
+                          Try again
+                        </button>
+                        <button type="button" className={styles.introBtnGhost} onClick={returnHome}>
+                          Return home
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {phase === "range" && !showIntro && (
+              <div className={styles.playFooter}>
+                <div className={styles.hint}>
+                  Hold a note to grow its petal · strongly-held notes set your range
+                </div>
+                <button type="button" className={styles.rangeFinishBtn} onClick={finishRange}>
+                  I&rsquo;m done — show my range
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -606,6 +884,148 @@ function optStyle(selected: boolean): CSSProperties {
   return selected
     ? { background: "rgba(244,178,62,0.14)", borderColor: "#F4B23E" }
     : { background: "#16181f", borderColor: "#23262f" };
+}
+
+// The Range Explorer verdict chart: all six voice ranges as horizontal bars on a
+// shared MIDI axis, with the player's sung range overlaid as a band and the
+// best-matching female (amber) and male (teal) voices highlighted.
+function RangeChart({ result }: { result: RangeResult }) {
+  const rows = [...VOICES].sort((a, b) => b.hi - a.hi); // highest voice on top
+  const domainLo = Math.min(result.loMidi, ...VOICES.map((v) => v.lo)) - 1;
+  const domainHi = Math.max(result.hiMidi, ...VOICES.map((v) => v.hi)) + 1;
+  const VB_W = 720;
+  const padL = 134;
+  const padR = 18;
+  const padT = 26; // headroom for the sung-range labels
+  const rowH = 34;
+  const plotBottom = padT + rows.length * rowH;
+  const VB_H = plotBottom + 30;
+  const xFor = (m: number) =>
+    padL + ((m - domainLo) / (domainHi - domainLo)) * (VB_W - padL - padR);
+  const sungL = xFor(result.loMidi);
+  const sungR = xFor(result.hiMidi);
+  const cLines: number[] = [];
+  for (let m = Math.ceil(domainLo); m <= domainHi; m++) if (m % 12 === 0) cLines.push(m);
+
+  return (
+    <svg
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      className={styles.rangeChart}
+      role="img"
+      aria-label={`Your range ${result.loName} to ${result.hiName}, shown against the six voice types`}
+    >
+      {/* The sung range as a translucent band. */}
+      <rect
+        x={sungL}
+        y={padT}
+        width={Math.max(2, sungR - sungL)}
+        height={plotBottom - padT}
+        fill="rgba(255,255,255,0.07)"
+      />
+
+      {/* C-octave gridlines + labels. */}
+      {cLines.map((m) => (
+        <g key={`c${m}`}>
+          <line
+            x1={xFor(m)}
+            y1={padT}
+            x2={xFor(m)}
+            y2={plotBottom}
+            stroke="rgba(255,255,255,0.06)"
+          />
+          <text
+            x={xFor(m)}
+            y={plotBottom + 14}
+            fill="#565c6a"
+            fontSize="9"
+            fontFamily={MONO}
+            textAnchor="middle"
+          >
+            {midiName(m)}
+          </text>
+        </g>
+      ))}
+
+      {/* Sung-range dashed edges + note labels. */}
+      {(
+        [
+          [sungL, result.loName],
+          [sungR, result.hiName],
+        ] as [number, string][]
+      ).map(([x, name], i) => (
+        <g key={`s${i}`}>
+          <line
+            x1={x}
+            y1={padT - 4}
+            x2={x}
+            y2={plotBottom}
+            stroke="#f3efe6"
+            strokeWidth="1"
+            strokeDasharray="3 3"
+            opacity="0.85"
+          />
+          <text
+            x={x}
+            y={padT - 10}
+            fill="#f3efe6"
+            fontSize="10"
+            fontFamily={MONO}
+            textAnchor="middle"
+          >
+            {name}
+          </text>
+        </g>
+      ))}
+
+      {/* One bar per voice; the matched female + male are highlighted. */}
+      {rows.map((v, i) => {
+        const cy = padT + i * rowH + rowH / 2;
+        const isF = v.id === result.female.id;
+        const isM = v.id === result.male.id;
+        const on = isF || isM;
+        const fill = isF
+          ? "rgba(244,178,62,0.28)"
+          : isM
+            ? "rgba(53,196,181,0.24)"
+            : "rgba(255,255,255,0.05)";
+        const stroke = isF ? "#F4B23E" : isM ? "#35C4B5" : "#3a3f4a";
+        return (
+          <g key={v.id}>
+            <text
+              x={padL - 12}
+              y={cy - 3}
+              fill={on ? "#f3efe6" : "#8a90a0"}
+              fontSize="12.5"
+              fontFamily={SERIF}
+              textAnchor="end"
+            >
+              {v.label}
+            </text>
+            <text
+              x={padL - 12}
+              y={cy + 10}
+              fill={isF ? "#b9863a" : isM ? "#2f8f86" : "#565c6a"}
+              fontSize="8.5"
+              fontFamily={MONO}
+              textAnchor="end"
+            >
+              {midiName(v.lo)}–{midiName(v.hi)}
+            </text>
+            <rect
+              x={xFor(v.lo)}
+              y={cy - 7}
+              width={Math.max(2, xFor(v.hi) - xFor(v.lo))}
+              height={14}
+              rx="3"
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={on ? 1.5 : 1}
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 function Stat({ n, l, accent }: { n: number; l: string; accent?: boolean }) {
@@ -669,7 +1089,16 @@ function PitchGraph({
       const ctx = el.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawPitchGraph(ctx, { W: w, H: h, dLow: lo - 1.5, dHigh: hi + 1.5, lo, hi, bars, compact: true });
+      drawPitchGraph(ctx, {
+        W: w,
+        H: h,
+        dLow: lo - 1.5,
+        dHigh: hi + 1.5,
+        lo,
+        hi,
+        bars,
+        compact: true,
+      });
     };
     render();
     window.addEventListener("resize", render);

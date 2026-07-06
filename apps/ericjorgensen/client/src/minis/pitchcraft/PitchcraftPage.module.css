@@ -120,6 +120,14 @@
     border-color 0.15s;
 }
 
+/* Games section (setup card): one wide tile per game. */
+.gamesGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .planBox {
   margin-top: 20px;
   padding: 12px 14px;
@@ -402,6 +410,105 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* Range Explorer: the flower stage spans the full board width (no side graph). */
+.stageWide {
+  max-width: none;
+}
+
+/* Range Explorer results overlay: wider than the plain intro card so the
+   voice-range chart has room; scrolls if the stage is short. */
+.introCard {
+  overflow-y: auto;
+}
+.rangeResultInner {
+  max-width: 780px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  animation: pc-rise 0.9s ease both;
+}
+.rangeChart {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+}
+.rangeLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+}
+.rangeLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #8a90a0;
+}
+.rangeLegendItem i {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Results-card button pair: primary + ghost secondary. */
+.introBtnRow {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.introBtnRow .introBtn {
+  margin-top: 0;
+}
+.introBtnGhost {
+  appearance: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #2c2f3a;
+  color: #8a90a0;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 15px 28px;
+  transition:
+    border-color 0.18s,
+    color 0.18s;
+}
+.introBtnGhost:hover {
+  border-color: #3a3f4a;
+  color: #c9cdd6;
+}
+
+/* The prominent "I'm done" action while exploring. */
+.rangeFinishBtn {
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid #f4b23e;
+  background: rgba(244, 178, 62, 0.12);
+  color: #f4b23e;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  transition: background 0.18s;
+}
+.rangeFinishBtn:hover {
+  background: rgba(244, 178, 62, 0.2);
 }
 
 .timer {

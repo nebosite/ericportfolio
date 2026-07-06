@@ -144,6 +144,9 @@ export class PitchcraftEngine {
   private tone: TonePlayer | null = null;
   private fft: AnalyserNode | null = null;
   private freq = new Uint8Array(0);
+  // begin() may fire (intro dismissed) before start()'s mic prompt resolves; if
+  // so we defer the note session until the audio graph is live (blank-screen guard).
+  private pendingBegin = false;
 
   private notes: PlayNote[] = [];
   private mode: "scale" | "tune" = "scale";
@@ -285,13 +288,19 @@ export class PitchcraftEngine {
     this.audio = { stream, ctx };
     // The mic + audio graph are live, but the note session waits for begin() so
     // the page can show its "before you begin" card first without the clock
-    // (and scoring) already running behind it.
+    // (and scoring) already running behind it. If the player dismissed that card
+    // while the mic prompt was still open, begin() already fired — start now.
+    if (this.pendingBegin) {
+      this.pendingBegin = false;
+      this.beginSession();
+    }
   }
 
-  /** Start the note session. Call once start() has resolved and the player has
-   *  dismissed the intro card. No-op if the mic never came up. */
+  /** Start the note session. Call once the player has dismissed the intro card.
+   *  If the mic hasn't come up yet, defer until start() resolves (pendingBegin). */
   begin(): void {
     if (this.audio) this.beginSession();
+    else this.pendingBegin = true;
   }
 
   private beginSession(): void {
@@ -356,6 +365,7 @@ export class PitchcraftEngine {
 
   /** Tear everything down (call on unmount). */
   destroy(): void {
+    this.pendingBegin = false;
     cancelAnimationFrame(this.raf);
     this.teardownAudio();
     window.removeEventListener("resize", this.onResize);
