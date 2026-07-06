@@ -43,6 +43,8 @@ For **every** change, before asking for local review / committing:
 Keep test files next to the code as `*.test.ts` / `*.test.tsx`; they are excluded
 from the production `tsc` build via each workspace's `tsconfig.json`.
 
+Always run the test suite after implementing a feature or bug fix, and only commit once tests pass.
+
 ## Deployment: catching errors before they ship
 
 Deploys run on the VPS via `scripts/deploy.sh`:
@@ -77,6 +79,9 @@ first build (`free -h` should show non-zero Swap).
 `smoke-test.sh`; when you hit a new class of deploy failure, encode the guard in
 `preflight.sh`. Turn every one-off deploy fix into a permanent pre-flight check
 rather than a thing to remember.
+
+Before deploying, verify the remote/VPS working tree is clean (no uncommitted lockfile changes) 
+so git pull cannot be blocked; verify production end-to-end after deploy.
 
 ## Standard feature: Google Analytics
 
@@ -178,3 +183,11 @@ Run `npm run format` to format everything, or `npm run format:check` to verify.
 A `.claude/settings.json` PostToolUse hook also runs `tsc --noEmit && prettier
 --write .` after each edit, so anything committed is already formatted. Match
 Prettier's output rather than hand-formatting against it.
+
+## Tech Stack / Conventions section
+
+This is a TypeScript-first project; write new code in TypeScript and keep types strict.
+
+## Security section
+
+Never stage or commit files containing secrets (bearer tokens, API keys); explicitly exclude them and warn the user.
