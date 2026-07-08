@@ -492,6 +492,65 @@
   color: #c9cdd6;
 }
 
+/* Voice Garden footer: clear + rhythm-light toggle beside the rest button. */
+.footerControls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.clearBtn {
+  appearance: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #2c2f3a;
+  color: #8a90a0;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 16px;
+}
+.clearBtn:hover {
+  border-color: #e8654a;
+  color: #e8654a;
+}
+.clearBtnArmed {
+  appearance: none;
+  cursor: pointer;
+  background: rgba(232, 101, 74, 0.14);
+  border: 1px solid #e8654a;
+  color: #e8654a;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 16px;
+}
+.rhythmToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a90a0;
+  user-select: none;
+}
+.rhythmToggle input {
+  accent-color: #35c4b5;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+.rhythmToggle:hover {
+  color: #c9cdd6;
+}
+
 /* The prominent "I'm done" action while exploring. */
 .rangeFinishBtn {
   appearance: none;

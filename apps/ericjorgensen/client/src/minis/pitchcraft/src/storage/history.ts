@@ -1,5 +1,7 @@
 // history.ts — IndexedDB persistence for sessions/stats + server high-score stub.
 
+import { Garden, emptyGarden, migrateKind } from "../game/voiceGarden";
+
 /** Per-note cents running sums stored on a session, for the recent pitch graph. */
 export interface NoteCents {
   cN: number;
@@ -138,6 +140,38 @@ export async function saveStats(stats: Stats): Promise<void> {
   try {
     const db = await openDB();
     db.transaction("kv", "readwrite").objectStore("kv").put(stats, "stats");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Load the Voice Garden — the persistent living archive. An unreadable or
+ *  absent garden comes back empty rather than failing. */
+export async function loadGarden(): Promise<Garden> {
+  try {
+    const db = await openDB();
+    const g = await new Promise<Garden | undefined>((res) => {
+      const rq = db.transaction("kv").objectStore("kv").get("garden");
+      rq.onsuccess = () => res(rq.result as Garden | undefined);
+      rq.onerror = () => res(undefined);
+    });
+    if (!g || !Array.isArray(g.elements)) return emptyGarden();
+    // Gardens saved before the flora changed carry old kinds — map them across.
+    const migrated = {
+      ...emptyGarden(),
+      ...g,
+      elements: g.elements.map((el) => ({ ...el, kind: migrateKind(el.kind) })),
+    };
+    return migrated;
+  } catch {
+    return emptyGarden();
+  }
+}
+
+export async function saveGarden(garden: Garden): Promise<void> {
+  try {
+    const db = await openDB();
+    db.transaction("kv", "readwrite").objectStore("kv").put(garden, "garden");
   } catch {
     /* ignore */
   }

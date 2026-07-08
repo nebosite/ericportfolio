@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
 import { RangeExplorerEngine, RangeHud, blankRangeHud } from "./rangeEngine";
+import { VoiceGardenEngine, GardenHud, GardenRecap, blankGardenHud } from "./gardenEngine";
 import { RangeResult, spanText } from "./src/game/rangeFlower";
+import { Garden, emptyGarden } from "./src/game/voiceGarden";
 import { trackEvent } from "../../lib/analytics";
 import {
   VOICES,
@@ -23,6 +25,8 @@ import {
   loadStats,
   saveStats,
   loadHistory,
+  loadGarden,
+  saveGarden,
   addHistory,
   applySession,
   submitHighScore,
@@ -45,7 +49,7 @@ const VOICE_DISPLAY_ORDER: VoiceId[] = [
   "bass",
 ];
 
-type Phase = "intro" | "playing" | "done" | "range" | "rangeDone";
+type Phase = "intro" | "playing" | "done" | "range" | "rangeDone" | "garden" | "gardenDone";
 
 const label: CSSProperties = {
   fontFamily: MONO,
@@ -58,6 +62,9 @@ const label: CSSProperties = {
 export default function PitchcraftPage() {
   const engineRef = useRef<PitchcraftEngine | null>(null);
   const rangeRef = useRef<RangeExplorerEngine | null>(null);
+  const gardenEngineRef = useRef<VoiceGardenEngine | null>(null);
+  // The persistent Voice Garden, loaded once and saved after every growth.
+  const gardenRef = useRef<Garden>(emptyGarden());
   const statsRef = useRef<Stats>({ ...DEFAULT_STATS });
 
   const [phase, setPhase] = useState<Phase>("intro");
@@ -73,15 +80,22 @@ export default function PitchcraftPage() {
   const [showIntro, setShowIntro] = useState(false);
   const [rangeHud, setRangeHud] = useState<RangeHud>(blankRangeHud());
   const [rangeResult, setRangeResult] = useState<RangeResult | null>(null);
+  const [gardenHud, setGardenHud] = useState<GardenHud>(blankGardenHud());
+  const [gardenRecap, setGardenRecap] = useState<GardenRecap | null>(null);
+  // The garden's light: pointer-steered by default; checked = rhythm sweep.
+  const [rhythmLight, setRhythmLight] = useState(false);
+  // Two-step confirm for clearing the garden (armed briefly, then relaxes).
+  const [confirmClear, setConfirmClear] = useState(false);
 
   // Load saved stats/history and restore the last voice/level.
   useEffect(() => {
     let alive = true;
-    Promise.all([loadStats(), loadHistory()]).then(([s, h]) => {
+    Promise.all([loadStats(), loadHistory(), loadGarden()]).then(([s, h, g]) => {
       if (!alive) return;
       statsRef.current = s;
       setStats(s);
       setHistory(h);
+      gardenRef.current = g;
       if (s.prefs?.voiceId) setVoiceId(s.prefs.voiceId as VoiceId);
       if (s.prefs?.difficulty) setLevel(s.prefs.difficulty as LevelId);
     });
@@ -89,6 +103,7 @@ export default function PitchcraftPage() {
       alive = false;
       engineRef.current?.destroy();
       rangeRef.current?.destroy();
+      gardenEngineRef.current?.destroy();
     };
   }, []);
 
@@ -108,6 +123,9 @@ export default function PitchcraftPage() {
         window.history.pushState({ pitchcraft: true }, ""); // re-arm for the next Back
       } else if (phaseRef.current === "range") {
         rangeRef.current?.finish(); // quit exploring → range verdict
+        window.history.pushState({ pitchcraft: true }, "");
+      } else if (phaseRef.current === "garden") {
+        gardenEngineRef.current?.finish(); // rest the garden → visit recap
         window.history.pushState({ pitchcraft: true }, "");
       } else {
         returnHome(); // recap → home
@@ -173,6 +191,9 @@ export default function PitchcraftPage() {
     rangeRef.current?.destroy();
     rangeRef.current = null;
     setRangeResult(null);
+    gardenEngineRef.current?.destroy();
+    gardenEngineRef.current = null;
+    setGardenRecap(null);
     setPhase("intro");
   };
 
@@ -250,6 +271,75 @@ export default function PitchcraftPage() {
   const adoptVoice = () => {
     if (rangeResult) chooseVoice(rangeResult.voice.id);
     returnHome();
+  };
+
+  // ---- Voice Garden ----
+
+  const handleGardenEnd = (recap: GardenRecap) => {
+    setGardenRecap(recap);
+    setPhase("gardenDone");
+    trackEvent("game_over", {
+      game: "voice_garden",
+      grown: recap.grown,
+      total: recap.total,
+    });
+  };
+
+  const startGarden = () => {
+    gardenEngineRef.current?.destroy(); // a return visit replaces the rested engine
+    const engine = new VoiceGardenEngine({
+      voiceId,
+      garden: gardenRef.current,
+      onHud: setGardenHud,
+      // Persist after every growth — the garden is a living archive, so
+      // nothing sung is lost even if the tab closes mid-visit.
+      onGrow: (g) => void saveGarden(g),
+      onEnd: handleGardenEnd,
+    });
+    gardenEngineRef.current = engine;
+    engine.setRhythm(rhythmLight);
+    setMicError(null);
+    setGardenHud(blankGardenHud());
+    setGardenRecap(null);
+    setShowIntro(true);
+    setPhase("garden");
+    trackEvent("game_start", { game: "voice_garden" });
+    engine.start().catch((err: MicError) => {
+      engine.destroy();
+      gardenEngineRef.current = null;
+      setShowIntro(false);
+      setPhase("intro");
+      setMicError(err === "denied" ? "denied" : "error");
+    });
+  };
+
+  const dismissGardenIntro = () => {
+    setShowIntro(false);
+    gardenEngineRef.current?.begin();
+  };
+
+  const restGarden = () => gardenEngineRef.current?.finish();
+
+  const toggleRhythmLight = (on: boolean) => {
+    setRhythmLight(on);
+    gardenEngineRef.current?.setRhythm(on);
+  };
+
+  // Clear the garden and start over. First click arms the button; a second
+  // click within a few seconds actually clears (destructive, so confirm).
+  const clearGarden = () => {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      window.setTimeout(() => setConfirmClear(false), 4000);
+      return;
+    }
+    setConfirmClear(false);
+    const g = gardenRef.current;
+    g.elements = [];
+    g.nextId = 1;
+    g.createdTs = null;
+    void saveGarden(g);
+    gardenEngineRef.current?.refresh();
   };
 
   const { lo, hi } = noteSet(voiceId, level);
@@ -350,6 +440,28 @@ export default function PitchcraftPage() {
                     }}
                   >
                     Grow a flower with your voice — sing high and low, and it maps your range
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className={styles.opt}
+                  style={optStyle(false)}
+                  onClick={startGarden}
+                >
+                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
+                    Voice Garden <span style={{ color: "#35C4B5" }}>❦</span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#565c6a",
+                      marginTop: 3,
+                    }}
+                  >
+                    A living archive of your voice — every tone you sing grows something, and the
+                    garden keeps it
                   </div>
                 </button>
               </div>
@@ -875,6 +987,204 @@ export default function PitchcraftPage() {
             )}
           </div>
         )}
+
+        {(phase === "garden" || phase === "gardenDone") && (
+          <div style={{ marginTop: 24 }}>
+            <div className={styles.hudRow}>
+              <div style={{ minWidth: 150 }}>
+                <div style={{ ...label, fontSize: 10 }}>Garden</div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 42,
+                    lineHeight: 1,
+                    color: "#f3efe6",
+                    marginTop: 4,
+                  }}
+                >
+                  {gardenHud.total}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 8 }}>
+                  +{gardenHud.grown} this visit
+                  {gardenHud.ageDays > 0 && (
+                    <span style={{ color: "#565c6a" }}> · day {gardenHud.ageDays}</span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", flex: 1 }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "3px 12px",
+                    borderRadius: 20,
+                    background: gardenHud.zoneLabel ? "rgba(53,196,181,0.1)" : "transparent",
+                    border: `1px solid ${gardenHud.zoneLabel ? "#35C4B5" : "#23262f"}`,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      color: gardenHud.zoneLabel ? "#35C4B5" : "#6b7180",
+                    }}
+                  >
+                    {phase === "gardenDone"
+                      ? "The garden rests"
+                      : gardenHud.zoneLabel || "Listening"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: SERIF,
+                    fontStyle: "italic",
+                    fontWeight: 300,
+                    fontSize: 21,
+                    lineHeight: 1.35,
+                    color: "#c9cdd6",
+                    marginTop: 8,
+                    maxWidth: 520,
+                    marginLeft: "auto",
+                    marginRight: "auto",
+                  }}
+                >
+                  {phase === "garden" ? gardenHud.prompt : "Everything you grew is kept."}
+                </div>
+              </div>
+
+              <div style={{ minWidth: 150, textAlign: "right" }}>
+                <div style={{ ...label, fontSize: 10 }}>You</div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 42,
+                    lineHeight: 1,
+                    color: gardenHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    marginTop: 4,
+                  }}
+                >
+                  {gardenHud.liveName}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                  {gardenHud.liveHz || "silent"}
+                  {gardenHud.stabilityLabel && (
+                    <span style={{ color: "#35C4B5" }}> · {gardenHud.stabilityLabel}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.board}>
+              <div className={`${styles.stage} ${styles.stageWide}`}>
+                <canvas
+                  ref={(el) => gardenEngineRef.current?.setCanvas(el)}
+                  className={styles.canvas}
+                />
+                {showIntro && phase === "garden" && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>Voice Garden</div>
+                      <p className={styles.introText}>
+                        This garden is grown from your voice, and it <em>keeps</em> everything: each
+                        visit adds to the last. The moment you sing, something starts growing where
+                        the <em>light</em> falls — <em>low</em> notes weave mycelium that fruits
+                        into mushrooms, <em>middle</em> notes raise grass and wildflowers,{" "}
+                        <em>high</em> notes grow flowering trees and set butterflies loose.
+                      </p>
+                      <p className={styles.introText}>
+                        Move the light with your pointer, or let it sweep to a rhythm. A steady tone
+                        grows a clean shape; a wandering one grows something wild; the longer you
+                        hold, the further it unfolds. New growth sprouts in front of old — what gets
+                        buried returns to the soil, and the garden keeps changing.
+                      </p>
+                      <button
+                        type="button"
+                        className={styles.introBtn}
+                        onClick={dismissGardenIntro}
+                      >
+                        Open the garden
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {phase === "gardenDone" && gardenRecap && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>The garden rests</div>
+                      <div
+                        style={{
+                          fontFamily: SERIF,
+                          fontWeight: 500,
+                          fontSize: 44,
+                          lineHeight: 1,
+                          color: "#F4B23E",
+                        }}
+                      >
+                        {gardenRecap.grown > 0
+                          ? `${gardenRecap.grown} new ${gardenRecap.grown === 1 ? "thing" : "things"}`
+                          : "A quiet visit"}
+                      </div>
+                      <p className={styles.introText}>
+                        {gardenRecap.grown > 0 ? (
+                          <>
+                            This visit your voice grew <em>{recapBreakdown(gardenRecap.counts)}</em>
+                            .{" "}
+                          </>
+                        ) : (
+                          <>Nothing new took root this time — even so, the garden listened. </>
+                        )}
+                        Your garden holds {gardenRecap.total}{" "}
+                        {gardenRecap.total === 1 ? "living thing" : "living things"}
+                        {gardenRecap.ageDays > 1 && <> and is {gardenRecap.ageDays} days old</>}. It
+                        will be here, exactly as you left it, whenever you return.
+                      </p>
+                      <div className={styles.introBtnRow}>
+                        <button type="button" className={styles.introBtn} onClick={startGarden}>
+                          Keep singing
+                        </button>
+                        <button type="button" className={styles.introBtnGhost} onClick={returnHome}>
+                          Return home
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {phase === "garden" && !showIntro && (
+              <div className={styles.playFooter}>
+                <div className={styles.hint}>
+                  Low → mushrooms · mid → grass &amp; flowers · high → trees · crowded plants fade
+                </div>
+                <div className={styles.footerControls}>
+                  <button
+                    type="button"
+                    className={confirmClear ? styles.clearBtnArmed : styles.clearBtn}
+                    onClick={clearGarden}
+                  >
+                    {confirmClear ? "Really clear everything?" : "Clear garden"}
+                  </button>
+                  <label className={styles.rhythmToggle}>
+                    <input
+                      type="checkbox"
+                      checked={rhythmLight}
+                      onChange={(e) => toggleRhythmLight(e.target.checked)}
+                    />
+                    Rhythm light
+                  </label>
+                  <button type="button" className={styles.rangeFinishBtn} onClick={restGarden}>
+                    Rest the garden
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -884,6 +1194,23 @@ function optStyle(selected: boolean): CSSProperties {
   return selected
     ? { background: "rgba(244,178,62,0.14)", borderColor: "#F4B23E" }
     : { background: "#16181f", borderColor: "#23262f" };
+}
+
+// "2 tufts of grass, a mushroom colony and a tree" — the visit recap's breakdown.
+function recapBreakdown(counts: GardenRecap["counts"]): string {
+  const names: [keyof GardenRecap["counts"], string, string][] = [
+    ["mushroom", "mushroom colony", "mushroom colonies"],
+    ["grass", "tuft of grass", "tufts of grass"],
+    ["flower", "wildflower", "wildflowers"],
+    ["tree", "tree", "trees"],
+    ["butterfly", "butterfly", "butterflies"],
+  ];
+  const parts = names
+    .filter(([k]) => counts[k] > 0)
+    .map(([k, one, many]) => (counts[k] === 1 ? `a ${one}` : `${counts[k]} ${many}`));
+  if (parts.length === 0) return "nothing yet";
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
 }
 
 // The Range Explorer verdict chart: all six voice ranges as horizontal bars on a
