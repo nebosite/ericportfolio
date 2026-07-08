@@ -16,6 +16,7 @@ import {
 } from "./grid";
 import { loadSpriteTextures, SpriteTextures } from "./sprites";
 import { Sfx } from "./sfx";
+import { TrailNode, glowPulse, shouldSpawnTrail, advanceTrail } from "./pacFx";
 
 const BG_COLOR = 0x05050c;
 const MAX_W = 3840; // cap the playfield at 4K
@@ -65,6 +66,16 @@ const GHOSTS_PER_LAIR = 4; // every ghost lair is home to four ghosts
 const EXPLOSION_RADIUS = 5; // grid units; ghosts within die (as eyes), no score
 const EXPLODE_MS = 450; // how long the blast graphic lasts
 const EXPLOSION_COLOR = 0xffd24a;
+
+// Pac's visibility aids on the monitor-sized maze: a soft amber halo that
+// breathes, and a gentle fading trail of dots. Warm to match the sprite, and
+// additive so they read as light rather than paint over the dots beneath.
+const PAC_GLOW_COLOR = 0xffe08a; // warm amber halo
+const PAC_GLOW_RADIUS = TILE * 1.5; // base halo radius (Pac himself is ~13px)
+const PAC_GLOW_RINGS = 5; // concentric fills → a soft center-bright falloff
+const TRAIL_COLOR = 0xffd76a;
+const TRAIL_RADIUS = TILE * 0.42; // a fresh dot's radius, shrinking as it fades
+const TRAIL_ALPHA = 0.5; // a fresh dot's opacity, fading to 0
 
 const STOPPED: Vec = { x: 0, y: 0 };
 const NO_BLOCKED: ReadonlySet<number> = new Set(); // eyes may cross any open tile, boxes included
@@ -197,6 +208,10 @@ export class BigPacEngine {
   private popups: Popup[] = [];
   private fxLayer = new Container();
   private explosions: Array<{ gfx: Graphics; born: number; x: number; y: number }> = [];
+  // Pac's halo (drawn once, then just moved/pulsed) and his fading trail.
+  private pacGlow = new Graphics();
+  private trailGfx = new Graphics();
+  private trail: TrailNode[] = [];
   /** Ghosts eaten so far in the current fright phase; doubles their value. */
   private ghostChain = 0;
   private frightActive = false;
@@ -388,6 +403,13 @@ export class BigPacEngine {
       }
     }
 
+    // Pac's trail and halo sit above the ghosts/dots but below Pac himself, so
+    // he stays the brightest thing on the maze without hiding what he's eating.
+    this.trailGfx.blendMode = "add";
+    world.addChild(this.trailGfx);
+    this.buildGlow();
+    world.addChild(this.pacGlow);
+
     const pacSprite = new Sprite(this.tex.pacOpen);
     pacSprite.anchor.set(0.5);
     world.addChild(pacSprite);
@@ -398,6 +420,10 @@ export class BigPacEngine {
     world.addChild(this.popupLayer);
 
     for (const m of [this.pac, ...this.ghosts]) this.place(m);
+    // Seat the halo on Pac before the first frame so the title screen shows it.
+    this.pacGlow.x = this.pac.sprite.x;
+    this.pacGlow.y = this.pac.sprite.y;
+    this.pacGlow.alpha = glowPulse(0).alpha;
     app.ticker.add(this.update, this);
     this.pushScore();
     this.pushHitpoints();
@@ -533,6 +559,7 @@ export class BigPacEngine {
     if (moving) pac.sprite.rotation = Math.atan2(pac.dir.y, pac.dir.x);
     pac.sprite.texture =
       moving && Math.floor(this.elapsed / 120) % 2 === 0 ? this.tex.pacClosed : this.tex.pacOpen;
+    this.updatePacFx(dt);
     for (const ghost of this.ghosts) {
       this.place(ghost);
       // Own the frightened look every frame: solid blue normally, and for the
@@ -854,6 +881,40 @@ export class BigPacEngine {
   private place(m: Mover) {
     m.sprite.x = m.tx * TILE + TILE / 2 + m.dir.x * m.progress;
     m.sprite.y = m.ty * TILE + TILE / 2 + m.dir.y * m.progress;
+  }
+
+  /** Draw the halo once: nested filled circles of equal alpha stack into a soft
+   *  center-bright glow. Additive so it lights the maze rather than masking it. */
+  private buildGlow() {
+    const g = this.pacGlow;
+    g.clear();
+    for (let i = PAC_GLOW_RINGS; i >= 1; i--) {
+      g.circle(0, 0, (PAC_GLOW_RADIUS * i) / PAC_GLOW_RINGS);
+      g.fill({ color: PAC_GLOW_COLOR, alpha: 0.1 });
+    }
+    g.blendMode = "add";
+  }
+
+  /** Follow Pac with the breathing halo and lay down / fade his trail. Called
+   *  each frame after Pac is placed; standing still lets the trail melt away. */
+  private updatePacFx(dt: number) {
+    const px = this.pac.sprite.x;
+    const py = this.pac.sprite.y;
+
+    const pulse = glowPulse(this.elapsed);
+    this.pacGlow.x = px;
+    this.pacGlow.y = py;
+    this.pacGlow.scale.set(pulse.scale);
+    this.pacGlow.alpha = pulse.alpha;
+
+    this.trail = advanceTrail(this.trail, dt);
+    if (shouldSpawnTrail(this.trail, px, py)) this.trail.push({ x: px, y: py, life: 1 });
+    const g = this.trailGfx;
+    g.clear();
+    for (const n of this.trail) {
+      g.circle(n.x, n.y, TRAIL_RADIUS * n.life);
+      g.fill({ color: TRAIL_COLOR, alpha: TRAIL_ALPHA * n.life });
+    }
   }
 
   private eatAt(tx: number, ty: number) {
