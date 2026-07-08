@@ -1,0 +1,34 @@
+/* The standard site footer — muted and theme-neutral so it sits quietly at the
+   bottom of both the light portfolio pages and the dark Pitchcraft page. */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 64px;
+  padding: 22px 20px;
+  border-top: 1px solid rgba(128, 128, 128, 0.25);
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #8a90a0;
+  text-align: center;
+}
+
+.note {
+  color: #8a90a0;
+}
+
+.copyright {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.copyright:hover {
+  color: #c9925a;
+  border-bottom-color: currentColor;
+}

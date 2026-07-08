@@ -50,18 +50,7 @@
   padding: 1rem 1rem 3rem;
 }
 
-.footer {
-  text-align: center;
-  padding: 1.25rem;
-  border-top: 2px solid var(--screen-line);
-  color: var(--phosphor-dim);
-  font-size: 0.85rem;
-  letter-spacing: 0.15em;
-}
-
-.footer p {
-  margin: 0;
-}
+/* The footer moved into the shared SiteFooter component (components/SiteFooter). */
 
 /* Mobile: trim the chrome so the play field fills the screen without scrolling. */
 @media (max-width: 640px) {
@@ -85,10 +74,5 @@
 
   .main {
     padding: 0.5rem;
-  }
-
-  .footer {
-    padding: 0.5rem;
-    font-size: 0.7rem;
   }
 }

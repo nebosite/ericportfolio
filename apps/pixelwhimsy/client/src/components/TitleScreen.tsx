@@ -1,8 +1,14 @@
 import FeedbackPanel from "./FeedbackPanel";
+import { trackEvent } from "../lib/analytics";
 import styles from "./TitleScreen.module.css";
+
+const SITE_URL = "https://www.ericjorgensen.com";
 
 // The title screen: the only place with grown-up controls. Start drops the child
 // into the full-screen sandbox; the feedback buttons and parent notes live here.
+// The footer lives here too — a grown-up affordance that vanishes the moment
+// drawing starts (this whole screen unmounts), so no link is ever reachable from
+// inside the child sandbox.
 
 export default function TitleScreen({ onStart }: { onStart: () => void }) {
   return (
@@ -35,6 +41,16 @@ export default function TitleScreen({ onStart }: { onStart: () => void }) {
       <div className={styles.feedback}>
         <FeedbackPanel entity="pixelwhimsy" />
       </div>
+
+      <footer className={styles.footer}>
+        <a
+          className={styles.footerLink}
+          href={SITE_URL}
+          onClick={() => trackEvent("outbound_link", { url: SITE_URL, name: "footer-copyright" })}
+        >
+          © {new Date().getFullYear()} Eric Jorgensen
+        </a>
+      </footer>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { BigPacEngine, StartOpts } from "./engine";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
+import { useEngagement } from "../../lib/engagement";
 import styles from "./BigPacTinyMan.module.css";
 
 const GAME = "big-pac-tiny-man";
@@ -17,6 +18,7 @@ interface ScoreRow {
 }
 
 export default function BigPacTinyManPage() {
+  useEngagement("big-pac-tiny-man");
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<BigPacEngine | null>(null);
   const [score, setScore] = useState(0);

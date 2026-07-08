@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import SiteFooter from "../components/SiteFooter";
 import styles from "./GalleryPage.module.css";
 
 interface GalleryItem {
@@ -154,6 +155,7 @@ export default function GalleryPage({ folder, heading }: GalleryPageProps) {
           {!failed && items.length === 0 && <p className={styles.empty}>Loading…</p>}
         </main>
       </div>
+      <SiteFooter />
     </div>
   );
 }

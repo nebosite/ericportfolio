@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
+import SiteFooter from "../../components/SiteFooter";
 import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
 import { RangeExplorerEngine, RangeHud, blankRangeHud } from "./rangeEngine";
 import { VoiceGardenEngine, GardenHud, GardenRecap, blankGardenHud } from "./gardenEngine";
 import { RangeResult, spanText } from "./src/game/rangeFlower";
 import { Garden, emptyGarden } from "./src/game/voiceGarden";
 import { trackEvent } from "../../lib/analytics";
+import { useEngagement } from "../../lib/engagement";
 import {
   VOICES,
   LEVELS,
@@ -60,6 +62,7 @@ const label: CSSProperties = {
 };
 
 export default function PitchcraftPage() {
+  useEngagement("pitchcraft");
   const engineRef = useRef<PitchcraftEngine | null>(null);
   const rangeRef = useRef<RangeExplorerEngine | null>(null);
   const gardenEngineRef = useRef<VoiceGardenEngine | null>(null);
@@ -1186,6 +1189,7 @@ export default function PitchcraftPage() {
           </div>
         )}
       </div>
+      <SiteFooter />
     </div>
   );
 }

@@ -265,7 +265,18 @@ export default function HomePage() {
         {layout === "spectrum" && <SpectrumLayout categories={categories} />}
 
         <footer className={styles.footer}>
-          <span>© {new Date().getFullYear()} Eric Jorgensen</span>
+          <a
+            className={styles.footerLink}
+            href="https://www.ericjorgensen.com"
+            onClick={() =>
+              trackEvent("outbound_link", {
+                url: "https://www.ericjorgensen.com",
+                name: "footer-copyright",
+              })
+            }
+          >
+            © {new Date().getFullYear()} Eric Jorgensen
+          </a>
           <span>Each mark grown once, never the same twice.</span>
         </footer>
       </div>

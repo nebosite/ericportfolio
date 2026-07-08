@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import BigPipeTinyDream from "./BigPipeTinyDream";
+import SiteFooter from "../../components/SiteFooter";
+import { useEngagement } from "../../lib/engagement";
 import styles from "./BigPipeTinyDreamPage.module.css";
 
 export default function BigPipeTinyDreamPage() {
+  useEngagement("big-pipe-tiny-dream");
   return (
     <div className={styles.page}>
       <header className={styles.topbar}>
@@ -17,9 +20,7 @@ export default function BigPipeTinyDreamPage() {
         <BigPipeTinyDream />
       </main>
 
-      <footer className={styles.footer}>
-        <p>INSERT COIN · © {new Date().getFullYear()} BIG TINY GAMES</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

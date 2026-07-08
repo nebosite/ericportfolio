@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import SnakeGame from "./SnakeGame";
+import SiteFooter from "../../components/SiteFooter";
+import { useEngagement } from "../../lib/engagement";
 import styles from "./SnakePage.module.css";
 
 export default function SnakePage() {
+  useEngagement("snake");
   return (
     <div className={styles.page}>
       <header className={styles.topbar}>
@@ -17,9 +20,7 @@ export default function SnakePage() {
         <SnakeGame />
       </main>
 
-      <footer className={styles.footer}>
-        <p>INSERT COIN · © {new Date().getFullYear()} BIG TINY GAMES</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

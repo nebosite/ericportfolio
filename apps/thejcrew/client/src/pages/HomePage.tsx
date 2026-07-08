@@ -23,6 +23,11 @@ export default function HomePage() {
 
       <footer className={styles.footer}>
         <p>The J Crew · est. way back when · made with love (and leftovers)</p>
+        <p className={styles.copyright}>
+          <a className={styles.footerLink} href="https://www.ericjorgensen.com">
+            © {new Date().getFullYear()} Eric Jorgensen
+          </a>
+        </p>
       </footer>
     </div>
   );

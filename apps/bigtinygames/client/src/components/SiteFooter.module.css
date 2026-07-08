@@ -1,0 +1,29 @@
+.footer {
+  text-align: center;
+  padding: 1.25rem;
+  border-top: 2px solid var(--screen-line);
+  color: var(--phosphor-dim);
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+}
+
+.footer p {
+  margin: 0;
+}
+
+.link {
+  color: var(--phosphor);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.link:hover {
+  border-bottom-color: currentColor;
+}
+
+/* Mobile: trim the footer so the play field fills the screen without scrolling. */
+@media (max-width: 640px) {
+  .footer {
+    padding: 0.5rem;
+    font-size: 0.7rem;
+  }
+}

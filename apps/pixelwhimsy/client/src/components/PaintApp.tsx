@@ -21,6 +21,7 @@ import {
   buildPalette32,
 } from "../lib/palette";
 import { strokeCells, type Pt } from "../lib/stroke";
+import { useEngagement } from "../lib/engagement";
 import ExitGate from "./ExitGate";
 import styles from "./PaintApp.module.css";
 
@@ -45,6 +46,8 @@ const TOOLS: Tool[] = [
 type Paint = { kind: "static"; index: number } | { kind: "anim"; group: number };
 
 export default function PaintApp({ onExit }: { onExit: () => void }) {
+  // Track how often and how long a child stays in the drawing sandbox.
+  useEngagement("pixelwhimsy");
   const playRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dimsRef = useRef({ cols: 0, rows: 0 });

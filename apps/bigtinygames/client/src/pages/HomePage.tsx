@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { GAMES } from "../games/registry";
+import SiteFooter from "../components/SiteFooter";
 import styles from "./HomePage.module.css";
 
 export default function HomePage() {
@@ -34,9 +35,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className={styles.footer}>
-        <p>INSERT COIN · © {new Date().getFullYear()} BIG TINY GAMES</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
