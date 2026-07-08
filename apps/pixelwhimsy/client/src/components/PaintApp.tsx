@@ -71,7 +71,12 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   const hasAnimatedRef = useRef(false); // any animated pixels on screen → cycle them
   const renderScheduledRef = useRef(false);
 
-  const [paint, setPaint] = useState<Paint>({ kind: "static", index: 1 });
+  // Start on an animated color (a random vivid group) so the very first stroke
+  // shimmers and cycles — the toy greets the child already alive with motion.
+  const [paint, setPaint] = useState<Paint>(() => ({
+    kind: "anim",
+    group: Math.floor(Math.random() * GROUP_COUNT),
+  }));
   const [brush, setBrush] = useState<Brush>("round20");
   const [swatchPhase, setSwatchPhase] = useState(0); // drives the animated picker
   const paintRef = useRef(paint);
