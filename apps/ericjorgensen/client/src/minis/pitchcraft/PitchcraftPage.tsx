@@ -1462,8 +1462,8 @@ export default function PitchcraftPage() {
                 </div>
                 <div className={styles.playFooter}>
                   <div className={styles.hint}>
-                    Pitch runs bottom to top · faint lines mark semitones · brightness is each
-                    frequency&rsquo;s strength
+                    Pitch runs {loomPattern === "ribbon" ? "bottom to top" : "left to right"} ·
+                    faint lines mark semitones · brightness is each frequency&rsquo;s strength
                   </div>
                   <button type="button" className={styles.endBtn} onClick={leaveLoom}>
                     Leave the loom

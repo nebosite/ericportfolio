@@ -1,16 +1,29 @@
 // ChromaLoomEngine — the imperative core of Chroma Loom: microphone capture,
 // the 60fps loop, and the scrolling-spectrogram canvas. Every animation frame
 // the analyser's FFT is resampled onto the loom's log-frequency axis
-// (buildColumn), tinted by the player's rainbow, and woven as a thin new slice
-// at the LEFT edge of an offscreen fabric layer while everything already woven
-// scrolls to the right. The main canvas composites the fabric under a static
-// overlay of very light semitone gridlines (octave C lines labelled).
+// (buildStrip/buildColumn), tinted by the player's rainbow, and woven by the
+// selected *pattern*:
 //
-// The weave *pattern* is selectable; only the left→right "ribbon" is
-// implemented — the snail shell, square spiral and figure-eight looms arrive
-// later (see PATTERNS in src/game/chromaLoom.ts). All the resampling and
-// color math lives in that module so it stays unit-tested; this file only
-// touches the mic and the canvas.
+// - ribbon    — a new slice at the LEFT edge of an offscreen fabric layer,
+//               everything woven scrolling right;
+// - waterfall — the ribbon turned: frequency runs left→right and each woven
+//               row is its own falling slice obeying real 10 ft-drop physics
+//               (waterfallVelocityMps) — a beat at the crest, then a hard
+//               accelerating fall — bursting at the bottom into droplets
+//               that fly out in the exact spectrum color of their spot and
+//               fade in ~2s;
+// - fire      — the rising ribbon as particles: each spectral slot at the
+//               bottom edge births fuzzy, lopsided, slowly-spinning sprites
+//               whose random birth rise converges on the scroll speed, that
+//               flutter on Perlin-noise turbulence, disperse like flame and
+//               fade out as smoke just past the top.
+//
+// The spiral looms (snail shell, square spiral, figure-eight) arrive later
+// (see PATTERNS in src/game/chromaLoom.ts). The main canvas composites the
+// weave with very light semitone gridlines (octave C lines labelled), turned
+// to match the pattern's frequency axis. All resampling, noise, and life-curve
+// math lives in chromaLoom.ts so it stays unit-tested; this file only touches
+// the mic and the canvas.
 
 import { PitchAnalyser } from "./src/audio/pitch";
 import { midiName, hzMidi } from "./src/game/notes";
@@ -20,10 +33,63 @@ import {
   parseRainbow,
   rainbowAt,
   buildColumn,
+  buildStrip,
+  createPerlin,
+  smokeMix01,
+  emberAlpha,
+  waterfallVelocityMps,
+  WATERFALL_DROP_M,
+  SPLASH_LIFE_SEC,
+  converge,
   semitoneLines,
   LoomPatternId,
 } from "./src/game/chromaLoom";
 import { MicError } from "./engine";
+
+// ---- fire tuning ----
+const FIRE_SLOTS = 96; // spectral emitters across the width
+const MAX_PARTICLES = 9600;
+const FIRE_SPAWN_PER_SLOT = 8.4; // spawns/sec per slot at full intensity
+const SPRITE_VARIANTS = 4; // asymmetric fuzzy-blob shapes per color
+const RISE_TAU = 1.8; // seconds for a random birth rise to converge on the scroll rate
+
+interface FireParticle {
+  x: number; // CSS px
+  y: number;
+  age: number; // seconds
+  life: number;
+  r0: number; // radius at birth (grows as it disperses)
+  a0: number; // peak alpha (from the slot's intensity at birth)
+  slot: number; // emitter slot — fixes the particle's rainbow color
+  rise0: number; // rise rate at birth (random; converges to the scroll rate)
+  rot: number; // current rotation (rad)
+  rotV: number; // slow random spin (rad/s)
+  variant: number; // which asymmetric sprite shape
+}
+
+// ---- waterfall tuning ----
+const ATLAS_ROWS = 512; // ring buffer of woven rows (each slice keeps one)
+const MAX_SPLASH = 3200;
+const SPLASH_GRAVITY = 90; // px/s² pulling burst droplets back down
+const SPLASH_COLOR_STEPS = 256; // splash sprite tints across the spectrum
+
+/** One woven row falling down the canvas, stretching as it accelerates. */
+interface WaterfallSlice {
+  y: number; // top edge, CSS px
+  atlasRow: number; // its pixels in the slice atlas
+  strip: Float32Array; // FIRE_SLOTS intensities, kept for the burst's colors
+}
+
+interface SplashParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  life: number;
+  r0: number; // birth radius (random, 2–5× the old base size)
+  x01: number; // spawn position on the frequency axis — its exact color
+}
 
 export interface LoomHud {
   liveName: string; // detected note, e.g. "A4"
@@ -59,8 +125,25 @@ export class ChromaLoomEngine {
   private pendingBegin = false; // begin() before the mic resolves defers
 
   private stops: Rgb[];
-  private rowColors: Uint8ClampedArray = new Uint8ClampedArray(0); // 3 bytes per fabric row
+  // Rainbow along the frequency axis, low → high, 3 bytes per fabric pixel
+  // (rows for the ribbon, columns for the waterfall).
+  private axisColors: Uint8ClampedArray = new Uint8ClampedArray(0);
   private pattern: LoomPatternId = "ribbon";
+
+  // Fire state: emitters, particles, sprites, and the turbulence field.
+  private slotColors: Rgb[] = [];
+  private particles: FireParticle[] = [];
+  private lastStrip: Float32Array | null = null; // for the ember bed
+  private spriteCache = new Map<number, HTMLCanvasElement>();
+  private smokeSprites: HTMLCanvasElement[] = [];
+  private noise = createPerlin();
+
+  // Waterfall state: falling slices (newest first), their pixel atlas, and
+  // the splash of a slice bursting on the bottom edge.
+  private slices: WaterfallSlice[] = [];
+  private atlas: HTMLCanvasElement | null = null;
+  private nextAtlasRow = 0;
+  private splashes: SplashParticle[] = [];
 
   private t0 = 0;
   private raf = 0;
@@ -89,13 +172,28 @@ export class ChromaLoomEngine {
   /** Retune the rainbow's key colors; newly woven slices pick them up. */
   setRainbow(hexes: readonly string[]): void {
     this.stops = parseRainbow(hexes);
-    this.buildRowColors();
+    this.buildLuts();
   }
 
-  /** Select the weave pattern. Only the ribbon weaves today; the choice is
-   *  kept so the coming looms slot in here. */
+  /** Select the weave pattern. Switching re-orients the frequency axis, so
+   *  the woven fabric and any fire are cleared for a fresh start. */
   setPattern(id: LoomPatternId): void {
+    if (id === this.pattern) return;
     this.pattern = id;
+    this.scrollAcc = 0;
+    this.particles = [];
+    this.lastStrip = null;
+    this.slices = [];
+    this.splashes = [];
+    if (this.fabric) {
+      this.fabric.getContext("2d")?.clearRect(0, 0, this.fabric.width, this.fabric.height);
+    }
+    this.buildLuts();
+  }
+
+  /** Whether the current pattern runs frequency along the horizontal axis. */
+  private freqRunsAcross(): boolean {
+    return this.pattern === "waterfall" || this.pattern === "fire";
   }
 
   getPatternId(): LoomPatternId {
@@ -153,6 +251,10 @@ export class ChromaLoomEngine {
     this.lastNow = null;
     this.lastHud = 0;
     this.scrollAcc = 0;
+    this.particles = [];
+    this.lastStrip = null;
+    this.slices = [];
+    this.splashes = [];
     this.t0 = performance.now() / 1000;
     this.sizeCanvas();
     cancelAnimationFrame(this.raf);
@@ -231,21 +333,36 @@ export class ChromaLoomEngine {
     this.fabric = next;
     this.fabricW = devW;
     this.fabricH = devH;
-    this.buildRowColors();
+    // The waterfall's slice atlas matches the fabric width; a resize
+    // invalidates every stored row, so the falling slices start over.
+    const atlas = document.createElement("canvas");
+    atlas.width = devW;
+    atlas.height = ATLAS_ROWS;
+    this.atlas = atlas;
+    this.nextAtlasRow = 0;
+    this.slices = [];
+    this.splashes = [];
+    this.buildLuts();
   }
 
-  /** Precompute each fabric row's rainbow color (rebuilt on resize/retune). */
-  private buildRowColors(): void {
-    const rows = this.fabricH;
-    this.rowColors = new Uint8ClampedArray(rows * 3);
-    if (!rows) return;
-    for (let row = 0; row < rows; row++) {
-      const t = 1 - row / (rows - 1); // top row = highest frequency
+  /** Precompute the rainbow along the frequency axis — per fabric pixel for
+   *  the woven patterns, per emitter slot for the fire — plus invalidate the
+   *  fire's tinted sprites. Rebuilt on resize, retune, and pattern change. */
+  private buildLuts(): void {
+    const len = this.freqRunsAcross() ? this.fabricW : this.fabricH;
+    this.axisColors = new Uint8ClampedArray(Math.max(0, len) * 3);
+    for (let i = 0; i < len; i++) {
+      const t = len === 1 ? 0 : i / (len - 1); // 0 = lowest frequency
       const c = rainbowAt(this.stops, t);
-      this.rowColors[row * 3] = c.r;
-      this.rowColors[row * 3 + 1] = c.g;
-      this.rowColors[row * 3 + 2] = c.b;
+      this.axisColors[i * 3] = c.r;
+      this.axisColors[i * 3 + 1] = c.g;
+      this.axisColors[i * 3 + 2] = c.b;
     }
+    this.slotColors = [];
+    for (let s = 0; s < FIRE_SLOTS; s++) {
+      this.slotColors.push(rainbowAt(this.stops, s / (FIRE_SLOTS - 1)));
+    }
+    this.spriteCache.clear();
   }
 
   // ---------- the loop ----------
@@ -259,13 +376,15 @@ export class ChromaLoomEngine {
     if (dt < 0 || dt > 0.5) dt = 0;
 
     this.analyser.getByteFrequencyData(this.spectrum);
-    this.weave(dt);
+    if (this.pattern === "fire") this.fire(dt, now);
+    else if (this.pattern === "waterfall") this.waterfall(dt);
+    else this.weave(dt);
     this.drawFrame();
     this.pushHud(now);
   };
 
-  /** Advance the fabric by the elapsed time and weave the new slice(s) at the
-   *  left edge — the whole graph scrolls left → right. */
+  /** Ribbon: advance the fabric by the elapsed time — everything steps right,
+   *  the fresh slice lands at the left edge. */
   private weave(dt: number): void {
     const fabric = this.fabric;
     if (!fabric || !this.fabricW || !this.fabricH) return;
@@ -275,19 +394,17 @@ export class ChromaLoomEngine {
     const dx = Math.floor(this.scrollAcc);
     if (dx < 1) return;
     this.scrollAcc -= dx;
-
-    // Everything already woven steps right...
     fctx.drawImage(fabric, dx, 0);
-    // ...and the freshest slice lands at the left edge, dx pixels wide.
     const rows = this.fabricH;
     const col = buildColumn(this.spectrum, this.audio!.ctx.sampleRate, rows);
     const img = fctx.createImageData(dx, rows);
     const data = img.data;
     for (let row = 0; row < rows; row++) {
       const v = col[row];
-      const r = this.rowColors[row * 3] * v;
-      const g = this.rowColors[row * 3 + 1] * v;
-      const b = this.rowColors[row * 3 + 2] * v;
+      const a = (rows - 1 - row) * 3; // axisColors run low→high; row 0 is high
+      const r = this.axisColors[a] * v;
+      const g = this.axisColors[a + 1] * v;
+      const b = this.axisColors[a + 2] * v;
       for (let x = 0; x < dx; x++) {
         const i = (row * dx + x) * 4;
         data[i] = r;
@@ -299,6 +416,307 @@ export class ChromaLoomEngine {
     fctx.putImageData(img, 0, 0);
   }
 
+  // ---------- waterfall ----------
+
+  /** Waterfall: each woven row is its own falling slice — born at the top at
+   *  the slow end of the speed profile, accelerating as it descends
+   *  (waterfallSpeed01), and bursting into splash droplets when it reaches
+   *  the bottom edge. */
+  private waterfall(dt: number): void {
+    const W = this.W;
+    const H = this.H;
+    const atlas = this.atlas;
+    if (!W || !H || !atlas) return;
+
+    // Weave a fresh slice whenever the previous one has cleared the top row.
+    if (this.slices.length === 0 || this.slices[0].y >= 1) {
+      const actx = atlas.getContext("2d");
+      if (actx) {
+        const cols = this.fabricW;
+        const sr = this.audio!.ctx.sampleRate;
+        const strip = buildStrip(this.spectrum, sr, cols);
+        const img = actx.createImageData(cols, 1);
+        const data = img.data;
+        for (let x = 0; x < cols; x++) {
+          const v = strip[x];
+          const i = x * 4;
+          data[i] = this.axisColors[x * 3] * v;
+          data[i + 1] = this.axisColors[x * 3 + 1] * v;
+          data[i + 2] = this.axisColors[x * 3 + 2] * v;
+          data[i + 3] = 255;
+        }
+        actx.putImageData(img, 0, this.nextAtlasRow);
+        this.slices.unshift({
+          y: 0,
+          atlasRow: this.nextAtlasRow,
+          strip: buildStrip(this.spectrum, sr, FIRE_SLOTS),
+        });
+        this.nextAtlasRow = (this.nextAtlasRow + 1) % ATLAS_ROWS;
+      }
+    }
+
+    // Fall like real water over a 10 ft drop: the canvas height maps to
+    // 10 ft, so px/s = v(m/s) · (H px / drop m).
+    const pxPerM = H / WATERFALL_DROP_M;
+    for (const s of this.slices) {
+      s.y += waterfallVelocityMps(s.y / H) * pxPerM * dt;
+    }
+
+    // Any slice reaching the bottom bursts outward.
+    while (this.slices.length && this.slices[this.slices.length - 1].y >= H) {
+      this.burst(this.slices.pop()!);
+    }
+
+    // Splash droplets fly out, arc under gravity, and fade.
+    for (const p of this.splashes) {
+      p.age += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += SPLASH_GRAVITY * dt;
+    }
+    this.splashes = this.splashes.filter((p) => p.age < p.life);
+  }
+
+  /** A slice hits the bottom: throw droplets out in random directions from
+   *  wherever the slice actually carried energy, each tinted with the exact
+   *  spectrum color of the spot that spawned it. */
+  private burst(slice: WaterfallSlice): void {
+    const slotW = this.W / FIRE_SLOTS;
+    for (let s = 0; s < FIRE_SLOTS; s++) {
+      const v = slice.strip[s];
+      if (v < 0.08 || this.splashes.length >= MAX_SPLASH) continue;
+      const n = 2 * (1 + Math.round(v * 2));
+      for (let i = 0; i < n && this.splashes.length < MAX_SPLASH; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const speed = (50 + Math.random() * 160) * (0.5 + v * 0.7);
+        const x = (s + Math.random()) * slotW;
+        this.splashes.push({
+          x,
+          y: this.H - 2,
+          vx: Math.cos(ang) * speed,
+          vy: Math.sin(ang) * speed,
+          age: 0,
+          life: SPLASH_LIFE_SEC * (0.8 + Math.random() * 0.4),
+          r0: 3 * (2 + Math.random() * 3), // 2–5× the old base size
+          x01: x / this.W,
+        });
+      }
+    }
+  }
+
+  /** Draw the falling slices, each stretched down to meet the next-older one
+   *  so the accelerating column stays gapless. */
+  private drawSlices(ctx: CanvasRenderingContext2D): void {
+    const atlas = this.atlas;
+    if (!atlas || !this.slices.length) return;
+    const W = this.W;
+    const H = this.H;
+    const n = this.slices.length;
+    for (let i = 0; i < n; i++) {
+      const s = this.slices[i]; // newest (top) first
+      const below = i + 1 < n ? this.slices[i + 1].y : Math.min(H, s.y + 40);
+      const h = Math.min(40, Math.max(1, below - s.y + 0.5));
+      ctx.drawImage(atlas, 0, s.atlasRow, this.fabricW, 1, 0, s.y, W, h);
+    }
+  }
+
+  /** Burst droplets: additive glows tinted with the exact spectrum color at
+   *  each droplet's spawn point. */
+  private drawSplashes(ctx: CanvasRenderingContext2D): void {
+    if (!this.splashes.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const p of this.splashes) {
+      const q = p.age / p.life;
+      const r = p.r0 * (1 + 1.3 * q);
+      ctx.globalAlpha = (1 - q) * 0.9;
+      ctx.drawImage(this.splashSpriteFor(p.x01), p.x - r, p.y - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /** A splash sprite in the rainbow color at axis position x01 — tints are
+   *  cached at 256 steps across the spectrum (visually exact), in the same
+   *  cache the fire uses so retuning the rainbow rebuilds them all. */
+  private splashSpriteFor(x01: number): HTMLCanvasElement {
+    const idx = Math.max(0, Math.min(SPLASH_COLOR_STEPS - 1, Math.round(x01 * (SPLASH_COLOR_STEPS - 1))));
+    const key = 1_000_000 + idx;
+    let sprite = this.spriteCache.get(key);
+    if (sprite) return sprite;
+    sprite = ChromaLoomEngine.makeSprite(rainbowAt(this.stops, idx / (SPLASH_COLOR_STEPS - 1)));
+    this.spriteCache.set(key, sprite);
+    return sprite;
+  }
+
+  // ---------- fire ----------
+
+  /** Advance the fire: birth particles from the spectrum's bottom-edge
+   *  emitters, then let each rise at the scroll speed while Perlin-noise
+   *  turbulence flutters it. Life is long enough (≥ SCROLL_SEC) that a
+   *  particle fades out as smoke around the top of the canvas. */
+  private fire(dt: number, now: number): void {
+    const W = this.W;
+    const H = this.H;
+    if (!W || !H) return;
+    const strip = buildStrip(this.spectrum, this.audio!.ctx.sampleRate, FIRE_SLOTS);
+    this.lastStrip = strip;
+    const rise = H / SCROLL_SEC; // "roughly the same speed as the scroll"
+
+    if (dt > 0) {
+      const slotW = W / FIRE_SLOTS;
+      for (let s = 0; s < FIRE_SLOTS && this.particles.length < MAX_PARTICLES; s++) {
+        const v = strip[s];
+        if (v < 0.05) continue;
+        // Poisson-ish spawning: the expected count can exceed one per frame.
+        let expected = v * FIRE_SPAWN_PER_SLOT * dt;
+        while (expected > 0 && this.particles.length < MAX_PARTICLES) {
+          if (Math.random() >= expected) break;
+          expected -= 1;
+          this.particles.push({
+            x: (s + 0.2 + Math.random() * 0.6) * slotW,
+            y: H - 3 - Math.random() * 4,
+            age: 0,
+            life: SCROLL_SEC * (1.05 + Math.random() * 0.35),
+            r0: 4.5 + v * 7 + Math.random() * 3.5,
+            a0: 0.35 + v * 0.65,
+            slot: s,
+            rise0: rise * (0.25 + Math.random() * 1.5),
+            rot: Math.random() * Math.PI * 2,
+            rotV: (Math.random() - 0.5) * 0.8,
+            variant: Math.floor(Math.random() * SPRITE_VARIANTS),
+          });
+        }
+      }
+    }
+
+    for (const p of this.particles) {
+      p.age += dt;
+      p.rot += p.rotV * dt;
+      const q = p.age / p.life;
+      // Each particle is born with its own rise rate and settles onto the
+      // scroll rate within a few seconds (exponential convergence).
+      const riseNow = converge(p.rise0, rise, p.age, RISE_TAU);
+      // Two octaves of sideways turbulence (smoke flutters wider than flame)
+      // plus a gentle ripple on the rise itself.
+      const n1 = this.noise(p.x * 0.007, p.y * 0.007, now * 0.32);
+      const n2 = this.noise(p.x * 0.025 + 40, p.y * 0.025 + 40, now * 0.8);
+      const ny = this.noise(p.x * 0.007 + 130, p.y * 0.007 + 130, now * 0.32);
+      p.x += (n1 + 0.5 * n2) * (16 + 60 * q) * dt;
+      p.y += (-riseNow * (1.06 - 0.18 * q) + ny * 9) * dt;
+    }
+    this.particles = this.particles.filter((p) => p.age < p.life && p.y > -30);
+  }
+
+  /** An asymmetric fuzzy sprite tinted with a slot's rainbow color (cached
+   *  per slot × shape variant; the cache clears when the rainbow retunes). */
+  private spriteFor(slot: number, variant: number): HTMLCanvasElement {
+    const key = slot * SPRITE_VARIANTS + variant;
+    let sprite = this.spriteCache.get(key);
+    if (sprite) return sprite;
+    sprite = ChromaLoomEngine.makeSprite(this.slotColors[slot] ?? { r: 255, g: 255, b: 255 });
+    this.spriteCache.set(key, sprite);
+    return sprite;
+  }
+
+  private smokeSpriteFor(variant: number): HTMLCanvasElement {
+    let sprite = this.smokeSprites[variant];
+    if (!sprite) {
+      sprite = ChromaLoomEngine.makeSprite({ r: 145, g: 147, b: 155 });
+      this.smokeSprites[variant] = sprite;
+    }
+    return sprite;
+  }
+
+  /** A fuzzy, deliberately lopsided blob: a soft off-center core with a few
+   *  jittered side-lobes, so no two variants (or rotations) look alike. */
+  private static makeSprite(c: Rgb): HTMLCanvasElement {
+    const el = document.createElement("canvas");
+    el.width = 64;
+    el.height = 64;
+    const g = el.getContext("2d")!;
+    const rgb = `${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}`;
+    const lobes = 4;
+    for (let i = 0; i < lobes; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const d = i === 0 ? Math.random() * 4 : 5 + Math.random() * 8;
+      const cx = 32 + Math.cos(ang) * d;
+      const cy = 32 + Math.sin(ang) * d;
+      const r = i === 0 ? 22 + Math.random() * 6 : 9 + Math.random() * 12;
+      const a0 = i === 0 ? 0.85 : 0.3 + Math.random() * 0.3;
+      const grad = g.createRadialGradient(cx, cy, 1, cx, cy, r);
+      grad.addColorStop(0, `rgba(${rgb}, ${a0})`);
+      grad.addColorStop(0.5, `rgba(${rgb}, ${a0 * 0.35})`);
+      grad.addColorStop(1, `rgba(${rgb}, 0)`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 64, 64);
+    }
+    return el;
+  }
+
+  /** Draw the ember bed and every particle: smoke first (normal compositing,
+   *  gray, broad), flame on top (additive, rainbow-tinted). Each particle
+   *  draws rotated by its own slow spin. */
+  private drawFire(ctx: CanvasRenderingContext2D): void {
+    const W = this.W;
+    const H = this.H;
+    ctx.save();
+
+    // The ember bed: the live ribbon slice glowing along the base.
+    ctx.globalCompositeOperation = "lighter";
+    if (this.lastStrip) {
+      const slotW = W / FIRE_SLOTS;
+      for (let s = 0; s < FIRE_SLOTS; s++) {
+        const v = this.lastStrip[s];
+        if (v <= 0.03) continue;
+        const c = this.slotColors[s];
+        ctx.fillStyle = `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${v})`;
+        ctx.fillRect(s * slotW, H - 4, slotW + 0.5, 4);
+      }
+    }
+
+    // Smoke pass — what each particle has already become.
+    ctx.globalCompositeOperation = "source-over";
+    for (const p of this.particles) {
+      const q = p.age / p.life;
+      const mix = smokeMix01(q);
+      if (mix <= 0) continue;
+      ctx.globalAlpha = emberAlpha(q) * p.a0 * mix * 0.5;
+      this.stampRotated(ctx, this.smokeSpriteFor(p.variant), p, q);
+    }
+
+    // Flame pass — what's still burning, additive so overlaps glow.
+    ctx.globalCompositeOperation = "lighter";
+    for (const p of this.particles) {
+      const q = p.age / p.life;
+      const mix = smokeMix01(q);
+      if (mix >= 1) continue;
+      ctx.globalAlpha = emberAlpha(q) * p.a0 * (1 - mix);
+      this.stampRotated(ctx, this.spriteFor(p.slot, p.variant), p, q);
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /** Stamp a sprite centered on the particle at its current spin and size.
+   *  Manual un-rotate instead of save/restore — thousands run per frame. */
+  private stampRotated(
+    ctx: CanvasRenderingContext2D,
+    sprite: HTMLCanvasElement,
+    p: FireParticle,
+    q: number,
+  ): void {
+    // Born already fuzzy: the birth size matches what the old growth curve
+    // reached ~40% of the way up, easing to the same full-grown size.
+    const r = p.r0 * (1.9 + 1.7 * q);
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.drawImage(sprite, -r, -r, r * 2, r * 2);
+    ctx.rotate(-p.rot);
+    ctx.translate(-p.x, -p.y);
+  }
+
   private drawFrame(): void {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -308,16 +726,35 @@ export class ChromaLoomEngine {
     ctx.fillStyle = "#08090d";
     ctx.fillRect(0, 0, W, H);
 
+    if (this.pattern === "fire") {
+      // Gridlines beneath the flames so the fire reads on top.
+      this.drawGrid(ctx);
+      this.drawFire(ctx);
+      return;
+    }
+    if (this.pattern === "waterfall") {
+      this.drawSlices(ctx);
+      this.drawGrid(ctx);
+      this.drawSplashes(ctx); // the burst flies over the gridlines
+      return;
+    }
     if (this.fabric) ctx.drawImage(this.fabric, 0, 0, W, H);
+    this.drawGrid(ctx);
+  }
 
-    // Very light semitone gridlines over the weave: sharps faintest, naturals
-    // a touch brighter, octave C lines brightest and labelled at the left.
+  /** Very light semitone gridlines matched to the pattern's frequency axis:
+   *  sharps faintest, naturals a touch brighter, octave C lines brightest and
+   *  labelled. Horizontal lines for the ribbon; vertical when frequency runs
+   *  across (waterfall, fire). */
+  private drawGrid(ctx: CanvasRenderingContext2D): void {
+    const W = this.W;
+    const H = this.H;
+    const across = this.freqRunsAcross();
     ctx.save();
     ctx.font = "9px 'Spline Sans Mono', monospace";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     for (const line of semitoneLines()) {
-      const y = (1 - line.t01) * H;
       ctx.strokeStyle = line.isC
         ? "rgba(255,255,255,0.11)"
         : line.natural
@@ -325,13 +762,26 @@ export class ChromaLoomEngine {
           : "rgba(255,255,255,0.025)";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
-      if (line.isC) {
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        ctx.fillText(line.label, 5, y - 6);
+      if (across) {
+        const x = line.t01 * W;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        if (line.isC) {
+          ctx.fillStyle = "rgba(255,255,255,0.3)";
+          // Labels sit clear of the fresh edge: bottom for the waterfall's
+          // top-woven rows, top for the fire rising off the base.
+          ctx.fillText(line.label, x + 4, this.pattern === "waterfall" ? H - 9 : 9);
+        }
+      } else {
+        const y = (1 - line.t01) * H;
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        if (line.isC) {
+          ctx.fillStyle = "rgba(255,255,255,0.3)";
+          ctx.fillText(line.label, 5, y - 6);
+        }
       }
+      ctx.stroke();
     }
     ctx.restore();
   }
