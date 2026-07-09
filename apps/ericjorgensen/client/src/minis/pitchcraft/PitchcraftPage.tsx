@@ -5,6 +5,8 @@ import SiteFooter from "../../components/SiteFooter";
 import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
 import { RangeExplorerEngine, RangeHud, blankRangeHud } from "./rangeEngine";
 import { VoiceGardenEngine, GardenHud, GardenRecap, blankGardenHud } from "./gardenEngine";
+import { ChromaLoomEngine, LoomHud, blankLoomHud } from "./loomEngine";
+import { DEFAULT_RAINBOW, PATTERNS, LoomPatternId, getPattern } from "./src/game/chromaLoom";
 import { RangeResult, spanText } from "./src/game/rangeFlower";
 import { Garden, emptyGarden } from "./src/game/voiceGarden";
 import { trackEvent } from "../../lib/analytics";
@@ -51,7 +53,38 @@ const VOICE_DISPLAY_ORDER: VoiceId[] = [
   "bass",
 ];
 
-type Phase = "intro" | "playing" | "done" | "range" | "rangeDone" | "garden" | "gardenDone";
+type Phase = "intro" | "playing" | "done" | "range" | "rangeDone" | "garden" | "gardenDone" | "loom";
+
+// The loom's rainbow key colors persist across visits (palette-tuning is fiddly
+// work worth keeping). Anything malformed falls back to the default rainbow.
+const LOOM_RAINBOW_KEY = "pitchcraft-loom-rainbow";
+
+function loadLoomRainbow(): string[] {
+  try {
+    const raw = window.localStorage.getItem(LOOM_RAINBOW_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw) as unknown;
+      if (
+        Array.isArray(arr) &&
+        arr.length === DEFAULT_RAINBOW.length &&
+        arr.every((c) => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c))
+      ) {
+        return arr as string[];
+      }
+    }
+  } catch {
+    /* unavailable or corrupt — use the defaults */
+  }
+  return [...DEFAULT_RAINBOW];
+}
+
+function persistLoomRainbow(colors: string[]): void {
+  try {
+    window.localStorage.setItem(LOOM_RAINBOW_KEY, JSON.stringify(colors));
+  } catch {
+    /* storage unavailable — the session still works */
+  }
+}
 
 const label: CSSProperties = {
   fontFamily: MONO,
@@ -66,6 +99,7 @@ export default function PitchcraftPage() {
   const engineRef = useRef<PitchcraftEngine | null>(null);
   const rangeRef = useRef<RangeExplorerEngine | null>(null);
   const gardenEngineRef = useRef<VoiceGardenEngine | null>(null);
+  const loomRef = useRef<ChromaLoomEngine | null>(null);
   // The persistent Voice Garden, loaded once and saved after every growth.
   const gardenRef = useRef<Garden>(emptyGarden());
   const statsRef = useRef<Stats>({ ...DEFAULT_STATS });
@@ -85,6 +119,9 @@ export default function PitchcraftPage() {
   const [rangeResult, setRangeResult] = useState<RangeResult | null>(null);
   const [gardenHud, setGardenHud] = useState<GardenHud>(blankGardenHud());
   const [gardenRecap, setGardenRecap] = useState<GardenRecap | null>(null);
+  const [loomHud, setLoomHud] = useState<LoomHud>(blankLoomHud());
+  const [loomPattern, setLoomPattern] = useState<LoomPatternId>("ribbon");
+  const [loomColors, setLoomColors] = useState<string[]>(loadLoomRainbow);
   // The garden's light: pointer-steered by default; checked = rhythm sweep.
   const [rhythmLight, setRhythmLight] = useState(false);
   // Two-step confirm for clearing the garden (armed briefly, then relaxes).
@@ -107,6 +144,7 @@ export default function PitchcraftPage() {
       engineRef.current?.destroy();
       rangeRef.current?.destroy();
       gardenEngineRef.current?.destroy();
+      loomRef.current?.destroy();
     };
   }, []);
 
@@ -130,6 +168,10 @@ export default function PitchcraftPage() {
       } else if (phaseRef.current === "garden") {
         gardenEngineRef.current?.finish(); // rest the garden → visit recap
         window.history.pushState({ pitchcraft: true }, "");
+      } else if (phaseRef.current === "loom") {
+        const secs = loomRef.current?.finish() ?? 0; // no recap — straight home
+        trackEvent("game_over", { game: "chroma_loom", seconds: Math.round(secs) });
+        returnHome();
       } else {
         returnHome(); // recap → home
       }
@@ -197,6 +239,8 @@ export default function PitchcraftPage() {
     gardenEngineRef.current?.destroy();
     gardenEngineRef.current = null;
     setGardenRecap(null);
+    loomRef.current?.destroy();
+    loomRef.current = null;
     setPhase("intro");
   };
 
@@ -345,6 +389,59 @@ export default function PitchcraftPage() {
     gardenEngineRef.current?.refresh();
   };
 
+  // ---- Chroma Loom ----
+
+  const startLoom = () => {
+    loomRef.current?.destroy(); // a return visit replaces the finished engine
+    const engine = new ChromaLoomEngine({ rainbow: loomColors, onHud: setLoomHud });
+    engine.setPattern(loomPattern);
+    loomRef.current = engine;
+    setMicError(null);
+    setLoomHud(blankLoomHud());
+    setShowIntro(true);
+    setPhase("loom");
+    trackEvent("game_start", { game: "chroma_loom" });
+    engine.start().catch((err: MicError) => {
+      engine.destroy();
+      loomRef.current = null;
+      setShowIntro(false);
+      setPhase("intro");
+      setMicError(err === "denied" ? "denied" : "error");
+    });
+  };
+
+  const dismissLoomIntro = () => {
+    setShowIntro(false);
+    loomRef.current?.begin();
+  };
+
+  const leaveLoom = () => {
+    const secs = loomRef.current?.finish() ?? 0;
+    trackEvent("game_over", { game: "chroma_loom", seconds: Math.round(secs) });
+    returnHome();
+  };
+
+  const chooseLoomPattern = (id: LoomPatternId) => {
+    setLoomPattern(id);
+    loomRef.current?.setPattern(id);
+    trackEvent("loom_pattern_selected", { pattern: id });
+  };
+
+  const setLoomColor = (i: number, hex: string) => {
+    const next = loomColors.slice();
+    next[i] = hex;
+    setLoomColors(next);
+    persistLoomRainbow(next);
+    loomRef.current?.setRainbow(next);
+  };
+
+  const resetLoomColors = () => {
+    const next = [...DEFAULT_RAINBOW];
+    setLoomColors(next);
+    persistLoomRainbow(next);
+    loomRef.current?.setRainbow(next);
+  };
+
   const { lo, hi } = noteSet(voiceId, level);
   const levelTitle = LEVELS.find((l) => l.n === level)?.title ?? "";
   const planText =
@@ -465,6 +562,28 @@ export default function PitchcraftPage() {
                   >
                     A living archive of your voice — every tone you sing grows something, and the
                     garden keeps it
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className={styles.opt}
+                  style={optStyle(false)}
+                  onClick={startLoom}
+                >
+                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
+                    Chroma Loom <span style={{ color: "#B653F7" }}>✺</span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.04em",
+                      color: "#565c6a",
+                      marginTop: 3,
+                    }}
+                  >
+                    See your voice as light — a rainbow spectrogram weaves every sound you make
+                    into a scrolling pattern
                   </div>
                 </button>
               </div>
@@ -1185,6 +1304,172 @@ export default function PitchcraftPage() {
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+        {phase === "loom" && (
+          <div style={{ marginTop: 24 }}>
+            <div className={styles.hudRow}>
+              <div style={{ minWidth: 150 }}>
+                <div style={{ ...label, fontSize: 10 }}>Pattern</div>
+                <div
+                  style={{
+                    fontFamily: SERIF,
+                    fontSize: 30,
+                    lineHeight: 1.1,
+                    color: "#f3efe6",
+                    marginTop: 6,
+                  }}
+                >
+                  {getPattern(loomPattern).label}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 6 }}>
+                  {getPattern(loomPattern).detail}
+                </div>
+              </div>
+
+              <div style={{ textAlign: "center", flex: 1 }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "3px 12px",
+                    borderRadius: 20,
+                    background: "rgba(182,83,247,0.08)",
+                    border: "1px solid #3a2a4a",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 10,
+                      letterSpacing: "0.16em",
+                      textTransform: "uppercase",
+                      color: "#B653F7",
+                    }}
+                  >
+                    Weaving
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: SERIF,
+                    fontStyle: "italic",
+                    fontWeight: 300,
+                    fontSize: 21,
+                    lineHeight: 1.35,
+                    color: "#c9cdd6",
+                    marginTop: 8,
+                    maxWidth: 520,
+                    marginLeft: "auto",
+                    marginRight: "auto",
+                  }}
+                >
+                  Hum low, whistle high, slide between — every frequency you make becomes a thread
+                  of light.
+                </div>
+              </div>
+
+              <div style={{ minWidth: 150, textAlign: "right" }}>
+                <div style={{ ...label, fontSize: 10 }}>You</div>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 42,
+                    lineHeight: 1,
+                    color: loomHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    marginTop: 4,
+                  }}
+                >
+                  {loomHud.liveName}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                  {loomHud.liveHz || "silent"}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.board}>
+              <div className={`${styles.stage} ${styles.stageWide}`}>
+                <canvas ref={(el) => loomRef.current?.setCanvas(el)} className={styles.canvas} />
+                {showIntro && (
+                  <div className={styles.introCard}>
+                    <div className={styles.introInner}>
+                      <div className={styles.introKicker}>Chroma Loom</div>
+                      <p className={styles.introText}>
+                        Sing, hum, whistle — anything. The loom listens and weaves what it hears:
+                        every frequency in your sound becomes a thread of light, <em>low</em> notes
+                        glowing red near the bottom, <em>high</em> notes violet at the top, and the
+                        whole fabric scrolls on as time passes.
+                      </p>
+                      <p className={styles.introText}>
+                        The faint lines mark <em>semitones</em>. Try a slow siren from your lowest
+                        note to your highest and watch the harmonics ripple above your voice — then
+                        retune the rainbow&rsquo;s key colors below the loom to weave your own
+                        palette.
+                      </p>
+                      <button type="button" className={styles.introBtn} onClick={dismissLoomIntro}>
+                        Start the loom
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {!showIntro && (
+              <>
+                <div className={styles.loomBar}>
+                  <div className={styles.loomGroup}>
+                    <span className={styles.loomGroupLabel}>Pattern</span>
+                    {PATTERNS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={
+                          p.id === loomPattern ? styles.loomPatternBtnOn : styles.loomPatternBtn
+                        }
+                        disabled={!p.ready}
+                        title={p.detail}
+                        onClick={() => chooseLoomPattern(p.id)}
+                      >
+                        {p.label}
+                        {!p.ready && <span className={styles.loomSoon}>soon</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={styles.loomGroup}>
+                    <span className={styles.loomGroupLabel}>Rainbow</span>
+                    {loomColors.map((c, i) => (
+                      <input
+                        key={i}
+                        type="color"
+                        className={styles.loomSwatch}
+                        value={c}
+                        aria-label={`Rainbow key color ${i + 1} of ${loomColors.length}`}
+                        onChange={(e) => setLoomColor(i, e.target.value)}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      className={styles.loomPatternBtn}
+                      onClick={resetLoomColors}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.playFooter}>
+                  <div className={styles.hint}>
+                    Pitch runs bottom to top · faint lines mark semitones · brightness is each
+                    frequency&rsquo;s strength
+                  </div>
+                  <button type="button" className={styles.endBtn} onClick={leaveLoom}>
+                    Leave the loom
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}

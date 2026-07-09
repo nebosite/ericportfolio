@@ -570,6 +570,88 @@
   background: rgba(244, 178, 62, 0.2);
 }
 
+/* Chroma Loom: the weave-pattern picker + rainbow key-color tuner. */
+.loomBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px 24px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.loomGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.loomGroupLabel {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #565c6a;
+  margin-right: 4px;
+}
+.loomPatternBtn {
+  appearance: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid #2c2f3a;
+  color: #8a90a0;
+  border-radius: 3px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.loomPatternBtn:hover:enabled {
+  border-color: #3a3f4a;
+  color: #c9cdd6;
+}
+.loomPatternBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.loomPatternBtnOn {
+  composes: loomPatternBtn;
+  border-color: #f4b23e;
+  color: #f4b23e;
+  background: rgba(244, 178, 62, 0.12);
+}
+.loomSoon {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #565c6a;
+  margin-left: 6px;
+}
+.loomSwatch {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #2c2f3a;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+}
+.loomSwatch::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.loomSwatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.loomSwatch::-moz-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
 .timer {
   position: absolute;
   left: 0;
