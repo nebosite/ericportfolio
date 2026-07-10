@@ -300,13 +300,7 @@ export function emberAlpha(p: number): number {
 
 // ---- weave patterns ----
 
-export type LoomPatternId =
-  | "ribbon"
-  | "waterfall"
-  | "fire"
-  | "snail"
-  | "squareSpiral"
-  | "figure8";
+export type LoomPatternId = "ribbon" | "waterfall" | "fire" | "snail" | "squareSpiral" | "figure8";
 
 export interface LoomPattern {
   id: LoomPatternId;

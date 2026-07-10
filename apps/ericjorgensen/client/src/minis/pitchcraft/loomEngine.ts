@@ -34,6 +34,7 @@ import {
   rainbowAt,
   buildColumn,
   buildStrip,
+  hzAt01,
   createPerlin,
   smokeMix01,
   emberAlpha,
@@ -194,6 +195,49 @@ export class ChromaLoomEngine {
   /** Whether the current pattern runs frequency along the horizontal axis. */
   private freqRunsAcross(): boolean {
     return this.pattern === "waterfall" || this.pattern === "fire";
+  }
+
+  /** The audio graph's sample rate, or the standard 48 kHz when weaving the
+   *  mic-less home-card preview from synthetic spectra. */
+  private sampleRate(): number {
+    return this.audio?.ctx.sampleRate ?? 48000;
+  }
+
+  /** Ambient home-card preview: no mic — the ribbon weaves a synthetic voice
+   *  (a slow low→high sweep with harmonics) so color scrolls. Draws only while
+   *  the tab is visible and a canvas is attached; destroy() tears it down. */
+  startPreview(): void {
+    this.pattern = "ribbon";
+    this.spectrum = new Uint8Array(2048);
+    this.scrollAcc = 0;
+    this.lastNow = null;
+    this.t0 = performance.now() / 1000;
+    cancelAnimationFrame(this.raf);
+    const binHz = this.sampleRate() / (2 * this.spectrum.length);
+    const step = (): void => {
+      this.raf = requestAnimationFrame(step);
+      if (document.hidden || !this.ctx) return;
+      const now = performance.now() / 1000 - this.t0;
+      let dt = this.lastNow == null ? 0 : now - this.lastNow;
+      this.lastNow = now;
+      if (dt < 0 || dt > 0.5) dt = 0;
+      // A sweeping fundamental with three fading harmonics.
+      this.spectrum.fill(0);
+      const f0 = hzAt01(0.5 + 0.42 * Math.sin(now * 0.55));
+      for (let h = 1; h <= 4; h++) {
+        const b = Math.round((f0 * h) / binHz);
+        const amp = 235 / h;
+        for (let k = -2; k <= 2; k++) {
+          const i = b + k;
+          if (i >= 0 && i < this.spectrum.length) {
+            this.spectrum[i] = Math.max(this.spectrum[i], amp * Math.exp(-(k * k) / 2));
+          }
+        }
+      }
+      this.weave(dt);
+      this.drawFrame();
+    };
+    step();
   }
 
   getPatternId(): LoomPatternId {
@@ -396,7 +440,7 @@ export class ChromaLoomEngine {
     this.scrollAcc -= dx;
     fctx.drawImage(fabric, dx, 0);
     const rows = this.fabricH;
-    const col = buildColumn(this.spectrum, this.audio!.ctx.sampleRate, rows);
+    const col = buildColumn(this.spectrum, this.sampleRate(), rows);
     const img = fctx.createImageData(dx, rows);
     const data = img.data;
     for (let row = 0; row < rows; row++) {
@@ -433,7 +477,7 @@ export class ChromaLoomEngine {
       const actx = atlas.getContext("2d");
       if (actx) {
         const cols = this.fabricW;
-        const sr = this.audio!.ctx.sampleRate;
+        const sr = this.sampleRate();
         const strip = buildStrip(this.spectrum, sr, cols);
         const img = actx.createImageData(cols, 1);
         const data = img.data;
@@ -540,7 +584,10 @@ export class ChromaLoomEngine {
    *  cached at 256 steps across the spectrum (visually exact), in the same
    *  cache the fire uses so retuning the rainbow rebuilds them all. */
   private splashSpriteFor(x01: number): HTMLCanvasElement {
-    const idx = Math.max(0, Math.min(SPLASH_COLOR_STEPS - 1, Math.round(x01 * (SPLASH_COLOR_STEPS - 1))));
+    const idx = Math.max(
+      0,
+      Math.min(SPLASH_COLOR_STEPS - 1, Math.round(x01 * (SPLASH_COLOR_STEPS - 1))),
+    );
     const key = 1_000_000 + idx;
     let sprite = this.spriteCache.get(key);
     if (sprite) return sprite;
@@ -559,7 +606,7 @@ export class ChromaLoomEngine {
     const W = this.W;
     const H = this.H;
     if (!W || !H) return;
-    const strip = buildStrip(this.spectrum, this.audio!.ctx.sampleRate, FIRE_SLOTS);
+    const strip = buildStrip(this.spectrum, this.sampleRate(), FIRE_SLOTS);
     this.lastStrip = strip;
     const rise = H / SCROLL_SEC; // "roughly the same speed as the scroll"
 

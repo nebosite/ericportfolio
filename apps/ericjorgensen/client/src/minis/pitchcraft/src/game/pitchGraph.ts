@@ -91,16 +91,17 @@ export interface PitchGraphOpts {
   hi: number; // last note in the singer's range
   bars: Record<number, GraphBar>; // per-midi average/spread
   compact?: boolean; // smaller type for the home-screen copy
+  mini?: boolean; // one-octave thumbnail: tightest chrome, no axis caption
 }
 
 /** Paint the pitch graph into `ctx`. Shared by the live engine graph and the
  *  home-screen summary so both read identically. */
 export function drawPitchGraph(ctx: CanvasRenderingContext2D, opts: PitchGraphOpts): void {
-  const { W, H, dLow, dHigh, lo, hi, bars, compact } = opts;
+  const { W, H, dLow, dHigh, lo, hi, bars, compact, mini } = opts;
   if (H <= 0 || W <= 0 || dHigh <= dLow) return;
 
-  const gutter = compact ? 26 : 32; // left column for note names
-  const head = compact ? 26 : 30; // top band for the axis labels
+  const gutter = mini ? 21 : compact ? 26 : 32; // left column for note names
+  const head = mini ? 14 : compact ? 26 : 30; // top band for the axis labels
   const padR = 6;
   const x0 = gutter;
   const x1 = W - padR;
@@ -116,7 +117,7 @@ export function drawPitchGraph(ctx: CanvasRenderingContext2D, opts: PitchGraphOp
   ctx.fillStyle = "#0c0d12";
   ctx.fillRect(0, 0, W, H);
 
-  const smallFont = `${compact ? 8 : 9}px 'Spline Sans Mono', monospace`;
+  const smallFont = `${compact || mini ? 8 : 9}px 'Spline Sans Mono', monospace`;
 
   // Semitone gridlines; the exact-pitch line (0¢) is the strong one.
   for (const c of [-100, 0, 100]) {
@@ -129,23 +130,26 @@ export function drawPitchGraph(ctx: CanvasRenderingContext2D, opts: PitchGraphOp
     ctx.stroke();
   }
 
-  // Axis header: "semitones off", flat/sharp ends, and the ± semitone numbers.
+  // Axis header: flat/sharp end labels always; the "semitones off" caption and
+  // ± numbers only when there's room (the mini thumbnail drops them).
   ctx.font = smallFont;
   ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#6b7180";
-  ctx.fillText("semitones off", cx, 9);
-  ctx.fillStyle = "#565c6a";
-  for (const c of [-100, 0, 100]) {
-    const n = c / 100;
-    ctx.fillText((n > 0 ? "+" : "") + n, xFor(c), head - 9);
+  if (!mini) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#6b7180";
+    ctx.fillText("semitones off", cx, 9);
+    ctx.fillStyle = "#565c6a";
+    for (const c of [-100, 0, 100]) {
+      const n = c / 100;
+      ctx.fillText((n > 0 ? "+" : "") + n, xFor(c), head - 9);
+    }
   }
   ctx.textAlign = "left";
   ctx.fillStyle = colorForCents(-100);
-  ctx.fillText("flat", x0, 9);
+  ctx.fillText("flat", x0, mini ? 7 : 9);
   ctx.textAlign = "right";
   ctx.fillStyle = colorForCents(100);
-  ctx.fillText("sharp", x1, 9);
+  ctx.fillText("sharp", x1, mini ? 7 : 9);
 
   // Note names down the left gutter (naturals always; sharps when there's room).
   ctx.textAlign = "left";

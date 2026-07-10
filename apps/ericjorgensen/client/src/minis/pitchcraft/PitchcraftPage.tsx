@@ -11,15 +11,7 @@ import { RangeResult, spanText } from "./src/game/rangeFlower";
 import { Garden, emptyGarden } from "./src/game/voiceGarden";
 import { trackEvent } from "../../lib/analytics";
 import { useEngagement } from "../../lib/engagement";
-import {
-  VOICES,
-  LEVELS,
-  VoiceId,
-  LevelId,
-  noteSet,
-  midiName,
-  notesPerTune,
-} from "./src/game/notes";
+import { VOICES, LEVELS, VoiceId, LevelId, noteSet, midiName } from "./src/game/notes";
 import { drawPitchGraph, meanStd, niceAxisStep, GraphBar } from "./src/game/pitchGraph";
 import {
   Stats,
@@ -53,7 +45,8 @@ const VOICE_DISPLAY_ORDER: VoiceId[] = [
   "bass",
 ];
 
-type Phase = "intro" | "playing" | "done" | "range" | "rangeDone" | "garden" | "gardenDone" | "loom";
+type Phase =
+  "intro" | "playing" | "done" | "range" | "rangeDone" | "garden" | "gardenDone" | "loom";
 
 // The loom's rainbow key colors persist across visits (palette-tuning is fiddly
 // work worth keeping). Anything malformed falls back to the default rainbow.
@@ -91,8 +84,104 @@ const label: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.16em",
   textTransform: "uppercase",
-  color: "#6b7180",
+  color: "var(--ink-faint)",
 };
+
+// The warm reskin's palette. All chrome reads CSS custom properties scoped to
+// this attribute, so "warm-dark" / "warm-light" are one attribute away.
+const THEME = "dawn";
+
+// Per-game accents (CSS variables from the theme).
+const CORAL = "var(--coral)";
+const AMBER = "var(--amber)";
+const SAGE = "var(--sage)";
+const ORCHID = "var(--orchid)";
+
+// Warm, plain-language voice descriptions for the picker overlay.
+const VOICE_DESC: Record<VoiceId, string> = {
+  soprano: "a bright, high voice",
+  tenor: "a high, ringing voice",
+  mezzo: "a warm middle voice",
+  baritone: "a full, mid-low voice",
+  contralto: "a low, rich voice",
+  bass: "a deep, resonant voice",
+};
+
+// Warm display copy for the Trainer's level picker (gameplay is unchanged —
+// notes.ts keeps its own titles; these are the friendlier faces).
+const LEVEL_COPY: Record<LevelId, { tag: string; title: string; detail: string }> = {
+  0: {
+    tag: "WARM UP",
+    title: "Training",
+    detail: "A gentle guided scale — five notes, with a tone to lean on.",
+  },
+  1: { tag: "LV 1", title: "Beginner", detail: "Short three-note tunes, sung back from memory." },
+  2: { tag: "LV 2", title: "Practiced", detail: "Five-note tunes across your chosen range." },
+  3: { tag: "LV 3", title: "Accomplished", detail: "Seven-note tunes over your full range." },
+  4: {
+    tag: "LV 4",
+    title: "Expert",
+    detail: "Eight notes — and the pitch is hidden. Trust your ear.",
+  },
+};
+
+// The three playful game cards on the home screen (the Trainer gets its own
+// feature card in "Train your ear").
+const PLAY_CARDS: Array<{
+  id: "range" | "garden" | "loom";
+  name: string;
+  glyph: string;
+  accent: string;
+  tag?: string;
+  blurb: string;
+}> = [
+  {
+    id: "range",
+    name: "Range Explorer",
+    glyph: "❀",
+    accent: CORAL,
+    tag: "start here",
+    blurb:
+      "Sing high, sing low. A flower blooms across your range and shows you which voice is yours.",
+  },
+  {
+    id: "garden",
+    name: "Voice Garden",
+    glyph: "❦",
+    accent: SAGE,
+    blurb:
+      "Every tone you sing grows something — mushrooms, wildflowers, trees. A living garden that remembers you.",
+  },
+  {
+    id: "loom",
+    name: "Chroma Loom",
+    glyph: "✺",
+    accent: ORCHID,
+    blurb:
+      "Watch your voice become light. A rainbow loom weaves every sound you make into moving colour.",
+  },
+];
+
+/** A representative one-octave accuracy sample for the practice thumbnail when
+ *  the player hasn't sung enough in this octave yet (seeded, so it's stable). */
+function sampleBars(): Record<number, GraphBar> {
+  let a = 23 >>> 0;
+  const r = (): number => {
+    a += 0x6d2b79f5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const bars: Record<number, GraphBar> = {};
+  for (let m = 60; m <= 72; m++) {
+    if (r() < 0.1) continue;
+    bars[m] = { mean: (r() - 0.5) * 70 * (0.45 + r() * 0.55), std: 8 + r() * 22 };
+  }
+  return bars;
+}
+
+const noop = (): void => {};
 
 export default function PitchcraftPage() {
   useEngagement("pitchcraft");
@@ -126,6 +215,9 @@ export default function PitchcraftPage() {
   const [rhythmLight, setRhythmLight] = useState(false);
   // Two-step confirm for clearing the garden (armed briefly, then relaxes).
   const [confirmClear, setConfirmClear] = useState(false);
+  // The two home overlays: the voice picker and the practice panel.
+  const [showVoice, setShowVoice] = useState(false);
+  const [showPractice, setShowPractice] = useState(false);
 
   // Load saved stats/history and restore the last voice/level.
   useEffect(() => {
@@ -148,6 +240,78 @@ export default function PitchcraftPage() {
     };
   }, []);
 
+  // ---- home-card live previews ----
+  // Each card window runs the REAL engine in a mic-less ambient mode
+  // (startPreview): authentic motion, no permission prompt, no persistence.
+  // Engines are created lazily by their canvas ref callback — so one exists
+  // exactly when its canvas does — and torn down when the player leaves home.
+  const prevRange = useRef<RangeExplorerEngine | null>(null);
+  const prevRangeMini = useRef<RangeExplorerEngine | null>(null);
+  const prevTrainer = useRef<PitchcraftEngine | null>(null);
+  const prevGarden = useRef<VoiceGardenEngine | null>(null);
+  const prevLoom = useRef<ChromaLoomEngine | null>(null);
+
+  const rangePreviewCanvas = (el: HTMLCanvasElement | null) => {
+    if (el && !prevRange.current) {
+      prevRange.current = new RangeExplorerEngine({ onHud: noop, onEnd: noop });
+      prevRange.current.startPreview();
+    }
+    prevRange.current?.setCanvas(el);
+  };
+  const rangeMiniCanvas = (el: HTMLCanvasElement | null) => {
+    if (el && !prevRangeMini.current) {
+      prevRangeMini.current = new RangeExplorerEngine({ onHud: noop, onEnd: noop });
+      prevRangeMini.current.startPreview();
+    }
+    prevRangeMini.current?.setCanvas(el);
+  };
+  const trainerPreviewCanvas = (el: HTMLCanvasElement | null) => {
+    if (el && !prevTrainer.current) {
+      prevTrainer.current = new PitchcraftEngine({ voiceId, level: 1, onHud: noop, onEnd: noop });
+      prevTrainer.current.startPreview();
+    }
+    prevTrainer.current?.setCanvas(el);
+  };
+  const gardenPreviewCanvas = (el: HTMLCanvasElement | null) => {
+    if (el && !prevGarden.current) {
+      prevGarden.current = new VoiceGardenEngine({
+        voiceId,
+        garden: emptyGarden(), // throwaway — the preview never persists
+        onHud: noop,
+        onGrow: noop,
+        onEnd: noop,
+      });
+      prevGarden.current.startPreview();
+    }
+    prevGarden.current?.setCanvas(el);
+  };
+  const loomPreviewCanvas = (el: HTMLCanvasElement | null) => {
+    if (el && !prevLoom.current) {
+      prevLoom.current = new ChromaLoomEngine({ rainbow: loomColors, onHud: noop });
+      prevLoom.current.startPreview();
+    }
+    prevLoom.current?.setCanvas(el);
+  };
+
+  const destroyPreviews = () => {
+    prevRange.current?.destroy();
+    prevRange.current = null;
+    prevRangeMini.current?.destroy();
+    prevRangeMini.current = null;
+    prevTrainer.current?.destroy();
+    prevTrainer.current = null;
+    prevGarden.current?.destroy();
+    prevGarden.current = null;
+    prevLoom.current?.destroy();
+    prevLoom.current = null;
+  };
+
+  // Previews live only on the home screen; also tear down on unmount.
+  useEffect(() => {
+    if (phase !== "intro") destroyPreviews();
+  }); // runs each render — destroy is idempotent and cheap
+  useEffect(() => destroyPreviews, []);
+
   // Browser Back during a round: a press while playing quits it (→ the "done"
   // recap), and a press on the recap returns home. A guard history entry is
   // pushed on entry and re-armed after quitting, so Back keeps being caught until
@@ -159,14 +323,19 @@ export default function PitchcraftPage() {
     if (!inRound) return;
     window.history.pushState({ pitchcraft: true }, "");
     const onPop = () => {
+      // A game phase with no engine yet means the intro card is open — Back
+      // from there goes straight home.
       if (phaseRef.current === "playing") {
-        engineRef.current?.stop(); // quit → "done" recap
+        if (!engineRef.current) return returnHome();
+        engineRef.current.stop(); // quit → "done" recap
         window.history.pushState({ pitchcraft: true }, ""); // re-arm for the next Back
       } else if (phaseRef.current === "range") {
-        rangeRef.current?.finish(); // quit exploring → range verdict
+        if (!rangeRef.current) return returnHome();
+        rangeRef.current.finish(); // quit exploring → range verdict
         window.history.pushState({ pitchcraft: true }, "");
       } else if (phaseRef.current === "garden") {
-        gardenEngineRef.current?.finish(); // rest the garden → visit recap
+        if (!gardenEngineRef.current) return returnHome();
+        gardenEngineRef.current.finish(); // rest the garden → visit recap
         window.history.pushState({ pitchcraft: true }, "");
       } else if (phaseRef.current === "loom") {
         const secs = loomRef.current?.finish() ?? 0; // no recap — straight home
@@ -244,7 +413,22 @@ export default function PitchcraftPage() {
     setPhase("intro");
   };
 
+  // Open the Trainer's intro card. No engine and no mic yet — the intro hosts
+  // the level picker and voice chip, so the engine is built on its CTA.
   const startSession = () => {
+    engineRef.current?.destroy();
+    engineRef.current = null;
+    setMicError(null);
+    setHud(blankHud());
+    setShowIntro(true);
+    setPhase("playing");
+    trackEvent("game_start", { game: "trainer" });
+  };
+
+  // The intro's CTA: build the engine with the chosen voice/level and ask for
+  // the mic (getUserMedia runs synchronously inside start(), preserving the
+  // click gesture); begin() defers the note session until the mic is live.
+  const dismissIntro = () => {
     const engine = new PitchcraftEngine({
       voiceId,
       level,
@@ -252,26 +436,14 @@ export default function PitchcraftPage() {
       onEnd: handleEnd,
     });
     engineRef.current = engine;
-    setMicError(null);
-    setHud(blankHud());
-    setShowIntro(true);
-    setPhase("playing");
-    // getUserMedia is invoked synchronously inside start(), preserving the click
-    // gesture; the canvas mounts from the phase change and attaches via its ref.
-    // The engine holds the note session until dismissIntro() calls begin().
+    setShowIntro(false);
     engine.start().catch((err: MicError) => {
       engine.destroy();
       engineRef.current = null;
-      setShowIntro(false);
       setPhase("intro");
       setMicError(err === "denied" ? "denied" : "error");
     });
-  };
-
-  // Dismiss the intro card and let the note session start.
-  const dismissIntro = () => {
-    setShowIntro(false);
-    engineRef.current?.begin();
+    engine.begin();
   };
 
   const endSession = () => engineRef.current?.stop();
@@ -290,26 +462,26 @@ export default function PitchcraftPage() {
 
   const startRange = () => {
     rangeRef.current?.destroy(); // a retry replaces the finished engine
-    const engine = new RangeExplorerEngine({ onHud: setRangeHud, onEnd: handleRangeEnd });
-    rangeRef.current = engine;
+    rangeRef.current = null;
     setMicError(null);
     setRangeHud(blankRangeHud());
     setRangeResult(null);
     setShowIntro(true);
     setPhase("range");
     trackEvent("game_start", { game: "range_explorer" });
-    engine.start().catch((err: MicError) => {
-      engine.destroy();
-      rangeRef.current = null;
-      setShowIntro(false);
-      setPhase("intro");
-      setMicError(err === "denied" ? "denied" : "error");
-    });
   };
 
   const dismissRangeIntro = () => {
+    const engine = new RangeExplorerEngine({ onHud: setRangeHud, onEnd: handleRangeEnd });
+    rangeRef.current = engine;
     setShowIntro(false);
-    rangeRef.current?.begin();
+    engine.start().catch((err: MicError) => {
+      engine.destroy();
+      rangeRef.current = null;
+      setPhase("intro");
+      setMicError(err === "denied" ? "denied" : "error");
+    });
+    engine.begin();
   };
 
   const finishRange = () => rangeRef.current?.finish();
@@ -334,6 +506,16 @@ export default function PitchcraftPage() {
 
   const startGarden = () => {
     gardenEngineRef.current?.destroy(); // a return visit replaces the rested engine
+    gardenEngineRef.current = null;
+    setMicError(null);
+    setGardenHud(blankGardenHud());
+    setGardenRecap(null);
+    setShowIntro(true);
+    setPhase("garden");
+    trackEvent("game_start", { game: "voice_garden" });
+  };
+
+  const dismissGardenIntro = () => {
     const engine = new VoiceGardenEngine({
       voiceId,
       garden: gardenRef.current,
@@ -345,24 +527,14 @@ export default function PitchcraftPage() {
     });
     gardenEngineRef.current = engine;
     engine.setRhythm(rhythmLight);
-    setMicError(null);
-    setGardenHud(blankGardenHud());
-    setGardenRecap(null);
-    setShowIntro(true);
-    setPhase("garden");
-    trackEvent("game_start", { game: "voice_garden" });
+    setShowIntro(false);
     engine.start().catch((err: MicError) => {
       engine.destroy();
       gardenEngineRef.current = null;
-      setShowIntro(false);
       setPhase("intro");
       setMicError(err === "denied" ? "denied" : "error");
     });
-  };
-
-  const dismissGardenIntro = () => {
-    setShowIntro(false);
-    gardenEngineRef.current?.begin();
+    engine.begin();
   };
 
   const restGarden = () => gardenEngineRef.current?.finish();
@@ -393,26 +565,26 @@ export default function PitchcraftPage() {
 
   const startLoom = () => {
     loomRef.current?.destroy(); // a return visit replaces the finished engine
-    const engine = new ChromaLoomEngine({ rainbow: loomColors, onHud: setLoomHud });
-    engine.setPattern(loomPattern);
-    loomRef.current = engine;
+    loomRef.current = null;
     setMicError(null);
     setLoomHud(blankLoomHud());
     setShowIntro(true);
     setPhase("loom");
     trackEvent("game_start", { game: "chroma_loom" });
-    engine.start().catch((err: MicError) => {
-      engine.destroy();
-      loomRef.current = null;
-      setShowIntro(false);
-      setPhase("intro");
-      setMicError(err === "denied" ? "denied" : "error");
-    });
   };
 
   const dismissLoomIntro = () => {
+    const engine = new ChromaLoomEngine({ rainbow: loomColors, onHud: setLoomHud });
+    engine.setPattern(loomPattern);
+    loomRef.current = engine;
     setShowIntro(false);
-    loomRef.current?.begin();
+    engine.start().catch((err: MicError) => {
+      engine.destroy();
+      loomRef.current = null;
+      setPhase("intro");
+      setMicError(err === "denied" ? "denied" : "error");
+    });
+    engine.begin();
   };
 
   const leaveLoom = () => {
@@ -442,18 +614,14 @@ export default function PitchcraftPage() {
     loomRef.current?.setRainbow(next);
   };
 
+  const voiceLabel = VOICES.find((v) => v.id === voiceId)?.label ?? "—";
   const { lo, hi } = noteSet(voiceId, level);
-  const levelTitle = LEVELS.find((l) => l.n === level)?.title ?? "";
-  const planText =
-    level === 0
-      ? `Training · ${midiName(lo)}–${midiName(hi)} · 5 notes · up then down, guided`
-      : `${levelTitle} · ${notesPerTune(level)}-note tunes × 10 · listen, then repeat from memory · ${midiName(lo)}–${midiName(hi)}${level === 4 ? " · pitch hidden" : ""}`;
   const mapRange = `${midiName(lo)}–${midiName(hi)}`;
-  // Home pitch graph: the most recent 10 sessions for the selected voice + level.
+  // Recent per-note stats (last 10 sessions) for the practice thumbnail + overlay.
   const recentNotes = recentNoteStats(history, voiceId, level, 10);
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-theme={THEME}>
       <div className={styles.container}>
         {/* Top bar */}
         <div className={styles.topbar}>
@@ -466,237 +634,157 @@ export default function PitchcraftPage() {
           </div>
         </div>
 
-        {/* Title */}
-        <div style={{ marginTop: 14 }}>
-          <h1 className={styles.title}>
-            Pitchcraft<span style={{ color: "#F4B23E" }}>.</span>
-          </h1>
-          <p className={styles.tagline}>
-            Hear the tone, then find it in your voice. A pitch-matching trainer that meets you in
-            your range.
-          </p>
-        </div>
+        {/* Home: hero → onramp → game cards → train-your-ear. */}
+        {phase === "intro" && (
+          <div className={styles.hero}>
+            <h1 className={styles.title}>
+              Pitchcraft<span style={{ color: AMBER }}>.</span>
+            </h1>
+            <p className={styles.tagline}>
+              Your voice is an instrument you already carry. Come play with it — no lessons, no
+              pressure. Just sing out and see what happens.
+            </p>
+            <button type="button" className={styles.voiceChip} onClick={() => setShowVoice(true)}>
+              <span className={styles.chipDot} />
+              Singing as {voiceLabel} · change
+            </button>
+            <p className={styles.heroNote}>
+              Headphones recommended · audio never leaves your device
+            </p>
+            {micError && (
+              <p className={styles.err}>
+                {micError === "denied"
+                  ? "Microphone blocked — allow mic access and retry."
+                  : "Could not start audio. Check your mic and retry."}
+              </p>
+            )}
+          </div>
+        )}
 
         {phase === "intro" && (
-          <div className={styles.introGrid}>
-            {/* Setup */}
-            <div className={styles.card}>
-              <div style={label}>Your voice</div>
-              <div className={styles.voiceGrid}>
-                {VOICE_DISPLAY_ORDER.map((vid) => {
-                  const v = VOICES.find((x) => x.id === vid)!;
-                  const sel = v.id === voiceId;
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      className={styles.opt}
-                      style={optStyle(sel)}
-                      onClick={() => chooseVoice(v.id)}
-                    >
-                      <div
-                        style={{
-                          fontFamily: SERIF,
-                          fontSize: 17,
-                          color: sel ? "#f3efe6" : "#b4b9c4",
-                        }}
-                      >
-                        {v.label}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 10,
-                          letterSpacing: "0.04em",
-                          color: sel ? "#b9863a" : "#565c6a",
-                          marginTop: 3,
-                        }}
-                      >
-                        {v.detail}
-                      </div>
-                    </button>
-                  );
-                })}
+          <>
+            {/* Onramp: the newcomer's path into Range Explorer. */}
+            <div className={styles.onramp}>
+              <div className={styles.onrampWin}>
+                <canvas ref={rangeMiniCanvas} className={styles.cardCanvas} />
               </div>
-
-              <div style={{ ...label, marginTop: 24 }}>Games</div>
-              <div className={styles.gamesGrid}>
-                <button
-                  type="button"
-                  className={styles.opt}
-                  style={optStyle(false)}
-                  onClick={startRange}
-                >
-                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
-                    Range Explorer <span style={{ color: "#F4B23E" }}>❀</span>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 10,
-                      letterSpacing: "0.04em",
-                      color: "#565c6a",
-                      marginTop: 3,
-                    }}
-                  >
-                    Grow a flower with your voice — sing high and low, and it maps your range
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className={styles.opt}
-                  style={optStyle(false)}
-                  onClick={startGarden}
-                >
-                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
-                    Voice Garden <span style={{ color: "#35C4B5" }}>❦</span>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 10,
-                      letterSpacing: "0.04em",
-                      color: "#565c6a",
-                      marginTop: 3,
-                    }}
-                  >
-                    A living archive of your voice — every tone you sing grows something, and the
-                    garden keeps it
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  className={styles.opt}
-                  style={optStyle(false)}
-                  onClick={startLoom}
-                >
-                  <div style={{ fontFamily: SERIF, fontSize: 17, color: "#b4b9c4" }}>
-                    Chroma Loom <span style={{ color: "#B653F7" }}>✺</span>
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 10,
-                      letterSpacing: "0.04em",
-                      color: "#565c6a",
-                      marginTop: 3,
-                    }}
-                  >
-                    See your voice as light — a rainbow spectrogram weaves every sound you make
-                    into a scrolling pattern
-                  </div>
-                </button>
+              <div className={styles.onrampBody}>
+                <div className={styles.onrampKicker}>New here? Start here</div>
+                <div className={styles.onrampTitle}>
+                  First, let&rsquo;s find where your voice lives.
+                </div>
+                <div className={styles.onrampDesc}>
+                  Sing high, sing low — a flower blooms across your range and tells you which voice
+                  type is yours. Takes about a minute.
+                </div>
               </div>
-
-              <div style={{ ...label, marginTop: 24 }}>Difficulty</div>
-              <div className={styles.levelGrid}>
-                {LEVELS.map((lv) => {
-                  const sel = lv.n === level;
-                  return (
-                    <button
-                      key={lv.n}
-                      type="button"
-                      className={styles.opt}
-                      style={optStyle(sel)}
-                      onClick={() => chooseLevel(lv.n)}
-                    >
-                      <div
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 10,
-                          letterSpacing: "0.08em",
-                          color: sel ? "#F4B23E" : "#565c6a",
-                        }}
-                      >
-                        {lv.n === 0 ? "TRAIN" : `LV ${lv.n}`}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: SERIF,
-                          fontSize: 16,
-                          color: sel ? "#f3efe6" : "#b4b9c4",
-                          marginTop: 3,
-                        }}
-                      >
-                        {lv.title}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: MONO,
-                          fontSize: 9.5,
-                          letterSpacing: "0.03em",
-                          color: sel ? "#b9863a" : "#565c6a",
-                          marginTop: 4,
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {lv.detail}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className={styles.planBox}>{planText}</div>
-
-              <button type="button" className={styles.startBtn} onClick={startSession}>
-                Enable microphone &amp; start
+              <button type="button" className={styles.onrampBtn} onClick={startRange}>
+                Explore your range
               </button>
-              {micError && (
-                <p className={styles.err}>
-                  {micError === "denied"
-                    ? "Microphone blocked — allow mic access and retry."
-                    : "Could not start audio. Check your mic and retry."}
-                </p>
-              )}
-              <p className={styles.micNote}>
-                Headphones recommended. Audio never leaves your device.
-              </p>
             </div>
 
-            {/* Progress */}
-            <div className={styles.cardFlat}>
-              <div style={label}>Your practice</div>
-              <div className={styles.statsRow}>
-                <Stat n={stats.streak} l="day streak" />
-                <Stat n={stats.sessions} l="sessions" />
-                <Stat n={bestFor(stats, voiceId, level)} l="best" accent />
-              </div>
+            {/* Ways to play: the three playful games as live-preview cards. */}
+            <div className={styles.sectionRow}>
+              <h2 className={styles.sectionTitle}>Ways to play</h2>
+              <span className={styles.sectionAside}>pick one and sing</span>
+            </div>
+            <div className={styles.waysGrid}>
+              {PLAY_CARDS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  className={styles.gameCard}
+                  style={{ "--accent": g.accent } as CSSProperties}
+                  onClick={
+                    g.id === "range" ? startRange : g.id === "garden" ? startGarden : startLoom
+                  }
+                >
+                  <span className={styles.cardWin}>
+                    <canvas
+                      ref={
+                        g.id === "range"
+                          ? rangePreviewCanvas
+                          : g.id === "garden"
+                            ? gardenPreviewCanvas
+                            : loomPreviewCanvas
+                      }
+                      className={styles.cardCanvas}
+                    />
+                    {g.tag && (
+                      <span className={styles.cardTag} style={{ background: g.accent }}>
+                        {g.tag}
+                      </span>
+                    )}
+                  </span>
+                  <span className={styles.cardLabel}>
+                    <span className={styles.cardHead}>
+                      <span className={styles.cardName}>{g.name}</span>
+                      <span className={styles.cardGlyph} style={{ color: g.accent }}>
+                        {g.glyph}
+                      </span>
+                    </span>
+                    <span className={styles.cardBlurb}>{g.blurb}</span>
+                    <span className={styles.cardPlay} style={{ color: g.accent }}>
+                      Play →
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
 
-              <div
-                style={{
-                  ...label,
-                  fontSize: 10,
-                  letterSpacing: "0.14em",
-                  margin: "22px 0 10px",
-                }}
+            {/* Train your ear: the Trainer feature card + the practice card. */}
+            <div className={styles.sectionRow}>
+              <h2 className={styles.sectionTitle}>Train your ear</h2>
+              <span className={styles.sectionAside}>structured practice, at your pace</span>
+            </div>
+            <div className={styles.trainGrid}>
+              <button
+                type="button"
+                className={styles.gameCard}
+                style={{ "--accent": AMBER } as CSSProperties}
+                onClick={startSession}
               >
-                Your pitch · {mapRange} · last 10 sessions
-              </div>
-              <PitchGraph notes={recentNotes} voiceId={voiceId} level={level} height={500} />
+                <span className={styles.cardWin}>
+                  <canvas ref={trainerPreviewCanvas} className={styles.cardCanvas} />
+                </span>
+                <span className={styles.cardLabel}>
+                  <span className={styles.cardHead}>
+                    <span className={styles.cardName}>The Trainer</span>
+                    <span className={styles.cardGlyph} style={{ color: AMBER }}>
+                      ♪
+                    </span>
+                  </span>
+                  <span className={styles.cardBlurb}>
+                    Hear a note, then find it in your voice. Friendly drills that meet you where you
+                    are and grow with you.
+                  </span>
+                  <span className={styles.cardPlay} style={{ color: AMBER }}>
+                    Choose a level &amp; play →
+                  </span>
+                </span>
+              </button>
 
-              {history.length > 1 && (
-                <>
-                  <div
-                    style={{
-                      ...label,
-                      fontSize: 10,
-                      letterSpacing: "0.14em",
-                      margin: "22px 0 8px",
-                    }}
-                  >
-                    Recent scores
-                  </div>
-                  <RecentScoresChart
-                    history={history}
-                    voiceId={voiceId}
-                    level={level}
-                    height={150}
-                  />
-                </>
-              )}
+              <button
+                type="button"
+                className={styles.practiceCard}
+                onClick={() => setShowPractice(true)}
+              >
+                <span className={styles.practiceBody}>
+                  <span className={styles.practiceKicker}>Your practice</span>
+                  <span className={styles.practiceTitle}>Your pitch, note by note</span>
+                  <span className={styles.practiceDesc}>
+                    How flat or sharp you land on each note, and how steady your pitch is — kept
+                    quietly across every visit.
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  <span className={styles.practiceOpen}>Open your practice →</span>
+                </span>
+                <span className={styles.practiceWin}>
+                  <MiniPitchGraph notes={recentNotes} />
+                </span>
+              </button>
             </div>
-          </div>
+          </>
         )}
 
         {phase === "intro" && (
@@ -716,7 +804,7 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: "#f3efe6",
+                    color: "var(--ink)",
                     marginTop: 4,
                   }}
                 >
@@ -798,12 +886,12 @@ export default function PitchcraftPage() {
                   style={{
                     fontFamily: MONO,
                     fontSize: 14,
-                    color: "#8a90a0",
+                    color: "var(--ink-dim)",
                     marginTop: 2,
                   }}
                 >
                   {hud.targetHz}
-                  <span style={{ color: "#565c6a" }}> · {hud.noteCount}</span>
+                  <span style={{ color: "var(--ink-faint)" }}> · {hud.noteCount}</span>
                 </div>
               </div>
 
@@ -824,7 +912,7 @@ export default function PitchcraftPage() {
                   style={{
                     fontFamily: MONO,
                     fontSize: 14,
-                    color: "#8a90a0",
+                    color: "var(--ink-dim)",
                     marginTop: 8,
                   }}
                 >
@@ -848,7 +936,9 @@ export default function PitchcraftPage() {
                 {showIntro && (
                   <div className={styles.introCard}>
                     <div className={styles.introInner}>
-                      <div className={styles.introKicker}>Before you begin</div>
+                      <div className={styles.introKicker} style={{ color: AMBER }}>
+                        The Trainer ♪
+                      </div>
                       <p className={styles.introText}>
                         It helps to be somewhere <em>quiet</em>, and to sing out with your full
                         voice — the way you&rsquo;d call a friend&rsquo;s name from across the
@@ -860,14 +950,45 @@ export default function PitchcraftPage() {
                         <em>&ldquo;aah&rdquo;</em> — loudly. A wiggly line traces your actual pitch,
                         and you earn more points the more of it you keep inside the bar.
                       </p>
-                      <p className={styles.introText}>
-                        Keep trying. Even practiced singers struggle with pitch, and you&rsquo;ll
-                        get better over time. Challenge yourself to sing every day for two weeks and
-                        watch your score change.
-                      </p>
+                      <div style={{ ...label, fontSize: 10, alignSelf: "stretch" }}>
+                        Choose a level
+                      </div>
+                      <div className={styles.levelRow}>
+                        {LEVELS.map((lv) => {
+                          const c = LEVEL_COPY[lv.n];
+                          const sel = lv.n === level;
+                          return (
+                            <button
+                              key={lv.n}
+                              type="button"
+                              className={sel ? styles.levelPillOn : styles.levelPill}
+                              onClick={() => chooseLevel(lv.n)}
+                            >
+                              <span className={styles.levelTag}>{c.tag}</span>
+                              <span className={styles.levelTitle} style={{ display: "block" }}>
+                                {c.title}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className={styles.levelDetail}>{LEVEL_COPY[level].detail}</p>
+                      <div className={styles.introChipRow}>
+                        <button
+                          type="button"
+                          className={styles.introVoiceChip}
+                          onClick={() => setShowVoice(true)}
+                        >
+                          <span className={styles.chipDot} /> Voice: {voiceLabel} · change
+                        </button>
+                      </div>
                       <button type="button" className={styles.introBtn} onClick={dismissIntro}>
                         I&rsquo;m ready — start singing
                       </button>
+                      <p className={styles.introMicNote}>
+                        We&rsquo;ll ask to use your microphone. Nothing is recorded or sent
+                        anywhere.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -933,13 +1054,15 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: "#f3efe6",
+                    color: "var(--ink)",
                     marginTop: 4,
                   }}
                 >
                   {rangeHud.petals}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 8 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 12, color: "var(--ink-dim)", marginTop: 8 }}
+                >
                   {rangeHud.heldSec.toFixed(0)}s held
                 </div>
               </div>
@@ -952,8 +1075,8 @@ export default function PitchcraftPage() {
                     gap: 8,
                     padding: "3px 12px",
                     borderRadius: 20,
-                    background: "rgba(244,178,62,0.06)",
-                    border: "1px solid #3a3320",
+                    background: "var(--chip)",
+                    border: "1px solid var(--line)",
                   }}
                 >
                   <span
@@ -962,7 +1085,7 @@ export default function PitchcraftPage() {
                       fontSize: 10,
                       letterSpacing: "0.16em",
                       textTransform: "uppercase",
-                      color: "#b9863a",
+                      color: "var(--amber)",
                     }}
                   >
                     {phase === "range" ? "Explore" : "Your range"}
@@ -975,7 +1098,7 @@ export default function PitchcraftPage() {
                     fontWeight: 300,
                     fontSize: 21,
                     lineHeight: 1.35,
-                    color: "#c9cdd6",
+                    color: "var(--ink)",
                     marginTop: 8,
                     maxWidth: 520,
                     marginLeft: "auto",
@@ -993,13 +1116,15 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: rangeHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    color: rangeHud.liveName === "—" ? "var(--ink-faint)" : "var(--ink)",
                     marginTop: 4,
                   }}
                 >
                   {rangeHud.liveName}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 14, color: "var(--ink-dim)", marginTop: 8 }}
+                >
                   {rangeHud.liveHz || "silent"}
                 </div>
               </div>
@@ -1011,7 +1136,9 @@ export default function PitchcraftPage() {
                 {showIntro && phase === "range" && (
                   <div className={styles.introCard}>
                     <div className={styles.introInner}>
-                      <div className={styles.introKicker}>Range Explorer</div>
+                      <div className={styles.introKicker} style={{ color: CORAL }}>
+                        Range Explorer ❀
+                      </div>
                       <p className={styles.introText}>
                         Sing any note and <em>hold it</em>. A petal blooms where your pitch lands —
                         low notes glow red, high notes violet — and the longer you hold, the further
@@ -1022,9 +1149,18 @@ export default function PitchcraftPage() {
                         hold your strongest notes. When your flower is as big as you can make it,
                         we&rsquo;ll read it and suggest your singing range.
                       </p>
-                      <button type="button" className={styles.introBtn} onClick={dismissRangeIntro}>
+                      <button
+                        type="button"
+                        className={styles.introBtn}
+                        style={{ background: CORAL }}
+                        onClick={dismissRangeIntro}
+                      >
                         I&rsquo;m ready — let&rsquo;s explore
                       </button>
+                      <p className={styles.introMicNote}>
+                        We&rsquo;ll ask to use your microphone. Nothing is recorded or sent
+                        anywhere.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1038,7 +1174,7 @@ export default function PitchcraftPage() {
                           fontWeight: 500,
                           fontSize: 40,
                           lineHeight: 1,
-                          color: "#F4B23E",
+                          color: "var(--amber)",
                         }}
                       >
                         {rangeResult.voice.label}
@@ -1052,14 +1188,14 @@ export default function PitchcraftPage() {
                       <RangeChart result={rangeResult} />
                       <div className={styles.rangeLegend}>
                         <span className={styles.rangeLegendItem}>
-                          <i style={{ background: "#f3efe6" }} /> Your range
+                          <i style={{ background: "var(--ink)" }} /> Your range
                         </span>
                         <span className={styles.rangeLegendItem}>
-                          <i style={{ background: "#F4B23E" }} /> Best female ·{" "}
+                          <i style={{ background: "var(--amber)" }} /> Best female ·{" "}
                           {rangeResult.female.label}
                         </span>
                         <span className={styles.rangeLegendItem}>
-                          <i style={{ background: "#35C4B5" }} /> Best male ·{" "}
+                          <i style={{ background: "var(--sage)" }} /> Best male ·{" "}
                           {rangeResult.male.label}
                         </span>
                       </div>
@@ -1120,16 +1256,18 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: "#f3efe6",
+                    color: "var(--ink)",
                     marginTop: 4,
                   }}
                 >
                   {gardenHud.total}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 8 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 12, color: "var(--ink-dim)", marginTop: 8 }}
+                >
                   +{gardenHud.grown} this visit
                   {gardenHud.ageDays > 0 && (
-                    <span style={{ color: "#565c6a" }}> · day {gardenHud.ageDays}</span>
+                    <span style={{ color: "var(--ink-faint)" }}> · day {gardenHud.ageDays}</span>
                   )}
                 </div>
               </div>
@@ -1142,8 +1280,8 @@ export default function PitchcraftPage() {
                     gap: 8,
                     padding: "3px 12px",
                     borderRadius: 20,
-                    background: gardenHud.zoneLabel ? "rgba(53,196,181,0.1)" : "transparent",
-                    border: `1px solid ${gardenHud.zoneLabel ? "#35C4B5" : "#23262f"}`,
+                    background: gardenHud.zoneLabel ? "var(--chip)" : "transparent",
+                    border: `1px solid ${gardenHud.zoneLabel ? "var(--sage)" : "var(--line)"}`,
                   }}
                 >
                   <span
@@ -1152,7 +1290,7 @@ export default function PitchcraftPage() {
                       fontSize: 10,
                       letterSpacing: "0.16em",
                       textTransform: "uppercase",
-                      color: gardenHud.zoneLabel ? "#35C4B5" : "#6b7180",
+                      color: gardenHud.zoneLabel ? "var(--sage)" : "var(--ink-faint)",
                     }}
                   >
                     {phase === "gardenDone"
@@ -1167,7 +1305,7 @@ export default function PitchcraftPage() {
                     fontWeight: 300,
                     fontSize: 21,
                     lineHeight: 1.35,
-                    color: "#c9cdd6",
+                    color: "var(--ink)",
                     marginTop: 8,
                     maxWidth: 520,
                     marginLeft: "auto",
@@ -1185,16 +1323,18 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: gardenHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    color: gardenHud.liveName === "—" ? "var(--ink-faint)" : "var(--ink)",
                     marginTop: 4,
                   }}
                 >
                   {gardenHud.liveName}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 14, color: "var(--ink-dim)", marginTop: 8 }}
+                >
                   {gardenHud.liveHz || "silent"}
                   {gardenHud.stabilityLabel && (
-                    <span style={{ color: "#35C4B5" }}> · {gardenHud.stabilityLabel}</span>
+                    <span style={{ color: "var(--sage)" }}> · {gardenHud.stabilityLabel}</span>
                   )}
                 </div>
               </div>
@@ -1223,13 +1363,28 @@ export default function PitchcraftPage() {
                         hold, the further it unfolds. New growth sprouts in front of old — what gets
                         buried returns to the soil, and the garden keeps changing.
                       </p>
+                      <div className={styles.introChipRow}>
+                        <button
+                          type="button"
+                          className={styles.introVoiceChip}
+                          onClick={() => setShowVoice(true)}
+                        >
+                          <span className={styles.chipDot} style={{ background: SAGE }} /> Voice:{" "}
+                          {voiceLabel} · change
+                        </button>
+                      </div>
                       <button
                         type="button"
                         className={styles.introBtn}
+                        style={{ background: SAGE }}
                         onClick={dismissGardenIntro}
                       >
                         Open the garden
                       </button>
+                      <p className={styles.introMicNote}>
+                        We&rsquo;ll ask to use your microphone. Nothing is recorded or sent
+                        anywhere.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1243,7 +1398,7 @@ export default function PitchcraftPage() {
                           fontWeight: 500,
                           fontSize: 44,
                           lineHeight: 1,
-                          color: "#F4B23E",
+                          color: "var(--amber)",
                         }}
                       >
                         {gardenRecap.grown > 0
@@ -1317,13 +1472,15 @@ export default function PitchcraftPage() {
                     fontFamily: SERIF,
                     fontSize: 30,
                     lineHeight: 1.1,
-                    color: "#f3efe6",
+                    color: "var(--ink)",
                     marginTop: 6,
                   }}
                 >
                   {getPattern(loomPattern).label}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 12, color: "#8a90a0", marginTop: 6 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 12, color: "var(--ink-dim)", marginTop: 6 }}
+                >
                   {getPattern(loomPattern).detail}
                 </div>
               </div>
@@ -1336,8 +1493,8 @@ export default function PitchcraftPage() {
                     gap: 8,
                     padding: "3px 12px",
                     borderRadius: 20,
-                    background: "rgba(182,83,247,0.08)",
-                    border: "1px solid #3a2a4a",
+                    background: "var(--chip)",
+                    border: "1px solid var(--orchid)",
                   }}
                 >
                   <span
@@ -1346,7 +1503,7 @@ export default function PitchcraftPage() {
                       fontSize: 10,
                       letterSpacing: "0.16em",
                       textTransform: "uppercase",
-                      color: "#B653F7",
+                      color: "var(--orchid)",
                     }}
                   >
                     Weaving
@@ -1359,7 +1516,7 @@ export default function PitchcraftPage() {
                     fontWeight: 300,
                     fontSize: 21,
                     lineHeight: 1.35,
-                    color: "#c9cdd6",
+                    color: "var(--ink)",
                     marginTop: 8,
                     maxWidth: 520,
                     marginLeft: "auto",
@@ -1378,13 +1535,15 @@ export default function PitchcraftPage() {
                     fontFamily: MONO,
                     fontSize: 42,
                     lineHeight: 1,
-                    color: loomHud.liveName === "—" ? "#565c6a" : "#f3efe6",
+                    color: loomHud.liveName === "—" ? "var(--ink-faint)" : "var(--ink)",
                     marginTop: 4,
                   }}
                 >
                   {loomHud.liveName}
                 </div>
-                <div style={{ fontFamily: MONO, fontSize: 14, color: "#8a90a0", marginTop: 8 }}>
+                <div
+                  style={{ fontFamily: MONO, fontSize: 14, color: "var(--ink-dim)", marginTop: 8 }}
+                >
                   {loomHud.liveHz || "silent"}
                 </div>
               </div>
@@ -1396,7 +1555,9 @@ export default function PitchcraftPage() {
                 {showIntro && (
                   <div className={styles.introCard}>
                     <div className={styles.introInner}>
-                      <div className={styles.introKicker}>Chroma Loom</div>
+                      <div className={styles.introKicker} style={{ color: ORCHID }}>
+                        Chroma Loom ✺
+                      </div>
                       <p className={styles.introText}>
                         Sing, hum, whistle — anything. The loom listens and weaves what it hears:
                         every frequency in your sound becomes a thread of light, <em>low</em> notes
@@ -1409,9 +1570,18 @@ export default function PitchcraftPage() {
                         retune the rainbow&rsquo;s key colors below the loom to weave your own
                         palette.
                       </p>
-                      <button type="button" className={styles.introBtn} onClick={dismissLoomIntro}>
+                      <button
+                        type="button"
+                        className={styles.introBtn}
+                        style={{ background: ORCHID }}
+                        onClick={dismissLoomIntro}
+                      >
                         Start the loom
                       </button>
+                      <p className={styles.introMicNote}>
+                        We&rsquo;ll ask to use your microphone. Nothing is recorded or sent
+                        anywhere.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1474,15 +1644,121 @@ export default function PitchcraftPage() {
           </div>
         )}
       </div>
+
+      {/* Voice picker overlay: warm plain-language descriptions + real ranges. */}
+      {showVoice && (
+        <div className={styles.overlay} onClick={() => setShowVoice(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <div>
+                <h3 className={styles.modalTitle}>Which voice is yours?</h3>
+                <p className={styles.modalSub}>
+                  Pick the one that fits — you can change it anytime. Not sure? Let a game find it
+                  for you.
+                </p>
+              </div>
+              <button
+                type="button"
+                className={styles.modalClose}
+                aria-label="Close"
+                onClick={() => setShowVoice(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className={styles.voicePickGrid}>
+              {VOICE_DISPLAY_ORDER.map((vid) => {
+                const v = VOICES.find((x) => x.id === vid)!;
+                const sel = v.id === voiceId;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={sel ? styles.voiceOptOn : styles.voiceOpt}
+                    onClick={() => {
+                      chooseVoice(v.id);
+                      setShowVoice(false);
+                    }}
+                  >
+                    <span className={styles.voiceOptTop}>
+                      <span className={styles.voiceOptLabel}>{v.label}</span>
+                      <span className={styles.voiceOptRange}>
+                        {midiName(v.lo)}–{midiName(v.hi)}
+                      </span>
+                    </span>
+                    <span className={styles.voiceOptDesc}>{VOICE_DESC[v.id]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className={styles.exploreBtn}
+              onClick={() => {
+                setShowVoice(false);
+                startRange();
+              }}
+            >
+              Not sure? Explore your range ❀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Practice overlay: gentle proof of showing up, never a dashboard. */}
+      {showPractice && (
+        <div className={styles.overlay} onClick={() => setShowPractice(false)}>
+          <div
+            className={`${styles.modal} ${styles.modalNarrow}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHead}>
+              <h3 className={styles.modalTitle} style={{ fontSize: 24 }}>
+                Your practice, gently kept
+              </h3>
+              <button
+                type="button"
+                className={styles.modalClose}
+                aria-label="Close"
+                onClick={() => setShowPractice(false)}
+              >
+                ×
+              </button>
+            </div>
+            <p className={styles.modalSub}>
+              No leaderboards, no pressure. Just quiet proof that you keep showing up.
+            </p>
+            <div className={styles.statRow}>
+              <div className={styles.statTile}>
+                <div className={styles.statNum}>{stats.streak}</div>
+                <div className={styles.statLabel}>day streak</div>
+              </div>
+              <div className={styles.statTile}>
+                <div className={styles.statNum}>{stats.sessions}</div>
+                <div className={styles.statLabel}>visits</div>
+              </div>
+              <div className={styles.statTile}>
+                <div className={styles.statNum} style={{ color: AMBER }}>
+                  {bestFor(stats, voiceId, level)}
+                </div>
+                <div className={styles.statLabel}>best</div>
+              </div>
+            </div>
+            <div className={styles.overlayKicker}>Your pitch · {mapRange} · last 10 sessions</div>
+            <PitchGraph notes={recentNotes} voiceId={voiceId} level={level} height={300} />
+            {history.length > 1 && (
+              <>
+                <div className={styles.overlayKicker}>Recent scores</div>
+                <RecentScoresChart history={history} voiceId={voiceId} level={level} height={130} />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <SiteFooter />
     </div>
   );
-}
-
-function optStyle(selected: boolean): CSSProperties {
-  return selected
-    ? { background: "rgba(244,178,62,0.14)", borderColor: "#F4B23E" }
-    : { background: "#16181f", borderColor: "#23262f" };
 }
 
 // "2 tufts of grass, a mushroom colony and a tree" — the visit recap's breakdown.
@@ -1536,23 +1812,17 @@ function RangeChart({ result }: { result: RangeResult }) {
         y={padT}
         width={Math.max(2, sungR - sungL)}
         height={plotBottom - padT}
-        fill="rgba(255,255,255,0.07)"
+        fill="rgba(0,0,0,0.14)"
       />
 
       {/* C-octave gridlines + labels. */}
       {cLines.map((m) => (
         <g key={`c${m}`}>
-          <line
-            x1={xFor(m)}
-            y1={padT}
-            x2={xFor(m)}
-            y2={plotBottom}
-            stroke="rgba(255,255,255,0.06)"
-          />
+          <line x1={xFor(m)} y1={padT} x2={xFor(m)} y2={plotBottom} stroke="var(--line-soft)" />
           <text
             x={xFor(m)}
             y={plotBottom + 14}
-            fill="#565c6a"
+            fill="var(--ink-faint)"
             fontSize="9"
             fontFamily={MONO}
             textAnchor="middle"
@@ -1575,7 +1845,7 @@ function RangeChart({ result }: { result: RangeResult }) {
             y1={padT - 4}
             x2={x}
             y2={plotBottom}
-            stroke="#f3efe6"
+            stroke="var(--ink)"
             strokeWidth="1"
             strokeDasharray="3 3"
             opacity="0.85"
@@ -1583,7 +1853,7 @@ function RangeChart({ result }: { result: RangeResult }) {
           <text
             x={x}
             y={padT - 10}
-            fill="#f3efe6"
+            fill="var(--ink)"
             fontSize="10"
             fontFamily={MONO}
             textAnchor="middle"
@@ -1600,17 +1870,17 @@ function RangeChart({ result }: { result: RangeResult }) {
         const isM = v.id === result.male.id;
         const on = isF || isM;
         const fill = isF
-          ? "rgba(244,178,62,0.28)"
+          ? "rgba(192,126,28,0.30)"
           : isM
-            ? "rgba(53,196,181,0.24)"
-            : "rgba(255,255,255,0.05)";
-        const stroke = isF ? "#F4B23E" : isM ? "#35C4B5" : "#3a3f4a";
+            ? "rgba(110,134,47,0.30)"
+            : "var(--line-soft)";
+        const stroke = isF ? "var(--amber)" : isM ? "var(--sage)" : "var(--line)";
         return (
           <g key={v.id}>
             <text
               x={padL - 12}
               y={cy - 3}
-              fill={on ? "#f3efe6" : "#8a90a0"}
+              fill={on ? "var(--ink)" : "var(--ink-dim)"}
               fontSize="12.5"
               fontFamily={SERIF}
               textAnchor="end"
@@ -1620,7 +1890,7 @@ function RangeChart({ result }: { result: RangeResult }) {
             <text
               x={padL - 12}
               y={cy + 10}
-              fill={isF ? "#b9863a" : isM ? "#2f8f86" : "#565c6a"}
+              fill={isF ? "var(--amber)" : isM ? "var(--sage)" : "var(--ink-faint)"}
               fontSize="8.5"
               fontFamily={MONO}
               textAnchor="end"
@@ -1644,36 +1914,52 @@ function RangeChart({ result }: { result: RangeResult }) {
   );
 }
 
-function Stat({ n, l, accent }: { n: number; l: string; accent?: boolean }) {
-  return (
-    <div className={styles.stat}>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 26,
-          color: accent ? "#F4B23E" : "#f3efe6",
-        }}
-      >
-        {n}
-      </div>
-      <div
-        style={{
-          fontFamily: MONO,
-          fontSize: 9.5,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: "#6b7180",
-          marginTop: 2,
-        }}
-      >
-        {l}
-      </div>
-    </div>
-  );
+// The practice card's thumbnail: a one-octave (C4–C5) miniature of the pitch
+// graph, fed the player's recent per-note stats when any land in that octave,
+// else a representative sample so a newcomer still sees what it will become.
+function MiniPitchGraph({ notes }: { notes: Record<string, NoteCents> }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const render = () => {
+      const lo = 60; // C4
+      const hi = 72; // C5
+      let bars: Record<number, GraphBar> = {};
+      for (let m = lo; m <= hi; m++) {
+        const ns = notes[String(m)];
+        if (ns && ns.cN > 0) bars[m] = meanStd(ns.cN, ns.cSum, ns.cSqSum);
+      }
+      if (Object.keys(bars).length === 0) bars = sampleBars();
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      const dpr = window.devicePixelRatio || 1;
+      el.width = Math.round(w * dpr);
+      el.height = Math.round(h * dpr);
+      const ctx = el.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPitchGraph(ctx, {
+        W: w,
+        H: h,
+        dLow: lo - 0.7,
+        dHigh: hi + 0.7,
+        lo,
+        hi,
+        bars,
+        mini: true,
+      });
+    };
+    render();
+    window.addEventListener("resize", render);
+    return () => window.removeEventListener("resize", render);
+  }, [notes]);
+  return <canvas ref={ref} style={{ display: "block", width: "100%", height: "100%" }} />;
 }
 
-// The home-screen pitch graph: the same visualization shown during play, drawn
-// from the player's recent per-note cents stats. Redraws on data/size change.
+// The practice-overlay pitch graph: the same visualization shown during play,
+// drawn from the player's recent per-note cents stats. Redraws on data/size change.
 function PitchGraph({
   notes,
   voiceId,
@@ -1720,7 +2006,7 @@ function PitchGraph({
     window.addEventListener("resize", render);
     return () => window.removeEventListener("resize", render);
   }, [notes, voiceId, level, height]);
-  return <canvas ref={ref} className={styles.homeGraphCanvas} style={{ height }} />;
+  return <canvas ref={ref} className={styles.overlayGraph} style={{ height }} />;
 }
 
 // The "recent scores" chart: score (y) over how many days ago the session was
@@ -1757,7 +2043,7 @@ function RecentScoresChart({
     window.addEventListener("resize", render);
     return () => window.removeEventListener("resize", render);
   }, [history, voiceId, level, height]);
-  return <canvas ref={ref} className={styles.homeGraphCanvas} style={{ height }} />;
+  return <canvas ref={ref} className={styles.overlayGraph} style={{ height }} />;
 }
 
 function drawRecentScores(
@@ -1794,29 +2080,29 @@ function drawRecentScores(
   ctx.textAlign = "right";
   for (let s = 0; s <= yMax; s += step) {
     const y = yFor(s);
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.strokeStyle = "var(--line-soft)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x0, y);
     ctx.lineTo(x1, y);
     ctx.stroke();
-    ctx.fillStyle = "#565c6a";
+    ctx.fillStyle = "var(--ink-faint)";
     ctx.fillText(String(s), x0 - 5, y);
   }
 
   // X ticks + "days ago" labels.
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillStyle = "#565c6a";
+  ctx.fillStyle = "var(--ink-faint)";
   for (const d of [0, 30, 60, 90]) {
     ctx.fillText(String(d), xFor(d), y1 + 6);
   }
-  ctx.fillStyle = "#6b7180";
+  ctx.fillStyle = "var(--ink-faint)";
   ctx.fillText("Days Ago", (x0 + x1) / 2, y1 + 17);
 
   // Score line + dots (points come sorted oldest → newest).
   if (pts.length) {
-    ctx.strokeStyle = "#35C4B5";
+    ctx.strokeStyle = "var(--sage)";
     ctx.lineWidth = 1.6;
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -1827,7 +2113,7 @@ function drawRecentScores(
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-    ctx.fillStyle = "#35C4B5";
+    ctx.fillStyle = "var(--sage)";
     for (const p of pts) {
       ctx.beginPath();
       ctx.arc(xFor(p.daysAgo), yFor(p.score), 2.4, 0, 7);

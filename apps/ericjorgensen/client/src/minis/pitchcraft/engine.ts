@@ -105,22 +105,22 @@ export function blankHud(): Hud {
     multLabel: "×1",
     multNote: "find it",
     multBg: "transparent",
-    multBorder: "#23262f",
-    multFg: "#6b7180",
-    multSub: "#565c6a",
+    multBorder: "var(--line-soft)",
+    multFg: "var(--ink-faint)",
+    multSub: "var(--ink-faint)",
     phaseLabel: "Ready",
-    phaseColor: "#6b7180",
+    phaseColor: "var(--ink-faint)",
     phaseBg: "transparent",
-    phaseBorder: "#23262f",
+    phaseBorder: "var(--line-soft)",
     targetName: "—",
     targetHz: "",
     noteCount: "",
     stepsLeft: 0,
     stepsUnit: "steps left",
-    targetColor: "#6b7180",
+    targetColor: "var(--ink-faint)",
     liveName: "—",
     liveCents: "",
-    liveColor: "#6b7180",
+    liveColor: "var(--ink-faint)",
     vibrato: false,
     timerPct: 0,
   };
@@ -361,6 +361,65 @@ export class PitchcraftEngine {
   /** End the session early (e.g. the player taps "End session"). */
   stop(): void {
     if (this.audio) this.endSession();
+  }
+
+  /** Ambient home-card preview: no mic, no scoring, no HUD — a looping snippet
+   *  of the piano roll with target blocks crossing the playhead and a synthetic
+   *  voice tracing them. Draws only while the tab is visible and a canvas is
+   *  attached; destroy() tears it down. */
+  startPreview(): void {
+    const LOOP = 8; // seconds; the melody repeats seamlessly
+    const MELODY: { m: number; s: number }[] = [
+      { m: 62, s: 0 },
+      { m: 64, s: 1.2 },
+      { m: 60, s: 2.5 },
+      { m: 67, s: 3.7 },
+      { m: 62, s: 5 },
+      { m: 65, s: 6.2 },
+      { m: 59, s: 7.2 },
+    ];
+    this.mode = "tune";
+    this.hidePitch = false;
+    this.dLow = 57.5;
+    this.dHigh = 69.5;
+    this.rangeLo = 59;
+    this.rangeHi = 68;
+    this.trail = [];
+    this.t0 = performance.now() / 1000;
+    cancelAnimationFrame(this.raf);
+    const step = (): void => {
+      this.raf = requestAnimationFrame(step);
+      if (document.hidden || !this.ctx) return;
+      const now = performance.now() / 1000 - this.t0;
+      // Rebuild the visible window of looping notes each frame (cheap).
+      const base = LOOP * Math.floor(now / LOOP);
+      this.notes = [];
+      for (const off of [base - LOOP, base, base + LOOP]) {
+        for (const n of MELODY) {
+          this.notes.push({
+            midi: n.m,
+            cycle: n.s + off,
+            scoreStart: n.s + off,
+            scoreLen: 0.9,
+            toneStart: -1,
+            toneEnd: -1,
+            tune: 0,
+          });
+        }
+      }
+      // The synthetic voice hums along: it settles on whichever target is at
+      // (or just leaving) the playhead, with a gentle human wobble.
+      let target = MELODY[0].m;
+      for (const n of this.notes) {
+        if (n.scoreStart <= now + 0.25 && now < n.scoreStart + n.scoreLen + 0.5) target = n.midi;
+      }
+      const m = target + Math.sin(now * 5.2) * 0.07 + Math.sin(now * 0.9) * 0.05;
+      this.trail.push({ t: now, m, q: 2, vib: false });
+      while (this.trail.length && now - this.trail[0].t > 2.4) this.trail.shift();
+      this.cur = { hz: midiHz(m), midi: m, cents: 8, q: 2, vibrato: false };
+      this.draw(now, "score", null);
+    };
+    step();
   }
 
   /** Tear everything down (call on unmount). */
@@ -867,9 +926,9 @@ export class PitchcraftEngine {
       multLabel: "×1",
       multNote: "find it",
       multBg: "transparent",
-      multBorder: "#23262f",
-      multFg: "#6b7180",
-      multSub: "#565c6a",
+      multBorder: "var(--line-soft)",
+      multFg: "var(--ink-faint)",
+      multSub: "var(--ink-faint)",
     };
     if (vibrato && q > 0)
       mult = {
@@ -887,25 +946,25 @@ export class PitchcraftEngine {
         multBg: "rgba(244,178,62,0.16)",
         multBorder: ACCENT,
         multFg: ACCENT,
-        multSub: "#b9863a",
+        multSub: "var(--amber)",
       };
     else if (q >= 2)
       mult = {
         multLabel: "×2",
         multNote: "close",
         multBg: "rgba(244,178,62,0.10)",
-        multBorder: "#7a5a22",
+        multBorder: "var(--amber)",
         multFg: ACCENT,
-        multSub: "#7a5a22",
+        multSub: "var(--ink-faint)",
       };
     else if (q >= 1)
       mult = {
         multLabel: "×1",
         multNote: "warm",
         multBg: "rgba(244,178,62,0.05)",
-        multBorder: "#3a3320",
-        multFg: "#b9863a",
-        multSub: "#565c6a",
+        multBorder: "var(--line)",
+        multFg: "var(--amber)",
+        multSub: "var(--ink-faint)",
       };
 
     const phaseMap: Record<
@@ -919,9 +978,9 @@ export class PitchcraftEngine {
     > = {
       rest: {
         phaseLabel: "Breathe",
-        phaseColor: "#6b7180",
+        phaseColor: "var(--ink-faint)",
         phaseBg: "transparent",
-        phaseBorder: "#23262f",
+        phaseBorder: "var(--line-soft)",
       },
       preview: {
         phaseLabel: "Listen",
@@ -931,9 +990,9 @@ export class PitchcraftEngine {
       },
       prep: {
         phaseLabel: "Get ready",
-        phaseColor: "#b9863a",
+        phaseColor: "var(--amber)",
         phaseBg: "rgba(244,178,62,0.06)",
-        phaseBorder: "#3a3320",
+        phaseBorder: "var(--line)",
       },
       score: {
         phaseLabel: "Sing",
@@ -943,15 +1002,16 @@ export class PitchcraftEngine {
       },
       done: {
         phaseLabel: "—",
-        phaseColor: "#6b7180",
+        phaseColor: "var(--ink-faint)",
         phaseBg: "transparent",
-        phaseBorder: "#23262f",
+        phaseBorder: "var(--line-soft)",
       },
     };
     const pm = phaseMap[ph] || phaseMap.done;
 
     const c = this.cur;
-    const liveColor = c.midi == null ? "#565c6a" : c.vibrato ? TEAL : q >= 2 ? ACCENT : "#8a90a0";
+    const liveColor =
+      c.midi == null ? "var(--ink-faint)" : c.vibrato ? TEAL : q >= 2 ? ACCENT : "var(--ink-dim)";
     const liveName = c.midi == null ? "—" : midiName(Math.round(c.midi));
     let liveCents = c.midi == null ? "silent" : midiName(Math.round(c.midi));
     if (c.midi != null && scoring)
@@ -960,7 +1020,7 @@ export class PitchcraftEngine {
     const timerPct = scoring
       ? Math.max(0, 1 - (now - scoring.scoreStart) / scoring.scoreLen) * 100
       : 0;
-    const targetColor = ph === "preview" ? TEAL : ph === "score" ? ACCENT : "#8a90a0";
+    const targetColor = ph === "preview" ? TEAL : ph === "score" ? ACCENT : "var(--ink-dim)";
 
     this.opts.onHud({
       score: Math.round(this.sess.score),

@@ -365,6 +365,60 @@ export class VoiceGardenEngine {
     this.loop();
   }
 
+  /** Ambient home-card preview: no mic, no persistence — the night sky
+   *  breathing over a small garden while a scripted plant grows under the
+   *  drifting light every few seconds. The page passes a throwaway garden, so
+   *  nothing real is written. Draws only while the tab is visible and a canvas
+   *  is attached; destroy() tears it down. */
+  startPreview(): void {
+    this.t0 = performance.now() / 1000;
+    this.lastNow = null;
+    cancelAnimationFrame(this.raf);
+    this.renderStatic();
+    const CYCLE = 7; // seconds per scripted growth
+    let cycleN = -1;
+    const step = (): void => {
+      this.raf = requestAnimationFrame(step);
+      if (document.hidden || !this.ctx) return;
+      const now = performance.now() / 1000 - this.t0;
+      const n = Math.floor(now / CYCLE);
+      const ct = now - n * CYCLE;
+
+      // A new cycle: settle the previous plant into the little garden (pruning
+      // the oldest so the preview never crowds) and sprout the next one.
+      if (n !== cycleN) {
+        cycleN = n;
+        const g = this.opts.garden;
+        if (this.growing) {
+          this.growing.size = 1;
+          this.growing.id = g.nextId;
+          addElement(g, this.growing);
+          this.growing = null;
+          while (g.elements.length > 7) g.elements.shift();
+          this.renderStatic();
+        }
+        const mean = 55 + Math.random() * 20; // wander the low→high bands
+        this.growing = elementFromStroke(
+          g,
+          { dur: 0.3, meanMidi: mean, wobbleCents: 25, x01: 0.15 + Math.random() * 0.7 },
+          this.opts.voiceId,
+          Math.random,
+          Date.now(),
+        );
+        this.growing.size = 0.02;
+      }
+      if (this.growing) this.growing.size = Math.max(0.02, Math.min(1, ct / (CYCLE - 1.5)));
+
+      // Ambient life: a mid blessing so stars/aurora breathe, a drifting light,
+      // and a slowly wandering "sung" hue for the beam.
+      this.blessing = 0.45 + 0.25 * Math.sin(now * 0.3);
+      this.lightX = 0.5 + 0.28 * Math.sin(now * 0.13);
+      this.curMidi = 62 + Math.sin(now * 0.21) * 8;
+      this.drawFrame(now);
+    };
+    step();
+  }
+
   /** Rest the garden: close any in-flight tone, stop the audio, and report the
    *  visit's recap. The garden itself persists — that's the point. */
   finish(): void {

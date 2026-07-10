@@ -143,6 +143,64 @@ export class RangeExplorerEngine {
     this.loop();
   }
 
+  /** Ambient home-card preview: no mic, no scoring — the flower breathing with
+   *  synthetic held petals and a live dot sweeping the range. Draws only while
+   *  the tab is visible and a canvas is attached; destroy() tears it down. */
+  startPreview(): void {
+    this.t0 = performance.now() / 1000;
+    cancelAnimationFrame(this.raf);
+    const step = (): void => {
+      this.raf = requestAnimationFrame(step);
+      if (document.hidden || !this.ctx) return;
+      this.drawPreviewFlower(performance.now() / 1000 - this.t0);
+    };
+    step();
+  }
+
+  /** The ambient flower for the tiny home-card windows. The full draw() is
+   *  tuned for the big stage — its fixed 30px hub, hold-time rings, and 44px
+   *  label margin leave no petal room on a 150px card (and none at all on the
+   *  96×72 onramp window) — so the preview draws the same leaf shapes and
+   *  pitch-rainbow colors at proportional sizes: one gently breathing petal
+   *  every third semitone, a hub, and a bright dot sweeping the range. */
+  private drawPreviewFlower(t: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const W = this.W;
+    const H = this.H;
+    if (!W || !H) return;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#14100b";
+    ctx.fillRect(0, 0, W, H);
+    const cx = W / 2;
+    const cy = H * 0.54;
+    const base = Math.min(W, H) * 0.1;
+    const maxr = Math.min(W, H) * 0.46;
+    const halfArc = petalArc() * 3 * 0.42; // one petal per 3 semitones
+    const growAt = (i: number) => 0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.55);
+    const rAt = (i: number) => base + (0.35 + 0.65 * growAt(i)) * (maxr - base);
+    for (let m = RANGE_LO, i = 0; m <= RANGE_HI; m += 3, i++) {
+      this.petal(ctx, cx, cy, angleFor(m), halfArc, rAt(i), m, 0.82);
+    }
+    // The hub, and a live dot riding whichever petal the sweep is passing.
+    ctx.fillStyle = "#1d1610";
+    ctx.strokeStyle = "#3a2f1c";
+    ctx.beginPath();
+    ctx.arc(cx, cy, base * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const midi = RANGE_LO + ((Math.sin(t * 0.35) + 1) / 2) * (RANGE_HI - RANGE_LO);
+    const a = angleFor(midi);
+    const r = rAt(Math.round((midi - RANGE_LO) / 3));
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = colorFor(midi, 1, 65);
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
   /** The player is done exploring: stop the audio, freeze the flower, and
    *  report the range verdict (null = not enough sustained singing). */
   finish(): void {

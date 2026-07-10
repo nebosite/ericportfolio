@@ -1,21 +1,105 @@
-/* Pitchcraft — a near-black "studio" page that rhymes with the portfolio but
-   leans on amber + teal accents. Layout/responsiveness live here; the dynamic
-   colors (HUD pills, pitch-map cells, target glow) are set inline from state. */
+/* Pitchcraft — the warm, play-first reskin. Three palettes (default "dawn")
+   live as CSS custom properties on the page root's data-theme attribute; every
+   piece of chrome reads tokens so the whole mini rethemes from one attribute.
+   Canvas interiors deliberately stay dark in all themes — they're little lit
+   "windows" onto the games. Layout + interaction styling live here; per-game
+   accent colors are applied inline from the page. */
+
+.page,
+.page[data-theme="dawn"] {
+  --bg: linear-gradient(178deg, #f6ddb6 0%, #f0c199 26%, #d99e86 50%, #9a7c7f 74%, #4f4658 100%);
+  --ink: #34261f;
+  --ink-dim: #6b5344;
+  --ink-faint: #8f7566;
+  --panel: linear-gradient(180deg, rgba(255, 252, 244, 0.94), rgba(252, 240, 222, 0.9));
+  --panel2: rgba(255, 250, 240, 0.82);
+  --card: rgba(255, 251, 242, 0.9);
+  --card-line: rgba(120, 92, 70, 0.24);
+  --line: rgba(120, 92, 70, 0.22);
+  --line-soft: rgba(120, 92, 70, 0.14);
+  --chip: rgba(180, 110, 40, 0.14);
+  --scrim: rgba(40, 30, 34, 0.5);
+  --panel-glass: rgba(255, 250, 240, 0.5);
+  --amber: #c07e1c;
+  --coral: #c1552b;
+  --sage: #6e862f;
+  --orchid: #9a4fa0;
+}
+
+.page[data-theme="warm-dark"] {
+  --bg: radial-gradient(1300px 720px at 50% -12%, #2c2116 0%, #191209 58%, #120d07 100%);
+  --ink: #f3ead6;
+  --ink-dim: #c3b28f;
+  --ink-faint: #8f7d5f;
+  --panel: linear-gradient(180deg, #241c12, #1b140c);
+  --panel2: #1a1309;
+  --card: #1d1610;
+  --card-line: #3a2f1c;
+  --line: #3a2f1c;
+  --line-soft: #2a2115;
+  --chip: rgba(242, 177, 60, 0.1);
+  --scrim: rgba(15, 10, 5, 0.72);
+  --panel-glass: rgba(36, 28, 18, 0.5);
+  --amber: #f2b13c;
+  --coral: #ec7d4e;
+  --sage: #a9b565;
+  --orchid: #d090d6;
+}
+
+.page[data-theme="warm-light"] {
+  --bg: radial-gradient(1300px 720px at 50% -8%, #fdf5e6 0%, #f6ead3 62%, #efe0c6 100%);
+  --ink: #33261a;
+  --ink-dim: #7a6446;
+  --ink-faint: #a08a68;
+  --panel: linear-gradient(180deg, #fffdf6, #fbf2e0);
+  --panel2: #fdf6e9;
+  --card: #fffbf1;
+  --card-line: #ecdcbf;
+  --line: #e7d6b9;
+  --line-soft: #f0e4cd;
+  --chip: rgba(199, 133, 25, 0.12);
+  --scrim: rgba(250, 242, 228, 0.78);
+  --panel-glass: rgba(255, 253, 246, 0.5);
+  --amber: #c8891f;
+  --coral: #c8592c;
+  --sage: #6f8a2f;
+  --orchid: #a552ab;
+}
 
 .page {
   min-height: 100vh;
-  background: radial-gradient(1200px 600px at 50% -10%, #15171f 0%, #0a0b0f 60%);
-  color: #c9cdd6;
+  background: var(--bg);
+  color: var(--ink);
   font-family: "Spectral", Georgia, serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .container {
-  max-width: 1280px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 30px 40px 70px;
+  padding: 26px 40px 90px;
 }
 
+@keyframes pc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pc-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- top bar ---- */
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -25,14 +109,14 @@
 
 .back {
   text-decoration: none;
-  color: #6b7180;
+  color: var(--ink-faint);
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .back:hover {
-  color: #c9cdd6;
+  color: var(--ink);
 }
 
 .badge {
@@ -45,177 +129,524 @@
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #6b7180;
+  color: var(--ink-faint);
 }
 .badgeDot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #f4b23e;
+  background: var(--amber);
   display: inline-block;
 }
 
+/* ---- home: hero ---- */
+.hero {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: pc-fade 0.5s ease both;
+}
 .title {
   font-weight: 500;
-  font-size: 62px;
-  line-height: 0.92;
+  font-size: 74px;
+  line-height: 0.9;
   letter-spacing: -0.02em;
   margin: 0;
-  color: #f3efe6;
+  color: var(--ink);
 }
 .tagline {
   font-style: italic;
   font-weight: 300;
-  font-size: 19px;
-  color: #8a90a0;
-  margin: 10px 0 0;
-  max-width: 540px;
+  font-size: 22px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  margin: 16px 0 0;
+  max-width: 560px;
 }
 
-/* ---- intro ---- */
-.introGrid {
-  margin: 28px auto 0;
-  max-width: 1120px;
-  display: grid;
-  grid-template-columns: 1.18fr 0.82fr;
-  gap: 22px;
-  align-items: start;
-}
-
-.card {
-  background: linear-gradient(180deg, #16181f, #101218);
-  border: 1px solid #23262f;
-  border-radius: 4px;
-  padding: 28px 30px 26px;
-}
-.cardFlat {
-  background: #101218;
-  border: 1px solid #23262f;
-  border-radius: 4px;
-  padding: 26px 24px;
-}
-
-.voiceGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 14px;
-}
-.levelGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.opt {
-  border: 1px solid #23262f;
-  border-radius: 3px;
-  padding: 11px 13px;
-  text-align: left;
+.voiceChip {
+  margin-top: 22px;
   cursor: pointer;
   appearance: none;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-
-/* Games section (setup card): one wide tile per game. */
-.gamesGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.planBox {
-  margin-top: 20px;
-  padding: 12px 14px;
-  border: 1px dashed #2c2f3a;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 8px 16px 8px 14px;
+  color: var(--ink-dim);
   font-family: "Spline Sans Mono", monospace;
-  font-size: 12px;
-  color: #8a90a0;
-  letter-spacing: 0.03em;
-}
-
-.startBtn {
-  margin-top: 18px;
-  appearance: none;
-  cursor: pointer;
-  border: none;
-  border-radius: 3px;
-  background: #f4b23e;
-  color: #0a0b0f;
-  font-family: "Spline Sans Mono", monospace;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 16px 22px;
-  width: 100%;
   transition:
-    background 0.18s,
-    transform 0.12s;
+    border-color 0.18s,
+    color 0.18s;
 }
-.startBtn:hover {
-  background: #ffc659;
-  transform: translateY(-1px);
+.voiceChip:hover {
+  border-color: var(--amber);
+  color: var(--ink);
 }
-
+.chipDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  display: inline-block;
+}
+.heroNote {
+  margin: 13px 0 0;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
 .err {
   margin: 12px 0 0;
-  font-size: 14px;
-  color: #e8654a;
+  font-size: 13px;
+  color: var(--coral);
   font-family: "Spline Sans Mono", monospace;
   text-align: center;
 }
-.micNote {
-  margin: 12px 0 0;
+
+/* ---- home: onramp banner ---- */
+.onramp {
+  margin-top: 40px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 24px;
+  animation: pc-rise 0.5s ease both;
+}
+.onrampWin {
+  width: 96px;
+  height: 72px;
+  border-radius: 11px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #14100b;
+  border: 1px solid var(--line-soft);
+}
+.onrampBody {
+  flex: 1;
+  min-width: 0;
+}
+.onrampKicker {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+.onrampTitle {
+  font-size: 20px;
+  color: var(--ink);
+  margin-top: 5px;
+}
+.onrampDesc {
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  margin-top: 3px;
+  max-width: 520px;
+}
+.onrampBtn {
+  flex-shrink: 0;
+  cursor: pointer;
+  appearance: none;
+  border: none;
+  border-radius: 9px;
+  background: var(--coral);
+  color: #1a140c;
+  font-family: "Spline Sans Mono", monospace;
   font-size: 12px;
-  color: #565c6a;
-  text-align: center;
-  font-weight: 300;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 14px 20px;
+  transition: transform 0.14s;
+}
+.onrampBtn:hover {
+  transform: translateY(-2px);
 }
 
-/* ---- feedback panel (standard per-entity feature) ---- */
+/* ---- home: section headings + card grids ---- */
+.sectionRow {
+  margin-top: 42px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.sectionTitle {
+  font-weight: 500;
+  font-size: 26px;
+  margin: 0;
+  color: var(--ink);
+}
+.sectionAside {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+
+.waysGrid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+}
+.trainGrid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+/* A game card: dark live-preview window on top, 30%-black label block below. */
+.gameCard {
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--card-line);
+  border-radius: 16px;
+  overflow: hidden;
+  text-align: left;
+  padding: 0;
+  appearance: none;
+  display: block;
+  width: 100%;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
+  animation: pc-rise 0.5s ease both;
+}
+.gameCard:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent, var(--amber));
+}
+.cardWin {
+  display: block;
+  position: relative;
+  height: 150px;
+  background: #14100b;
+  border-bottom: 1px solid var(--line-soft);
+}
+.cardCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cardTag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a140c;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+.cardLabel {
+  display: block;
+  padding: 18px 20px 20px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.cardName {
+  font-size: 19px;
+  color: #ffffff;
+}
+.cardGlyph {
+  font-size: 16px;
+}
+.cardBlurb {
+  display: block;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+  margin: 8px 0 0;
+}
+.cardPlay {
+  display: block;
+  margin-top: 14px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The "your practice" card (right of the Trainer feature card). */
+.practiceCard {
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--card-line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  gap: 18px;
+  text-align: left;
+  appearance: none;
+  width: 100%;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
+  animation: pc-rise 0.5s ease both;
+}
+.practiceCard:hover {
+  transform: translateY(-4px);
+  border-color: var(--amber);
+}
+.practiceBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.practiceKicker {
+  display: block;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.practiceTitle {
+  display: block;
+  font-size: 18px;
+  color: #ffffff;
+  margin-top: 5px;
+}
+.practiceDesc {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: 4px;
+}
+.practiceOpen {
+  display: block;
+  margin-top: 16px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.practiceWin {
+  display: block;
+  width: 118px;
+  height: 168px; /* fixed + small: the trainer card sets the row height */
+  flex-shrink: 0;
+  align-self: center;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #0c0d12;
+  border: 1px solid var(--line-soft);
+}
+
+/* ---- overlays (voice picker, practice) ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  animation: pc-fade 0.25s ease both;
+}
+.modal {
+  width: 100%;
+  max-width: 620px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 30px 32px;
+  max-height: 88vh;
+  overflow: auto;
+}
+.modalNarrow {
+  max-width: 560px;
+}
+.modalHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modalTitle {
+  font-weight: 500;
+  font-size: 26px;
+  margin: 0;
+  color: var(--ink);
+}
+.modalSub {
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  margin: 6px 0 0;
+}
+.modalClose {
+  cursor: pointer;
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.modalClose:hover {
+  color: var(--ink);
+}
+
+.voicePickGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 20px;
+}
+.voiceOpt {
+  cursor: pointer;
+  border: 1px solid var(--line-soft);
+  background: var(--panel2);
+  border-radius: 11px;
+  padding: 13px 15px;
+  text-align: left;
+  appearance: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.voiceOpt:hover {
+  border-color: var(--amber);
+}
+.voiceOptOn {
+  composes: voiceOpt;
+  background: var(--chip);
+  border-color: var(--amber);
+}
+.voiceOptTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.voiceOptLabel {
+  font-size: 17px;
+  color: var(--ink-dim);
+  font-family: "Spectral", Georgia, serif;
+}
+.voiceOptOn .voiceOptLabel {
+  color: var(--ink);
+}
+.voiceOptRange {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+.voiceOptDesc {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-faint);
+  margin-top: 3px;
+  font-style: italic;
+}
+
+.exploreBtn {
+  margin-top: 16px;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  border: 1px dashed var(--coral);
+  background: rgba(236, 125, 78, 0.08);
+  border-radius: 11px;
+  padding: 14px;
+  color: var(--coral);
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.exploreBtn:hover {
+  background: rgba(236, 125, 78, 0.16);
+}
+
+.statRow {
+  display: flex;
+  gap: 12px;
+  margin-top: 22px;
+}
+.statTile {
+  flex: 1;
+  background: var(--panel2);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 16px;
+}
+.statNum {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 30px;
+  color: var(--ink);
+}
+.statLabel {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+.overlayKicker {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 24px 0 12px;
+}
+.overlayGraph {
+  display: block;
+  width: 100%;
+  height: 300px;
+  border-radius: 11px;
+  border: 1px solid var(--line-soft);
+  background: #0c0d12;
+}
+
+/* ---- feedback (standard per-entity feature, kept on the title screen) ----
+   Seated on a panel: the section sits low on the page, where the dawn
+   gradient runs dark — text straight on the background isn't readable. */
 .feedbackWrap {
-  margin-top: 30px;
+  margin-top: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #c9cdd6;
+  color: var(--ink);
+  background: var(--panel-glass);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 24px 28px;
 }
 .feedbackHeading {
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #6b7180;
-}
-
-/* ---- progress card ---- */
-.statsRow {
-  display: flex;
-  gap: 8px;
-  margin-top: 18px;
-}
-.stat {
-  flex: 1;
-  background: #16181f;
-  border: 1px solid #23262f;
-  border-radius: 3px;
-  padding: 12px;
-}
-
-/* Home-screen pitch graph + recent-scores chart (same canvas styling). */
-.homeGraphCanvas {
-  display: block;
-  width: 100%;
-  border: 1px solid #23262f;
-  border-radius: 4px;
-  background: #0c0d12;
+  color: var(--ink-dim);
 }
 
 /* ---- playing ---- */
@@ -227,8 +658,7 @@
   margin-bottom: 14px;
 }
 
-/* The play board: game grid on the left (up to 1000px), pitch graph on the
-   right (20% of the width). */
+/* The play board: game stage on the left, pitch graph on the right (trainer). */
 .board {
   display: flex;
   gap: 12px;
@@ -239,17 +669,17 @@
   flex: 1 1 auto;
   min-width: 0;
   max-width: 1000px;
-  border: 1px solid #23262f;
-  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
   overflow: hidden;
-  background: #0c0d12;
+  background: #14100b;
 }
 .graphSide {
   position: relative;
   flex: 0 0 20%;
   min-width: 150px;
-  border: 1px solid #23262f;
-  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
   overflow: hidden;
   background: #0c0d12;
 }
@@ -292,7 +722,8 @@
   }
 }
 
-/* Steps-left indicator — large and clear, upper-right of the play stage. */
+/* Steps-left indicator — large and clear, upper-right of the play stage.
+   Sits over the dark canvas, so it keeps dark-window styling in all themes. */
 .stepsBadge {
   position: absolute;
   top: 14px;
@@ -302,9 +733,9 @@
   flex-direction: column;
   align-items: flex-end;
   padding: 10px 16px;
-  border-radius: 6px;
-  background: rgba(12, 13, 18, 0.72);
-  border: 1px solid #23262f;
+  border-radius: 10px;
+  background: rgba(12, 10, 6, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   pointer-events: none;
 }
 .stepsNum {
@@ -312,14 +743,14 @@
   font-size: 40px;
   font-weight: 500;
   line-height: 1;
-  color: #f3efe6;
+  color: #f3ead6;
 }
 .stepsUnit {
   font-family: "Spline Sans Mono", monospace;
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #6b7180;
+  color: rgba(243, 234, 214, 0.55);
   margin-top: 5px;
 }
 
@@ -332,42 +763,43 @@
   align-items: center;
   justify-content: center;
   padding: 32px;
-  background: radial-gradient(
-    620px 420px at 50% 42%,
-    rgba(18, 20, 28, 0.94),
-    rgba(10, 11, 15, 0.97)
-  );
-  animation: pc-fadein 0.9s ease both;
+  background: var(--scrim);
+  animation: pc-fade 0.4s ease both;
+  overflow-y: auto;
 }
 .introInner {
-  max-width: 560px;
+  max-width: 600px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 16px;
-  animation: pc-rise 0.9s ease both;
+  gap: 14px;
+  animation: pc-rise 0.5s ease both;
 }
 .introKicker {
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #6b7180;
+  color: var(--ink-faint);
 }
 .introText {
   font-family: "Spectral", Georgia, serif;
-  font-size: 17px;
+  font-size: 16.5px;
   line-height: 1.55;
-  color: #c9cdd6;
+  color: var(--ink);
   margin: 0;
 }
 .introText em {
   font-style: italic;
-  color: #f4b23e;
+  color: var(--amber);
 }
 .arrow {
-  color: #f4b23e;
+  color: var(--amber);
   font-weight: 600;
   font-style: normal;
 }
@@ -376,40 +808,106 @@
   appearance: none;
   cursor: pointer;
   border: none;
-  border-radius: 3px;
-  background: #f4b23e;
-  color: #0a0b0f;
+  border-radius: 10px;
+  background: var(--amber);
+  color: #1a140c;
   font-family: "Spline Sans Mono", monospace;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 15px 28px;
-  transition:
-    background 0.18s,
-    transform 0.12s;
+  padding: 15px 26px;
+  transition: transform 0.14s;
 }
 .introBtn:hover {
-  background: #ffc659;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
-@keyframes pc-fadein {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.introMicNote {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+  margin: 4px 0 0;
 }
-@keyframes pc-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+
+/* The Trainer intro's level picker. */
+.levelRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.levelPill {
+  cursor: pointer;
+  border: 1px solid var(--line-soft);
+  background: var(--panel2);
+  border-radius: 9px;
+  padding: 9px 11px;
+  text-align: left;
+  appearance: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.levelPill:hover {
+  border-color: var(--amber);
+}
+.levelPillOn {
+  composes: levelPill;
+  background: var(--chip);
+  border-color: var(--amber);
+}
+.levelTag {
+  display: block;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.levelPillOn .levelTag {
+  color: var(--amber);
+}
+.levelTitle {
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  margin-top: 2px;
+  font-family: "Spectral", Georgia, serif;
+}
+.levelPillOn .levelTitle {
+  color: var(--ink);
+}
+.levelDetail {
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin: 0;
+  font-style: italic;
+}
+.introChipRow {
+  display: flex;
+  justify-content: center;
+}
+.introVoiceChip {
+  cursor: pointer;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 7px 14px;
+  color: var(--ink-dim);
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition:
+    border-color 0.18s,
+    color 0.18s;
+}
+.introVoiceChip:hover {
+  border-color: var(--amber);
+  color: var(--ink);
 }
 
 /* Range Explorer: the flower stage spans the full board width (no side graph). */
@@ -419,18 +917,19 @@
 
 /* Range Explorer results overlay: wider than the plain intro card so the
    voice-range chart has room; scrolls if the stage is short. */
-.introCard {
-  overflow-y: auto;
-}
 .rangeResultInner {
-  max-width: 780px;
+  max-width: 820px;
   width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 14px;
-  animation: pc-rise 0.9s ease both;
+  animation: pc-rise 0.5s ease both;
 }
 .rangeChart {
   display: block;
@@ -451,12 +950,12 @@
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: #8a90a0;
+  color: var(--ink-dim);
 }
 .rangeLegendItem i {
   width: 12px;
   height: 12px;
-  border-radius: 2px;
+  border-radius: 3px;
   display: inline-block;
 }
 
@@ -475,21 +974,21 @@
   appearance: none;
   cursor: pointer;
   background: none;
-  border: 1px solid #2c2f3a;
-  color: #8a90a0;
-  border-radius: 3px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  border-radius: 10px;
   font-family: "Spline Sans Mono", monospace;
-  font-size: 13px;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 15px 28px;
+  padding: 15px 26px;
   transition:
     border-color 0.18s,
     color 0.18s;
 }
 .introBtnGhost:hover {
-  border-color: #3a3f4a;
-  color: #c9cdd6;
+  border-color: var(--amber);
+  color: var(--ink);
 }
 
 /* Voice Garden footer: clear + rhythm-light toggle beside the rest button. */
@@ -502,10 +1001,10 @@
 .clearBtn {
   appearance: none;
   cursor: pointer;
-  background: none;
-  border: 1px solid #2c2f3a;
-  color: #8a90a0;
-  border-radius: 3px;
+  background: var(--panel-glass);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  border-radius: 9px;
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -513,16 +1012,16 @@
   padding: 9px 16px;
 }
 .clearBtn:hover {
-  border-color: #e8654a;
-  color: #e8654a;
+  border-color: var(--coral);
+  color: var(--coral);
 }
 .clearBtnArmed {
   appearance: none;
   cursor: pointer;
-  background: rgba(232, 101, 74, 0.14);
-  border: 1px solid #e8654a;
-  color: #e8654a;
-  border-radius: 3px;
+  background: rgba(193, 85, 43, 0.14);
+  border: 1px solid var(--coral);
+  color: var(--coral);
+  border-radius: 9px;
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -538,36 +1037,36 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8a90a0;
+  color: var(--ink-dim);
   user-select: none;
 }
 .rhythmToggle input {
-  accent-color: #35c4b5;
+  accent-color: var(--sage);
   width: 14px;
   height: 14px;
   cursor: pointer;
 }
 .rhythmToggle:hover {
-  color: #c9cdd6;
+  color: var(--ink);
 }
 
-/* The prominent "I'm done" action while exploring. */
+/* The prominent per-game finish action while playing. */
 .rangeFinishBtn {
   appearance: none;
   cursor: pointer;
-  border: 1px solid #f4b23e;
-  background: rgba(244, 178, 62, 0.12);
-  color: #f4b23e;
-  border-radius: 3px;
+  border: 1px solid var(--amber);
+  background: var(--panel-glass);
+  color: var(--amber);
+  border-radius: 9px;
   font-family: "Spline Sans Mono", monospace;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 10px 18px;
-  transition: background 0.18s;
+  transition: transform 0.14s;
 }
 .rangeFinishBtn:hover {
-  background: rgba(244, 178, 62, 0.2);
+  transform: translateY(-2px);
 }
 
 /* Chroma Loom: the weave-pattern picker + rainbow key-color tuner. */
@@ -590,16 +1089,16 @@
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #565c6a;
+  color: var(--ink-faint);
   margin-right: 4px;
 }
 .loomPatternBtn {
   appearance: none;
   cursor: pointer;
-  background: none;
-  border: 1px solid #2c2f3a;
-  color: #8a90a0;
-  border-radius: 3px;
+  background: var(--panel-glass);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  border-radius: 9px;
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -611,8 +1110,8 @@
     background 0.15s;
 }
 .loomPatternBtn:hover:enabled {
-  border-color: #3a3f4a;
-  color: #c9cdd6;
+  border-color: var(--orchid);
+  color: var(--ink);
 }
 .loomPatternBtn:disabled {
   opacity: 0.4;
@@ -620,14 +1119,14 @@
 }
 .loomPatternBtnOn {
   composes: loomPatternBtn;
-  border-color: #f4b23e;
-  color: #f4b23e;
-  background: rgba(244, 178, 62, 0.12);
+  border-color: var(--orchid);
+  color: var(--orchid);
+  background: var(--chip);
 }
 .loomSoon {
   font-size: 8px;
   letter-spacing: 0.1em;
-  color: #565c6a;
+  color: var(--ink-faint);
   margin-left: 6px;
 }
 .loomSwatch {
@@ -635,8 +1134,8 @@
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid #2c2f3a;
-  border-radius: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   background: none;
   cursor: pointer;
 }
@@ -645,11 +1144,11 @@
 }
 .loomSwatch::-webkit-color-swatch {
   border: none;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 .loomSwatch::-moz-color-swatch {
   border: none;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .timer {
@@ -658,7 +1157,7 @@
   right: 0;
   bottom: 0;
   height: 3px;
-  background: #1a1d25;
+  background: rgba(255, 255, 255, 0.08);
 }
 .timerFill {
   height: 100%;
@@ -670,40 +1169,51 @@
   justify-content: space-between;
   align-items: center;
   margin-top: 14px;
+  gap: 16px;
 }
 .hint {
   font-family: "Spline Sans Mono", monospace;
-  font-size: 11px;
-  color: #565c6a;
-  letter-spacing: 0.06em;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  color: color-mix(in srgb, var(--ink-faint) 50%, var(--ink));
+  letter-spacing: 0.03em;
 }
 .endBtn {
   appearance: none;
   cursor: pointer;
-  background: none;
-  border: 1px solid #2c2f3a;
-  color: #8a90a0;
-  border-radius: 3px;
+  background: var(--panel-glass);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  border-radius: 9px;
   font-family: "Spline Sans Mono", monospace;
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 9px 16px;
+  padding: 10px 18px;
 }
 .endBtn:hover {
-  border-color: #3a3f4a;
-  color: #c9cdd6;
+  border-color: var(--amber);
+  color: var(--ink);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .container {
     padding: 22px 18px 50px;
   }
   .title {
-    font-size: 46px;
+    font-size: 52px;
   }
-  .introGrid {
+  .onramp {
+    flex-wrap: wrap;
+  }
+  .waysGrid {
     grid-template-columns: 1fr;
+  }
+  .trainGrid {
+    grid-template-columns: 1fr;
+  }
+  .levelRow {
+    grid-template-columns: 1fr 1fr;
   }
   /* Stack the graph under the grid on narrow screens. */
   .board {

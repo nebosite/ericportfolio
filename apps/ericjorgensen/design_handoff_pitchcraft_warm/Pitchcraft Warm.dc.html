@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { background: #140f0a; }
+    :root, [data-theme="warm-dark"] {
+      --bg: radial-gradient(1300px 720px at 50% -12%, #2c2116 0%, #191209 58%, #120d07 100%);
+      --ink: #f3ead6; --ink-dim: #c3b28f; --ink-faint: #8f7d5f;
+      --panel: linear-gradient(180deg, #241c12, #1b140c); --panel2: #1a1309;
+      --card: #1d1610; --card-line: #3a2f1c; --line: #3a2f1c; --line-soft: #2a2115;
+      --chip: rgba(242,177,60,0.10); --scrim: rgba(15,10,5,0.72);
+      --amber: #f2b13c; --coral: #ec7d4e; --sage: #a9b565; --orchid: #d090d6;
+    }
+    [data-theme="warm-light"] {
+      --bg: radial-gradient(1300px 720px at 50% -8%, #fdf5e6 0%, #f6ead3 62%, #efe0c6 100%);
+      --ink: #33261a; --ink-dim: #7a6446; --ink-faint: #a08a68;
+      --panel: linear-gradient(180deg, #fffdf6, #fbf2e0); --panel2: #fdf6e9;
+      --card: #fffbf1; --card-line: #ecdcbf; --line: #e7d6b9; --line-soft: #f0e4cd;
+      --chip: rgba(199,133,25,0.12); --scrim: rgba(250,242,228,0.78);
+      --amber: #c8891f; --coral: #c8592c; --sage: #6f8a2f; --orchid: #a552ab;
+    }
+    [data-theme="dawn"] {
+      --bg: linear-gradient(178deg, #f6ddb6 0%, #f0c199 26%, #d99e86 50%, #9a7c7f 74%, #4f4658 100%);
+      --ink: #34261f; --ink-dim: #6b5344; --ink-faint: #8f7566;
+      --panel: linear-gradient(180deg, rgba(255,252,244,0.94), rgba(252,240,222,0.9)); --panel2: rgba(255,250,240,0.82);
+      --card: rgba(255,251,242,0.9); --card-line: rgba(120,92,70,0.24); --line: rgba(120,92,70,0.22); --line-soft: rgba(120,92,70,0.14);
+      --chip: rgba(180,110,40,0.14); --scrim: rgba(40,30,34,0.5);
+      --amber: #c07e1c; --coral: #c1552b; --sage: #6e862f; --orchid: #9a4fa0;
+    }
+    a { color: var(--amber); text-decoration: none; }
+    a:hover { color: var(--ink); }
+    ::selection { background: var(--amber); color: #1a140c; }
+    @keyframes pc-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes pc-fade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pc-breathe { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+  </style>
+</helmet>
+
+<div data-theme="{{ theme }}" style="min-height:100vh; background:var(--bg); color:var(--ink); font-family:'Spectral',Georgia,serif; -webkit-font-smoothing:antialiased;">
+  <div style="max-width:1120px; margin:0 auto; padding:26px 40px 90px;">
+
+    <!-- top bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
+      <a href="#" onClick="{{ goHome }}" style="font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-faint);">← Field Guide</a>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-family:'Spline Sans Mono',monospace; font-size:10.5px; letter-spacing:0.2em; text-transform:uppercase; color:var(--ink-faint);">Pure AI Output</span>
+        <span style="width:6px; height:6px; border-radius:50%; background:var(--amber); display:inline-block;"></span>
+      </div>
+    </div>
+
+    <!-- ===================== HOME ===================== -->
+    <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Home" style="animation:pc-fade 0.5s ease both;">
+
+        <!-- hero -->
+        <div style="margin-top:26px; display:flex; flex-direction:column; align-items:center; text-align:center;">
+          <h1 style="font-weight:500; font-size:74px; line-height:0.9; letter-spacing:-0.02em; margin:0; color:var(--ink);">Pitchcraft<span style="color:var(--amber);">.</span></h1>
+          <p style="font-style:italic; font-weight:300; font-size:22px; line-height:1.5; color:var(--ink-dim); margin:16px 0 0; max-width:560px;">Your voice is an instrument you already carry. Come play with it — no lessons, no pressure. Just sing out and see what happens.</p>
+          <button onClick="{{ openVoice }}" style="margin-top:22px; cursor:pointer; appearance:none; display:inline-flex; align-items:center; gap:9px; background:var(--chip); border:1px solid var(--line); border-radius:22px; padding:8px 16px 8px 14px; color:var(--ink-dim); font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; transition:border-color .18s, color .18s;" style-hover="border-color:var(--amber); color:var(--ink);">
+            <span style="width:7px; height:7px; border-radius:50%; background:var(--amber); display:inline-block;"></span>
+            Singing as {{ voiceLabel }} · change
+          </button>
+          <p style="margin:13px 0 0; font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.06em; color:var(--ink-faint);">Headphones recommended · audio never leaves your device</p>
+        </div>
+
+        <!-- onramp -->
+        <sc-if value="{{ showOnramp }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:40px; display:flex; align-items:center; gap:22px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 24px;">
+            <div style="width:96px; height:72px; border-radius:11px; overflow:hidden; flex-shrink:0; background:#14100b; border:1px solid var(--line-soft);">
+              <canvas ref="{{ refRangeMini }}" style="display:block; width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--coral);">New here? Start here</div>
+              <div style="font-size:20px; color:var(--ink); margin-top:5px;">First, let’s find where your voice lives.</div>
+              <div style="font-size:14.5px; color:var(--ink-dim); margin-top:3px; max-width:520px;">Sing high, sing low — a flower blooms across your range and tells you which voice type is yours. Takes about a minute.</div>
+            </div>
+            <button onClick="{{ openRange }}" style="flex-shrink:0; cursor:pointer; appearance:none; border:none; border-radius:9px; background:var(--coral); color:#1a140c; font-family:'Spline Sans Mono',monospace; font-size:12px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; padding:14px 20px; transition:transform .14s;" style-hover="transform:translateY(-2px);">Explore your range</button>
+          </div>
+        </sc-if>
+
+        <!-- ways to play -->
+        <div style="margin-top:42px; display:flex; align-items:baseline; justify-content:space-between;">
+          <h2 style="font-weight:500; font-size:26px; margin:0; color:var(--ink);">Ways to play</h2>
+          <span style="font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.1em; color:var(--ink-faint);">pick one and sing</span>
+        </div>
+        <div style="margin-top:18px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;">
+          <sc-for list="{{ games }}" as="g" hint-placeholder-count="3">
+            <div onClick="{{ g.open }}" style="cursor:pointer; background:transparent; border:1px solid var(--card-line); border-radius:16px; overflow:hidden; transition:transform .18s ease, border-color .18s ease; animation:pc-rise 0.5s ease both;" style-hover="transform:translateY(-4px); border-color:{{ g.accent }};">
+              <div style="position:relative; height:150px; background:#14100b; border-bottom:1px solid var(--line-soft);">
+                <canvas ref="{{ g.ref }}" style="display:block; width:100%; height:100%;"></canvas>
+                <sc-if value="{{ g.tag }}" hint-placeholder-val="{{ true }}">
+                  <span style="position:absolute; top:12px; left:12px; font-family:'Spline Sans Mono',monospace; font-size:9px; letter-spacing:0.12em; text-transform:uppercase; color:#1a140c; background:{{ g.accent }}; padding:3px 8px; border-radius:20px;">{{ g.tag }}</span>
+                </sc-if>
+              </div>
+              <div style="padding:18px 20px 20px; background:rgba(0,0,0,0.3);">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="font-size:19px; color:#ffffff;">{{ g.name }}</span>
+                  <span style="color:{{ g.accent }}; font-size:16px;">{{ g.glyph }}</span>
+                </div>
+                <p style="font-size:14.5px; line-height:1.55; color:rgba(255,255,255,0.82); margin:8px 0 0;">{{ g.blurb }}</p>
+                <div style="margin-top:14px; font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:{{ g.accent }};">Play →</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- train your ear -->
+        <div style="margin-top:48px; display:flex; align-items:baseline; justify-content:space-between;">
+          <h2 style="font-weight:500; font-size:26px; margin:0; color:var(--ink);">Train your ear</h2>
+          <span style="font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.1em; color:var(--ink-faint);">structured practice, at your pace</span>
+        </div>
+        <div style="margin-top:18px; display:grid; grid-template-columns:1.5fr 1fr; gap:18px;">
+          <!-- The Trainer feature -->
+          <div onClick="{{ trainer.open }}" style="cursor:pointer; background:transparent; border:1px solid var(--card-line); border-radius:16px; overflow:hidden; transition:transform .18s ease, border-color .18s ease;" style-hover="transform:translateY(-4px); border-color:{{ trainer.accent }};">
+            <div style="height:150px; background:#14100b; border-bottom:1px solid var(--line-soft);">
+              <canvas ref="{{ trainer.ref }}" style="display:block; width:100%; height:100%;"></canvas>
+            </div>
+            <div style="padding:18px 20px 20px; background:rgba(0,0,0,0.3);">
+              <div style="display:flex; align-items:center; gap:9px;">
+                <span style="font-size:19px; color:#ffffff;">{{ trainer.name }}</span>
+                <span style="color:{{ trainer.accent }}; font-size:16px;">{{ trainer.glyph }}</span>
+              </div>
+              <p style="font-size:14.5px; line-height:1.55; color:rgba(255,255,255,0.82); margin:8px 0 0;">{{ trainer.blurb }}</p>
+              <div style="margin-top:14px; font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:{{ trainer.accent }};">Choose a level &amp; play →</div>
+            </div>
+          </div>
+          <!-- Your practice -->
+          <div onClick="{{ openPractice }}" style="cursor:pointer; background:rgba(0,0,0,0.3); border:1px solid var(--card-line); border-radius:16px; padding:20px 22px; display:flex; gap:18px; transition:transform .18s ease, border-color .18s ease;" style-hover="transform:translateY(-4px); border-color:var(--amber);">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+              <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:rgba(255,255,255,0.6);">Your practice</div>
+              <div style="font-size:18px; color:#ffffff; margin-top:5px;">Your pitch, note by note</div>
+              <div style="font-size:13px; line-height:1.5; color:rgba(255,255,255,0.72); margin-top:4px;">How flat or sharp you land on each note, and how steady your pitch is — kept quietly across every visit.</div>
+              <div style="flex:1;"></div>
+              <div style="margin-top:16px; font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--amber);">Open your practice →</div>
+            </div>
+            <div style="width:132px; flex-shrink:0; border-radius:11px; overflow:hidden; background:#0c0d12; border:1px solid var(--line-soft);">
+              <canvas ref="{{ refPGraph }}" style="display:block; width:100%; height:100%;"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </sc-if>
+
+    <!-- ===================== INTRO ===================== -->
+    <sc-if value="{{ isIntro }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Intro" style="margin-top:24px; position:relative; border:1px solid var(--line); border-radius:16px; overflow:hidden; height:600px; background:#14100b; animation:pc-fade 0.4s ease both;">
+        <canvas ref="{{ refStage }}" style="display:block; width:100%; height:100%;"></canvas>
+        <div style="position:absolute; inset:0; background:linear-gradient(90deg, var(--scrim) 0%, var(--scrim) 46%, transparent 100%);"></div>
+        <div style="position:absolute; inset:0; display:flex; align-items:center;">
+          <div style="max-width:500px; margin-left:48px; padding:8px 0;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:{{ ag.accent }};">{{ ag.name }} {{ ag.glyph }}</div>
+            <sc-for list="{{ ag.intro }}" as="para" hint-placeholder-count="2">
+              <p style="font-size:17px; line-height:1.6; color:var(--ink); margin:14px 0 0; max-width:460px;">{{ para }}</p>
+            </sc-for>
+
+            <sc-if value="{{ ag.needsLevel }}" hint-placeholder-val="{{ false }}">
+              <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-faint); margin:22px 0 10px;">Choose a level</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+                <sc-for list="{{ levels }}" as="lv" hint-placeholder-count="5">
+                  <div onClick="{{ lv.click }}" style="cursor:pointer; border:1px solid {{ lv.border }}; background:{{ lv.bg }}; border-radius:9px; padding:9px 11px; transition:border-color .15s, background .15s;">
+                    <div style="font-family:'Spline Sans Mono',monospace; font-size:9.5px; letter-spacing:0.08em; color:{{ lv.numFg }};">{{ lv.tag }}</div>
+                    <div style="font-size:14.5px; color:{{ lv.fg }}; margin-top:2px;">{{ lv.title }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <p style="font-size:13px; color:var(--ink-dim); margin:10px 0 0; font-style:italic;">{{ levelDetail }}</p>
+            </sc-if>
+
+            <sc-if value="{{ ag.needsVoice }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ openVoice }}" style="margin-top:18px; cursor:pointer; appearance:none; display:inline-flex; align-items:center; gap:8px; background:var(--chip); border:1px solid var(--line); border-radius:20px; padding:7px 14px; color:var(--ink-dim); font-family:'Spline Sans Mono',monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;" style-hover="border-color:{{ ag.accent }}; color:var(--ink);">
+                <span style="width:6px; height:6px; border-radius:50%; background:{{ ag.accent }};"></span> Voice: {{ voiceLabel }} · change
+              </button>
+            </sc-if>
+
+            <div style="display:flex; align-items:center; gap:16px; margin-top:26px;">
+              <button onClick="{{ startPlay }}" style="cursor:pointer; appearance:none; border:none; border-radius:10px; background:{{ ag.accent }}; color:#1a140c; font-family:'Spline Sans Mono',monospace; font-size:12.5px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; padding:15px 24px; transition:transform .14s;" style-hover="transform:translateY(-2px);">{{ ag.cta }}</button>
+              <button onClick="{{ goHome }}" style="cursor:pointer; appearance:none; background:none; border:none; color:var(--ink-dim); font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;" style-hover="color:var(--ink);">Back</button>
+            </div>
+            <p style="font-size:12px; color:var(--ink-faint); margin:18px 0 0; font-family:'Spline Sans Mono',monospace; letter-spacing:0.03em;">We’ll ask to use your microphone. Nothing is recorded or sent anywhere.</p>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ===================== PLAY ===================== -->
+    <sc-if value="{{ isPlay }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Play" style="margin-top:24px; animation:pc-fade 0.4s ease both;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px;">
+          <div style="min-width:150px;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-faint);">{{ hud.leftLabel }}</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:40px; line-height:1; color:var(--ink); margin-top:4px;">{{ hud.leftBig }}</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:12px; color:var(--ink-dim); margin-top:8px;">{{ hud.leftSmall }}</div>
+          </div>
+          <div style="text-align:center; flex:1;">
+            <div style="display:inline-flex; align-items:center; gap:8px; padding:3px 13px; border-radius:20px; background:var(--chip); border:1px solid {{ ag.accent }};">
+              <span style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:{{ ag.accent }};">{{ hud.centerPill }}</span>
+            </div>
+            <div style="font-family:'Spectral',serif; font-weight:500; font-size:52px; line-height:1.05; color:{{ ag.accent }}; margin-top:6px;">{{ hud.centerBig }}</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:13px; color:var(--ink-dim); margin-top:3px;">{{ hud.centerSmall }}</div>
+          </div>
+          <div style="min-width:150px; text-align:right;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-faint);">You</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:40px; line-height:1; color:var(--ink); margin-top:4px;">{{ hud.rightBig }}</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:13px; color:var(--ink-dim); margin-top:8px;">{{ hud.rightSmall }}</div>
+          </div>
+        </div>
+
+        <div style="position:relative; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#14100b;">
+          <canvas ref="{{ refStage }}" style="display:block; width:100%; height:460px;"></canvas>
+          <div style="position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--line-soft);">
+            <div style="height:100%; width:62%; background:{{ ag.accent }};"></div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; gap:16px;">
+          <div style="font-family:'Spline Sans Mono',monospace; font-size:11.5px; color:var(--ink-faint); letter-spacing:0.03em;">{{ hud.footerHint }}</div>
+          <button onClick="{{ endPlay }}" style="cursor:pointer; appearance:none; background:none; border:1px solid var(--line); color:var(--ink-dim); border-radius:9px; font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; padding:10px 18px;" style-hover="border-color:var(--amber); color:var(--ink);">{{ ag.endLabel }}</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ===================== RESULT ===================== -->
+    <sc-if value="{{ isResult }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Result" style="margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:20px; animation:pc-fade 0.4s ease both;">
+        <div style="background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:32px;">
+          <div style="font-family:'Spline Sans Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-faint);">{{ result.kicker }}</div>
+          <div style="font-family:'Spectral',serif; font-weight:500; font-size:52px; line-height:1; color:{{ ag.accent }}; margin-top:14px;">{{ result.big }}</div>
+          <p style="font-size:16px; line-height:1.6; color:var(--ink-dim); margin:18px 0 0;">{{ result.line }}</p>
+          <div style="display:flex; gap:12px; margin-top:30px;">
+            <button onClick="{{ startPlay }}" style="flex:1; cursor:pointer; appearance:none; border:none; border-radius:10px; background:{{ ag.accent }}; color:#1a140c; font-family:'Spline Sans Mono',monospace; font-size:12px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; padding:15px;" style-hover="transform:translateY(-2px);">{{ result.again }}</button>
+            <button onClick="{{ goHome }}" style="flex:1; cursor:pointer; appearance:none; border:1px solid var(--line); background:none; border-radius:10px; color:var(--ink-dim); font-family:'Spline Sans Mono',monospace; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; padding:15px;" style-hover="border-color:var(--amber); color:var(--ink);">Return home</button>
+          </div>
+        </div>
+        <div style="position:relative; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#14100b; min-height:300px;">
+          <canvas ref="{{ refStage }}" style="display:block; width:100%; height:100%; position:absolute; inset:0;"></canvas>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ===================== VOICE PICKER OVERLAY ===================== -->
+  <sc-if value="{{ showVoice }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeVoice }}" style="position:fixed; inset:0; z-index:40; background:var(--scrim); display:flex; align-items:center; justify-content:center; padding:30px; animation:pc-fade 0.25s ease both;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:620px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:30px 32px; max-height:88vh; overflow:auto;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between;">
+          <div>
+            <h3 style="font-weight:500; font-size:26px; margin:0; color:var(--ink);">Which voice is yours?</h3>
+            <p style="font-size:14.5px; color:var(--ink-dim); margin:6px 0 0;">Pick the one that fits — you can change it anytime. Not sure? Let a game find it for you.</p>
+          </div>
+          <button onClick="{{ closeVoice }}" style="cursor:pointer; appearance:none; background:none; border:none; color:var(--ink-faint); font-size:22px; line-height:1;">×</button>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:20px;">
+          <sc-for list="{{ voices }}" as="v" hint-placeholder-count="6">
+            <div onClick="{{ v.click }}" style="cursor:pointer; border:1px solid {{ v.border }}; background:{{ v.bg }}; border-radius:11px; padding:13px 15px; transition:border-color .15s, background .15s;">
+              <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px;">
+                <span style="font-size:17px; color:{{ v.fg }};">{{ v.label }}</span>
+                <span style="font-family:'Spline Sans Mono',monospace; font-size:10px; color:{{ v.sub }};">{{ v.range }}</span>
+              </div>
+              <div style="font-size:13px; color:{{ v.sub }}; margin-top:3px; font-style:italic;">{{ v.desc }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <button onClick="{{ exploreFromVoice }}" style="margin-top:16px; width:100%; cursor:pointer; appearance:none; border:1px dashed var(--coral); background:rgba(236,125,78,0.08); border-radius:11px; padding:14px; color:var(--coral); font-family:'Spline Sans Mono',monospace; font-size:12px; letter-spacing:0.06em; text-transform:uppercase;" style-hover="background:rgba(236,125,78,0.16);">Not sure? Explore your range ❀</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== PRACTICE OVERLAY ===================== -->
+  <sc-if value="{{ showPractice }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePractice }}" style="position:fixed; inset:0; z-index:40; background:var(--scrim); display:flex; align-items:center; justify-content:center; padding:30px; animation:pc-fade 0.25s ease both;">
+      <div onClick="{{ stop }}" style="width:100%; max-width:560px; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:30px 32px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between;">
+          <h3 style="font-weight:500; font-size:24px; margin:0; color:var(--ink);">Your practice, gently kept</h3>
+          <button onClick="{{ closePractice }}" style="cursor:pointer; appearance:none; background:none; border:none; color:var(--ink-faint); font-size:22px; line-height:1;">×</button>
+        </div>
+        <p style="font-size:14.5px; color:var(--ink-dim); margin:8px 0 0;">No leaderboards, no pressure. Just quiet proof that you keep showing up.</p>
+        <div style="display:flex; gap:12px; margin-top:22px;">
+          <div style="flex:1; background:var(--panel2); border:1px solid var(--line-soft); border-radius:12px; padding:16px;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:30px; color:var(--ink);">6</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); margin-top:3px;">day streak</div>
+          </div>
+          <div style="flex:1; background:var(--panel2); border:1px solid var(--line-soft); border-radius:12px; padding:16px;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:30px; color:var(--ink);">23</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); margin-top:3px;">visits</div>
+          </div>
+          <div style="flex:1; background:var(--panel2); border:1px solid var(--line-soft); border-radius:12px; padding:16px;">
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:30px; color:var(--amber);">2,140</div>
+            <div style="font-family:'Spline Sans Mono',monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); margin-top:3px;">best</div>
+          </div>
+        </div>
+        <div style="font-family:'Spline Sans Mono',monospace; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-faint); margin:24px 0 12px;">Notes you’ve grown steady on</div>
+        <div style="display:flex; align-items:flex-end; gap:5px; height:70px;">
+          <sc-for list="{{ practiceBars }}" as="b" hint-placeholder-count="12">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <div style="width:100%; height:{{ b.h }}; background:{{ b.color }}; border-radius:4px 4px 0 0;"></div>
+              <div style="font-family:'Spline Sans Mono',monospace; font-size:8.5px; color:var(--ink-faint);">{{ b.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;dawn&quot;, &quot;warm-dark&quot;, &quot;warm-light&quot;], &quot;default&quot;: &quot;dawn&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Theme&quot;}, &quot;animatePreviews&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Theme&quot;}, &quot;showOnramp&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Home&quot;}}">
+class Component extends DCLogic {
+  state = { phase: 'home', activeGame: 'range', level: 1, voiceId: 'contralto', showVoice: false, showPractice: false };
+
+  GAMES = {
+    range: {
+      id: 'range', name: 'Range Explorer', kind: 'flower', glyph: '❀', accent: 'var(--coral)',
+      tag: 'start here', cta: 'Explore your range', endLabel: 'Show my range', needsVoice: false, needsLevel: false,
+      blurb: 'Sing high, sing low. A flower blooms across your range and shows you which voice is yours.',
+      intro: [
+        'Sing any note and hold it. A petal blooms where your pitch lands — low notes glow warm red, high notes cool violet — and the longer you hold, the further it grows.',
+        'Reach for your lowest and your highest. When the flower is as full as you can make it, we’ll read it back and tell you your singing range.'
+      ],
+    },
+    trainer: {
+      id: 'trainer', name: 'The Trainer', kind: 'roll', glyph: '♪', accent: 'var(--amber)',
+      tag: '', cta: 'Start singing', endLabel: 'Quit round', needsVoice: true, needsLevel: true,
+      blurb: 'Hear a note, then find it in your voice. Friendly drills that meet you where you are and grow with you.',
+      intro: [
+        'You’ll hear a tone. When the glowing bar reaches the line, match it — sing “ooo” or “aah”, out loud, like you’re calling to a friend across the street.',
+        'A wiggly line traces your real pitch. Land inside the bar and hold it. Even seasoned singers wander — this only gets easier.'
+      ],
+    },
+    garden: {
+      id: 'garden', name: 'Voice Garden', kind: 'garden', glyph: '❦', accent: 'var(--sage)',
+      tag: '', cta: 'Open the garden', endLabel: 'Rest the garden', needsVoice: true, needsLevel: false,
+      blurb: 'Every tone you sing grows something — mushrooms, wildflowers, trees. A living garden that remembers you.',
+      intro: [
+        'The moment you sing, something grows where the light falls. Low notes weave mushrooms, middle notes raise grass and flowers, high notes grow trees and set butterflies loose.',
+        'It keeps everything, visit to visit. A steady tone grows a clean shape; a wandering one grows something wild. Move the light and sing.'
+      ],
+    },
+    loom: {
+      id: 'loom', name: 'Chroma Loom', kind: 'loom', glyph: '✺', accent: 'var(--orchid)',
+      tag: '', cta: 'Start the loom', endLabel: 'Leave the loom', needsVoice: false, needsLevel: false,
+      blurb: 'Watch your voice become light. A rainbow loom weaves every sound you make into moving colour.',
+      intro: [
+        'Sing, hum, whistle — anything. The loom weaves what it hears: low notes glow red, high notes violet, and the whole fabric scrolls on as time passes.',
+        'Try a slow slide from your lowest note to your highest and watch the harmonics shimmer above your voice.'
+      ],
+    },
+  };
+  ORDER = ['range', 'trainer', 'garden', 'loom'];
+  PLAY_ORDER = ['range', 'garden', 'loom'];
+
+  VOICES = [
+    { id: 'soprano', label: 'Soprano', desc: 'a bright, high voice', range: 'C4–C6' },
+    { id: 'tenor', label: 'Tenor', desc: 'a high, ringing voice', range: 'C3–E5' },
+    { id: 'mezzo', label: 'Mezzo-Soprano', desc: 'a warm middle voice', range: 'A3–F5' },
+    { id: 'baritone', label: 'Baritone', desc: 'a full, mid-low voice', range: 'G2–E4' },
+    { id: 'contralto', label: 'Contralto', desc: 'a low, rich voice', range: 'F3–E5' },
+    { id: 'bass', label: 'Bass', desc: 'a deep, resonant voice', range: 'E2–E4' },
+  ];
+  LEVELS = [
+    { n: 0, tag: 'WARM UP', title: 'Training', detail: 'A gentle guided scale — five notes, with a tone to lean on.' },
+    { n: 1, tag: 'LV 1', title: 'Beginner', detail: 'Short three-note tunes, sung back from memory.' },
+    { n: 2, tag: 'LV 2', title: 'Practiced', detail: 'Five-note tunes across your chosen range.' },
+    { n: 3, tag: 'LV 3', title: 'Accomplished', detail: 'Seven-note tunes over your full range.' },
+    { n: 4, tag: 'LV 4', title: 'Expert', detail: 'Eight notes — and the pitch is hidden. Trust your ear.' },
+  ];
+
+  componentDidMount() {
+    if (!this.cv) this.cv = new Map();
+    this.t0 = performance.now();
+    this._animate = this.props.animatePreviews !== false;
+    // Representative accuracy data for the home "your practice" pitch graph.
+    const lo = 60, hi = 72; const r = this.rng(23); const bars = {};
+    for (let m = lo; m <= hi; m++) { if (r() < 0.1) continue; const mean = (r() - 0.5) * 70 * (0.45 + r() * 0.55); const std = 8 + r() * 22; bars[m] = { mean, std }; }
+    this.PG = { lo, hi, dLow: lo - 0.7, dHigh: hi + 0.7, bars };
+    this.loop = this.loop.bind(this);
+    this.raf = requestAnimationFrame(this.loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+
+  reg(key, el) {
+    if (!this.cv) this.cv = new Map();
+    if (!el) { this.cv.delete(key); return; }
+    const cur = this.cv.get(key);
+    if (cur && cur.el === el) return;
+    this.cv.set(key, { el, ctx: el.getContext('2d') });
+  }
+  kindFor(id) { return (this.GAMES[id] || {}).kind; }
+
+  size(el) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) return null;
+    const nw = Math.round(w * dpr), nh = Math.round(h * dpr);
+    if (el.width !== nw || el.height !== nh) { el.width = nw; el.height = nh; }
+    const ctx = el.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h, ctx };
+  }
+
+  loop() {
+    this.raf = requestAnimationFrame(this.loop);
+    const t = (performance.now() - this.t0) / 1000;
+    for (const [key, c] of this.cv) {
+      const s = this.size(c.el);
+      if (!s) continue;
+      let kind;
+      if (key === 'stage') kind = this.kindFor(this.state.activeGame);
+      else if (key === 'rangeMini') kind = 'flower';
+      else if (key === 'pgraph') kind = 'pgraph';
+      else kind = this.kindFor(key);
+      const tt = this._animate ? t : 1.4;
+      if (kind === 'flower') this.drawFlower(s, tt);
+      else if (kind === 'roll') this.drawRoll(s, tt);
+      else if (kind === 'garden') this.drawGarden(s, tt);
+      else if (kind === 'loom') this.drawLoom(s, tt);
+      else if (kind === 'pgraph') this.drawPGraph(s);
+    }
+  }
+
+  hueWarm(u) {
+    // 0 = low/red, 1 = high/violet — warm-leaning rainbow
+    const stops = [12, 34, 56, 128, 196, 292];
+    u = Math.max(0, Math.min(1, u));
+    const f = u * (stops.length - 1);
+    const i = Math.floor(f), fr = f - i;
+    const a = stops[i], b = stops[Math.min(stops.length - 1, i + 1)];
+    return a + (b - a) * fr;
+  }
+  rng(seed) { let a = seed >>> 0; return () => { a += 0x6d2b79f5; let x = a; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
+
+  // ---------- FLOWER ----------
+  drawFlower({ w, h, ctx }, t) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#14100b'; ctx.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h * 0.54;
+    const base = Math.min(w, h) * 0.1, maxr = Math.min(w, h) * 0.44;
+    const petals = 16;
+    for (let i = 0; i < petals; i++) {
+      const a = (i / petals) * Math.PI * 2 - Math.PI / 2;
+      const grow = 0.5 + 0.5 * Math.sin(t * 0.8 + i * 0.55);
+      const r = base + (maxr - base) * (0.35 + grow * 0.65);
+      const hue = this.hueWarm(i / petals);
+      const half = (Math.PI / petals) * 0.9;
+      const tx = cx + Math.cos(a) * r, ty = cy + Math.sin(a) * r;
+      const cr = r * 0.6;
+      ctx.fillStyle = `hsla(${hue},68%,60%,0.82)`;
+      ctx.shadowColor = `hsla(${hue},75%,62%,0.7)`; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * base, cy + Math.sin(a) * base);
+      ctx.quadraticCurveTo(cx + Math.cos(a - half) * cr, cy + Math.sin(a - half) * cr, tx, ty);
+      ctx.quadraticCurveTo(cx + Math.cos(a + half) * cr, cy + Math.sin(a + half) * cr, cx + Math.cos(a) * base, cy + Math.sin(a) * base);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1d1610'; ctx.strokeStyle = '#3a2f1c';
+    ctx.beginPath(); ctx.arc(cx, cy, base * 0.9, 0, 7); ctx.fill(); ctx.stroke();
+    // live dot riding a petal tip
+    const la = t * 0.5, lg = 0.5 + 0.5 * Math.sin(t * 0.8 + Math.round((la + Math.PI / 2) / (Math.PI * 2) * petals) * 0.55);
+    const lr = base + (maxr - base) * (0.35 + lg * 0.65);
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#f2b13c'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(cx + Math.cos(la) * lr, cy + Math.sin(la) * lr, 3.2, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  }
+
+  // ---------- PIANO ROLL ----------
+  drawRoll({ w, h, ctx }, t) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#14100b'; ctx.fillRect(0, 0, w, h);
+    const lanes = 7, pad = h * 0.1, laneH = (h - pad * 2) / lanes;
+    for (let i = 0; i <= lanes; i++) {
+      const y = pad + i * laneH;
+      ctx.strokeStyle = 'rgba(243,234,214,0.06)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    const playX = w * 0.28, pps = w / 6, L = 8;
+    const notes = [{ l: 3, s: 0 }, { l: 4, s: 1.2 }, { l: 2, s: 2.5 }, { l: 5, s: 3.7 }, { l: 3, s: 5 }, { l: 4, s: 6.2 }, { l: 1, s: 7.2 }];
+    const tt = t % L;
+    const laneY = (l) => pad + (l + 0.5) * laneH;
+    for (const n of notes) {
+      for (const off of [0, L]) {
+        const x = playX + (n.s - tt + off) * pps;
+        const bw = pps * 0.86, bh = laneH * 0.56;
+        if (x + bw < 0 || x - bw > w) continue;
+        const active = Math.abs(x - playX) < bw * 0.6;
+        ctx.fillStyle = active ? 'rgba(242,177,60,0.95)' : 'rgba(242,177,60,0.26)';
+        this.rr(ctx, x - bw / 2, laneY(n.l) - bh / 2, bw, bh, 5); ctx.fill();
+      }
+    }
+    // your pitch trail + dot
+    ctx.strokeStyle = 'rgba(236,125,78,0.7)'; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let target = laneY(3);
+    for (const n of notes) { const x = playX + (n.s - tt) * pps; if (Math.abs(x - playX) < pps * 0.5) target = laneY(n.l); }
+    for (let x = 0; x <= playX; x += 6) {
+      const wob = Math.sin(x * 0.05 + t * 6) * 5;
+      const y = target + wob + (playX - x) * 0.04 * Math.sin(t * 2);
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    const dy = target + Math.sin(t * 6) * 4;
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#f2b13c'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(playX, dy, 4, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(243,234,214,0.28)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(playX, 0); ctx.lineTo(playX, h); ctx.stroke();
+  }
+  rr(ctx, x, y, w, h, r) { r = Math.min(r, h / 2, w / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  // ---------- GARDEN ----------
+  drawGarden({ w, h, ctx }, t) {
+    const ground = h * 0.72;
+    const sky = ctx.createLinearGradient(0, 0, 0, ground);
+    sky.addColorStop(0, '#171a2e'); sky.addColorStop(0.7, '#141225'); sky.addColorStop(1, '#171310');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, ground);
+    // stars
+    const r = this.rng(42);
+    for (let i = 0; i < 40; i++) {
+      const sx = r() * w, sy = r() * ground * 0.88, ph = r() * 7;
+      ctx.globalAlpha = 0.25 + 0.55 * Math.abs(Math.sin(t * 0.7 + ph));
+      ctx.fillStyle = r() < 0.25 ? '#f2d9a0' : '#fff';
+      ctx.beginPath(); ctx.arc(sx, sy, r() < 0.2 ? 1.5 : 0.9, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // soil
+    const soil = ctx.createLinearGradient(0, ground, 0, h);
+    soil.addColorStop(0, '#211913'); soil.addColorStop(1, '#120d08');
+    ctx.fillStyle = soil; ctx.fillRect(0, ground, w, h - ground);
+    ctx.strokeStyle = 'rgba(169,181,101,0.3)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, ground); ctx.lineTo(w, ground); ctx.stroke();
+    // light beam
+    const bx = w * 0.5;
+    const g = ctx.createLinearGradient(bx - 40, 0, bx + 40, 0);
+    g.addColorStop(0, 'rgba(242,217,150,0)'); g.addColorStop(0.5, 'rgba(242,217,150,0.09)'); g.addColorStop(1, 'rgba(242,217,150,0)');
+    ctx.fillStyle = g; ctx.fillRect(bx - 40, 0, 80, ground);
+    // growing sprig
+    const grow = this.ease(Math.min(1, ((t % 7) / 7) * 1.35));
+    const stemH = (ground - h * 0.14) * grow;
+    ctx.strokeStyle = '#6b5a34'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(bx, ground); ctx.lineTo(bx + Math.sin(t * 0.4) * 4, ground - stemH); ctx.stroke();
+    const topx = bx + Math.sin(t * 0.4) * 4, topy = ground - stemH;
+    for (let k = 0; k < 3; k++) {
+      const fr = (k + 1) / 4;
+      if (grow < fr) continue;
+      const ly = ground - stemH * fr, side = k % 2 === 0 ? 1 : -1;
+      ctx.fillStyle = 'hsla(96,38%,48%,0.85)';
+      for (const sd of [side, -side * 0.4]) {
+        ctx.save(); ctx.translate(bx, ly); ctx.rotate(sd * 0.9 - Math.PI / 2);
+        ctx.beginPath(); ctx.ellipse(9, 0, 9, 4, 0, 0, 7); ctx.fill(); ctx.restore();
+      }
+    }
+    if (grow > 0.85) {
+      const bs = (grow - 0.85) / 0.15;
+      ctx.fillStyle = `hsla(34,80%,62%,${0.9 * bs})`; ctx.shadowColor = '#f2b13c'; ctx.shadowBlur = 10;
+      for (let p = 0; p < 6; p++) { const pa = p / 6 * Math.PI * 2; ctx.beginPath(); ctx.ellipse(topx + Math.cos(pa) * 5 * bs, topy + Math.sin(pa) * 5 * bs, 3.4 * bs, 2 * bs, pa, 0, 7); ctx.fill(); }
+      ctx.shadowBlur = 0;
+    }
+    // firefly
+    const fx = w * 0.72 + Math.sin(t * 0.8) * w * 0.12, fy = ground - h * 0.3 + Math.cos(t * 1.1) * h * 0.12;
+    const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 9);
+    fg.addColorStop(0, 'rgba(242,200,90,0.95)'); fg.addColorStop(1, 'rgba(242,200,90,0)');
+    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, fy, 9, 0, 7); ctx.fill();
+  }
+  ease(x) { return x * x * (3 - 2 * x); }
+
+  // ---------- LOOM ----------
+  drawLoom({ w, h, ctx }, t) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#0e0b08'; ctx.fillRect(0, 0, w, h);
+    const rows = 20, cols = Math.max(24, Math.floor(w / 9));
+    const cw = w / cols, ch = h / rows;
+    for (let ry = 0; ry < rows; ry++) {
+      const hue = this.hueWarm(1 - ry / (rows - 1));
+      for (let cxi = 0; cxi < cols; cxi++) {
+        const phase = cxi * 0.35 - t * 1.5;
+        let v = 0.5 + 0.5 * Math.sin(ry * 0.5 + phase + Math.sin(cxi * 0.3 + t * 0.7) * 1.2);
+        const env = 0.5 + 0.5 * Math.sin(cxi * 0.12 - t * 0.9 + ry * 0.1);
+        v = Math.pow(v * (0.35 + env * 0.65), 1.7);
+        if (v < 0.04) continue;
+        ctx.fillStyle = `hsla(${hue},72%,58%,${v})`;
+        ctx.fillRect(cxi * cw, ry * ch, cw + 0.6, ch + 0.6);
+      }
+    }
+  }
+
+  // ---------- PITCH GRAPH (real accuracy graph) ----------
+  PNAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  pName(m) { return this.PNAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+  pSharp(m) { return this.PNAMES[((m % 12) + 12) % 12].includes('#'); }
+  pColor(c) {
+    const AM = [244, 178, 62], TE = [36, 211, 192], CO = [245, 72, 44];
+    const t = Math.max(-1, Math.min(1, c / 70));
+    const mix = (a, b, u) => `rgb(${Math.round(a[0] + (b[0] - a[0]) * u)}, ${Math.round(a[1] + (b[1] - a[1]) * u)}, ${Math.round(a[2] + (b[2] - a[2]) * u)})`;
+    return t <= 0 ? mix(AM, TE, -t) : mix(AM, CO, t);
+  }
+  drawPGraph({ w: W, h: H, ctx }) {
+    const PG = this.PG; if (!PG || H <= 0 || W <= 0) return;
+    const { dLow, dHigh, lo, hi, bars } = PG;
+    if (dHigh <= dLow) return;
+    const gutter = 23, head = 22, padR = 6;
+    const x0 = gutter, x1 = W - padR, plotW = x1 - x0, cx = (x0 + x1) / 2;
+    const span = dHigh - dLow, lane = (H - head) / span, G = 150;
+    const xFor = (c) => cx + (Math.max(-G, Math.min(G, c)) / G) * (plotW / 2);
+    const yFor = (m) => head + (1 - (m - dLow) / span) * (H - head);
+    ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#0c0d12'; ctx.fillRect(0, 0, W, H);
+    const sf = "8px 'Spline Sans Mono', monospace";
+    for (const c of [-100, 0, 100]) {
+      const x = xFor(c);
+      ctx.strokeStyle = c === 0 ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = c === 0 ? 1.5 : 1;
+      ctx.beginPath(); ctx.moveTo(x, head); ctx.lineTo(x, H); ctx.stroke();
+    }
+    ctx.font = sf; ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left'; ctx.fillStyle = this.pColor(-100); ctx.fillText('flat', x0, 11);
+    ctx.textAlign = 'right'; ctx.fillStyle = this.pColor(100); ctx.fillText('sharp', x1, 11);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = sf;
+    for (let m = lo; m <= hi; m++) {
+      if (this.pSharp(m) && lane < 16) continue;
+      ctx.fillStyle = m % 12 === 0 ? 'rgba(243,239,230,0.6)' : 'rgba(200,205,215,0.45)';
+      ctx.fillText(this.pName(m), 3, yFor(m));
+    }
+    const barH = Math.max(3, Math.min(lane * 0.7, 9));
+    for (const key in bars) {
+      const m = Number(key); if (m < dLow || m > dHigh) continue;
+      const b = bars[key], y = yFor(m), meanX = xFor(b.mean);
+      const halfPx = Math.max(1.5, (b.std / G) * (plotW / 2));
+      const left = Math.max(x0, meanX - halfPx), right = Math.min(x1, meanX + halfPx);
+      ctx.fillStyle = this.pColor(b.mean);
+      this.rr(ctx, left, y - barH / 2, Math.max(3, right - left), barH, Math.min(3, barH / 2)); ctx.fill();
+    }
+  }
+
+  // ---------- nav ----------
+  go(phase) { this.setState({ phase }); }
+  openGame(id) { this.setState({ phase: 'intro', activeGame: id, showVoice: false }); }
+  setLevel(n) { this.setState({ level: n }); }
+  chooseVoice(id) { this.setState({ voiceId: id, showVoice: false }); }
+
+  // ---------- derived HUD / result ----------
+  hudFor(id) {
+    const v = this.VOICES.find(x => x.id === this.state.voiceId) || this.VOICES[0];
+    if (id === 'trainer') return { leftLabel: 'Score', leftBig: '1,280', leftSmall: '×5 · locked', centerPill: 'Sing', centerBig: 'D#4', centerSmall: '311.1 Hz · 4 / 30', rightBig: 'D4', rightSmall: '+18¢', footerHint: 'Listen, then match · ⅛ step ×5 · ¼ ×2 · semitone ×1' };
+    if (id === 'range') return { leftLabel: 'Petals', leftBig: '14', leftSmall: '38s held', centerPill: 'Explore', centerBig: 'sing & hold', centerSmall: 'low notes red · high notes violet', rightBig: v.range.split('–')[0], rightSmall: 'reaching…', footerHint: 'Hold a note to grow its petal · push to the edges of your voice' };
+    if (id === 'garden') return { leftLabel: 'Garden', leftBig: '47', leftSmall: '+3 this visit · day 6', centerPill: 'Green · grass & flowers', centerBig: 'A3', centerSmall: 'steady', rightBig: 'A3', rightSmall: 'steady', footerHint: 'Low → mushrooms · mid → grass & flowers · high → trees' };
+    return { leftLabel: 'Pattern', leftBig: 'Ribbon', leftSmall: 'low → high, scrolling', centerPill: 'Weaving', centerBig: 'let it flow', centerSmall: 'hum low, whistle high, slide between', rightBig: 'E4', rightSmall: '329.6 Hz', footerHint: 'Pitch runs bottom to top · brightness is each frequency’s strength' };
+  }
+  resultFor(id) {
+    const v = this.VOICES.find(x => x.id === this.state.voiceId) || this.VOICES[0];
+    if (id === 'trainer') return { kicker: 'Nice work', big: '1,280', line: 'You held the note inside the bar most of the time — steady and bright. Your best note today was D4. Come back tomorrow and watch the number climb.', again: 'Sing again' };
+    if (id === 'range') return { kicker: 'Your flower says…', big: v.label, line: `You reached from ${v.range.split('–')[0]} to ${v.range.split('–')[1]} — that’s a ${v.label.toLowerCase()}. Want to sing as this voice from now on?`, again: 'Explore again' };
+    if (id === 'garden') return { kicker: 'The garden rests', big: '3 new things', line: 'This visit your voice grew a mushroom colony, a tuft of grass and a young tree. Your garden holds 47 living things and will be here, exactly as you left it, whenever you return.', again: 'Keep singing' };
+    return { kicker: 'Woven', big: 'a full cloth', line: 'Every sound you made became a thread of light. Nothing to score here — just colour. Sing something different and watch it change.', again: 'Weave more' };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const ag = this.GAMES[s.activeGame];
+    const voice = this.VOICES.find(x => x.id === s.voiceId) || this.VOICES[0];
+    const lvl = this.LEVELS.find(l => l.n === s.level) || this.LEVELS[1];
+
+    const cardRefs = {};
+    for (const id of this.ORDER) cardRefs[id] = (el) => this.reg(id, el);
+
+    const games = this.PLAY_ORDER.map(id => {
+      const g = this.GAMES[id];
+      return { id, name: g.name, glyph: g.glyph, accent: g.accent, tag: g.tag, blurb: g.blurb, ref: cardRefs[id], open: () => this.openGame(id) };
+    });
+    const tg = this.GAMES.trainer;
+    const trainer = { name: tg.name, glyph: tg.glyph, accent: tg.accent, blurb: tg.blurb, ref: cardRefs.trainer, open: () => this.openGame('trainer') };
+
+    const selBg = 'var(--chip)', selBd = 'var(--amber)';
+    const voices = this.VOICES.map(v => {
+      const sel = v.id === s.voiceId;
+      return { label: v.label, desc: v.desc, range: v.range, click: () => this.chooseVoice(v.id),
+        bg: sel ? selBg : 'var(--panel2)', border: sel ? selBd : 'var(--line-soft)', fg: sel ? 'var(--ink)' : 'var(--ink-dim)', sub: 'var(--ink-faint)' };
+    });
+    const levels = this.LEVELS.map(l => {
+      const sel = l.n === s.level;
+      return { tag: l.tag, title: l.title, click: () => this.setLevel(l.n),
+        bg: sel ? selBg : 'var(--panel2)', border: sel ? selBd : 'var(--line-soft)', fg: sel ? 'var(--ink)' : 'var(--ink-dim)', numFg: sel ? 'var(--amber)' : 'var(--ink-faint)' };
+    });
+
+    const practiceBars = [];
+    const pr = this.rng(7);
+    const names = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    for (let i = 0; i < 12; i++) {
+      const m = 0.35 + pr() * 0.65;
+      practiceBars.push({ h: (18 + m * 46) + 'px', label: names[i], color: `hsla(${this.hueWarm(i / 11)},60%,55%,${0.5 + m * 0.5})` });
+    }
+
+    return {
+      theme: this.props.theme || 'dawn',
+      showOnramp: this.props.showOnramp !== false,
+      trainer,
+      isHome: s.phase === 'home', isIntro: s.phase === 'intro', isPlay: s.phase === 'play', isResult: s.phase === 'result',
+      showVoice: s.showVoice, showPractice: s.showPractice,
+      voiceLabel: voice.label, levelDetail: lvl.detail,
+      ag: { name: ag.name, glyph: ag.glyph, accent: ag.accent, intro: ag.intro, cta: ag.cta, endLabel: ag.endLabel, needsVoice: ag.needsVoice, needsLevel: ag.needsLevel },
+      games, voices, levels, practiceBars,
+      hud: this.hudFor(s.activeGame), result: this.resultFor(s.activeGame),
+      refStage: (el) => this.reg('stage', el),
+      refRangeMini: (el) => this.reg('rangeMini', el),
+      refPGraph: (el) => this.reg('pgraph', el),
+      goHome: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ phase: 'home', showVoice: false, showPractice: false }); },
+      openGame: (id) => this.openGame(id),
+      openRange: () => this.openGame('range'),
+      startPlay: () => this.setState({ phase: 'play' }),
+      endPlay: () => this.setState({ phase: 'result' }),
+      openVoice: () => this.setState({ showVoice: true }),
+      closeVoice: () => this.setState({ showVoice: false }),
+      exploreFromVoice: () => this.openGame('range'),
+      openPractice: () => this.setState({ showPractice: true }),
+      closePractice: () => this.setState({ showPractice: false }),
+      stop: (e) => { if (e && e.stopPropagation) e.stopPropagation(); },
+    };
+  }
+}
+</script>
+</body>
+</html>
