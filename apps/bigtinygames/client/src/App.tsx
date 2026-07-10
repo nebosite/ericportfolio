@@ -3,6 +3,7 @@ import HomePage from "./pages/HomePage";
 import SnakePage from "./games/snake/SnakePage";
 import BigPacTinyManPage from "./games/big-pac-tiny-man/BigPacTinyManPage";
 import BigPipeTinyDreamPage from "./games/big-pipe-tiny-dream/BigPipeTinyDreamPage";
+import BigAstTinyERoidsPage from "./games/big-ast-tiny-eroids/BigAstTinyERoidsPage";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Route path="/snake" element={<SnakePage />} />
       <Route path="/big-pac-tiny-man" element={<BigPacTinyManPage />} />
       <Route path="/big-pipe-tiny-dream" element={<BigPipeTinyDreamPage />} />
+      <Route path="/big-ast-tiny-eroids" element={<BigAstTinyERoidsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

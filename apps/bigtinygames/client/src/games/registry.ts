@@ -31,4 +31,11 @@ export const GAMES: GameMeta[] = [
     path: "/snake",
     status: "ready",
   },
+  {
+    id: "big-ast-tiny-eroids",
+    title: "BIG AST TINY EROIDS",
+    blurb: "That's no moon. It's 12,000 moons.",
+    path: "/big-ast-tiny-eroids",
+    status: "ready",
+  },
 ];
