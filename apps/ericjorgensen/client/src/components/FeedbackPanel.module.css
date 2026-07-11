@@ -1,5 +1,5 @@
 /* Theme-agnostic feedback panel: inherits text color, uses translucent surfaces
-   so it sits comfortably on the dark Pitchcraft studio (and elsewhere). Kept in
+   so it sits comfortably on the dark Singadoodle studio (and elsewhere). Kept in
    sync with the copies in the other client apps. */
 .panel {
   display: inline-flex;

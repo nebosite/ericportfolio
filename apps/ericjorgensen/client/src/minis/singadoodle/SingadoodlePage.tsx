@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import SiteFooter from "../../components/SiteFooter";
-import { PitchcraftEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
+import { SingadoodleEngine, Hud, SessionResult, MicError, blankHud } from "./engine";
 import { RangeExplorerEngine, RangeHud, blankRangeHud } from "./rangeEngine";
 import { VoiceGardenEngine, GardenHud, GardenRecap, blankGardenHud } from "./gardenEngine";
 import { ChromaLoomEngine, LoomHud, blankLoomHud } from "./loomEngine";
@@ -30,7 +30,7 @@ import {
   recentNoteStats,
   recentScorePoints,
 } from "./src/storage/history";
-import styles from "./PitchcraftPage.module.css";
+import styles from "./SingadoodlePage.module.css";
 
 const MONO = "'Spline Sans Mono', monospace";
 const SERIF = "'Spectral', Georgia, serif";
@@ -50,7 +50,7 @@ type Phase =
 
 // The loom's rainbow key colors persist across visits (palette-tuning is fiddly
 // work worth keeping). Anything malformed falls back to the default rainbow.
-const LOOM_RAINBOW_KEY = "pitchcraft-loom-rainbow";
+const LOOM_RAINBOW_KEY = "singadoodle-loom-rainbow";
 
 function loadLoomRainbow(): string[] {
   try {
@@ -183,9 +183,9 @@ function sampleBars(): Record<number, GraphBar> {
 
 const noop = (): void => {};
 
-export default function PitchcraftPage() {
-  useEngagement("pitchcraft");
-  const engineRef = useRef<PitchcraftEngine | null>(null);
+export default function SingadoodlePage() {
+  useEngagement("singadoodle");
+  const engineRef = useRef<SingadoodleEngine | null>(null);
   const rangeRef = useRef<RangeExplorerEngine | null>(null);
   const gardenEngineRef = useRef<VoiceGardenEngine | null>(null);
   const loomRef = useRef<ChromaLoomEngine | null>(null);
@@ -247,7 +247,7 @@ export default function PitchcraftPage() {
   // exactly when its canvas does — and torn down when the player leaves home.
   const prevRange = useRef<RangeExplorerEngine | null>(null);
   const prevRangeMini = useRef<RangeExplorerEngine | null>(null);
-  const prevTrainer = useRef<PitchcraftEngine | null>(null);
+  const prevTrainer = useRef<SingadoodleEngine | null>(null);
   const prevGarden = useRef<VoiceGardenEngine | null>(null);
   const prevLoom = useRef<ChromaLoomEngine | null>(null);
 
@@ -267,7 +267,7 @@ export default function PitchcraftPage() {
   };
   const trainerPreviewCanvas = (el: HTMLCanvasElement | null) => {
     if (el && !prevTrainer.current) {
-      prevTrainer.current = new PitchcraftEngine({ voiceId, level: 1, onHud: noop, onEnd: noop });
+      prevTrainer.current = new SingadoodleEngine({ voiceId, level: 1, onHud: noop, onEnd: noop });
       prevTrainer.current.startPreview();
     }
     prevTrainer.current?.setCanvas(el);
@@ -321,22 +321,22 @@ export default function PitchcraftPage() {
   const inRound = phase !== "intro";
   useEffect(() => {
     if (!inRound) return;
-    window.history.pushState({ pitchcraft: true }, "");
+    window.history.pushState({ singadoodle: true }, "");
     const onPop = () => {
       // A game phase with no engine yet means the intro card is open — Back
       // from there goes straight home.
       if (phaseRef.current === "playing") {
         if (!engineRef.current) return returnHome();
         engineRef.current.stop(); // quit → "done" recap
-        window.history.pushState({ pitchcraft: true }, ""); // re-arm for the next Back
+        window.history.pushState({ singadoodle: true }, ""); // re-arm for the next Back
       } else if (phaseRef.current === "range") {
         if (!rangeRef.current) return returnHome();
         rangeRef.current.finish(); // quit exploring → range verdict
-        window.history.pushState({ pitchcraft: true }, "");
+        window.history.pushState({ singadoodle: true }, "");
       } else if (phaseRef.current === "garden") {
         if (!gardenEngineRef.current) return returnHome();
         gardenEngineRef.current.finish(); // rest the garden → visit recap
-        window.history.pushState({ pitchcraft: true }, "");
+        window.history.pushState({ singadoodle: true }, "");
       } else if (phaseRef.current === "loom") {
         const secs = loomRef.current?.finish() ?? 0; // no recap — straight home
         trackEvent("game_over", { game: "chroma_loom", seconds: Math.round(secs) });
@@ -429,7 +429,7 @@ export default function PitchcraftPage() {
   // the mic (getUserMedia runs synchronously inside start(), preserving the
   // click gesture); begin() defers the note session until the mic is live.
   const dismissIntro = () => {
-    const engine = new PitchcraftEngine({
+    const engine = new SingadoodleEngine({
       voiceId,
       level,
       onHud: setHud,
@@ -638,7 +638,7 @@ export default function PitchcraftPage() {
         {phase === "intro" && (
           <div className={styles.hero}>
             <h1 className={styles.title}>
-              Pitchcraft<span style={{ color: AMBER }}>.</span>
+              Singadoodle<span style={{ color: AMBER }}>.</span>
             </h1>
             <p className={styles.tagline}>
               Your voice is an instrument you already carry. Come play with it — no lessons, no
@@ -789,8 +789,8 @@ export default function PitchcraftPage() {
 
         {phase === "intro" && (
           <div className={styles.feedbackWrap}>
-            <div className={styles.feedbackHeading}>Help shape Pitchcraft</div>
-            <FeedbackPanel entity="pitchcraft" />
+            <div className={styles.feedbackHeading}>Help shape Singadoodle</div>
+            <FeedbackPanel entity="singadoodle" />
           </div>
         )}
 

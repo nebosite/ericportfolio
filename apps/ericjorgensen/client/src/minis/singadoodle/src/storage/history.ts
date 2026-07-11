@@ -104,7 +104,7 @@ export function recentScorePoints(
     .sort((a, b) => b.daysAgo - a.daysAgo);
 }
 
-const DB_NAME = "pitchcraft";
+const DB_NAME = "singadoodle";
 const DB_VERSION = 1;
 
 function openDB(): Promise<IDBDatabase> {
@@ -201,11 +201,11 @@ export async function addHistory(rec: SessionRecord): Promise<void> {
 
 /**
  * Submit a finished session to the leaderboard backend.
- * Configure VITE_PITCHCRAFT_API (e.g. "https://api.ericjorgensen.com"). No-ops when unset.
+ * Configure VITE_SINGADOODLE_API (e.g. "https://api.ericjorgensen.com"). No-ops when unset.
  * Implement POST <base>/highscores on the server; never put secrets in the client.
  */
 export function submitHighScore(rec: SessionRecord): void {
-  const base = (import.meta as any)?.env?.VITE_PITCHCRAFT_API as string | undefined;
+  const base = (import.meta as any)?.env?.VITE_SINGADOODLE_API as string | undefined;
   if (!base) return;
   fetch(base.replace(/\/$/, "") + "/highscores", {
     method: "POST",

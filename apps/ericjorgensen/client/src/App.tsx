@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import GalleryPage from "./pages/GalleryPage";
 import FeedbackAdminPage from "./pages/FeedbackAdminPage";
-import PitchcraftPage from "./minis/pitchcraft/PitchcraftPage";
+import SingadoodlePage from "./minis/singadoodle/SingadoodlePage";
 
 export default function App() {
   return (
@@ -14,8 +14,10 @@ export default function App() {
         element={<GalleryPage folder="Photography" heading="Photography" />}
       />
       <Route path="/writing" element={<GalleryPage folder="writing" heading="Writing" />} />
-      {/* Pure AI Output — Pitchcraft, a microphone pitch-matching trainer. */}
-      <Route path="/pitchcraft" element={<PitchcraftPage />} />
+      {/* Pure AI Output — Singadoodle, a microphone pitch-matching trainer. */}
+      <Route path="/singadoodle" element={<SingadoodlePage />} />
+      {/* Singadoodle used to be called Pitchcraft — keep old links working. */}
+      <Route path="/pitchcraft" element={<Navigate to="/singadoodle" replace />} />
       {/* Secret, password-gated feedback console. */}
       <Route path="/manage/feedback" element={<FeedbackAdminPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

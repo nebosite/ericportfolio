@@ -1,4 +1,4 @@
-// Behavior tests for the warm, play-first Pitchcraft home screen: the hero +
+// Behavior tests for the warm, play-first Singadoodle home screen: the hero +
 // voice chip, the overlays, and the "cards open intros without touching the
 // microphone" contract. Canvas/mic internals are exercised in the manual
 // browser review; here the engines run against a null 2D context and a
@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import PitchcraftPage from "./PitchcraftPage";
+import SingadoodlePage from "./SingadoodlePage";
 
 // IndexedDB isn't available under jsdom — stub the persistence layer with
 // resolved defaults and keep the pure helpers real.
@@ -37,7 +37,10 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.getContext = vi.fn(
     () => null,
   ) as unknown as HTMLCanvasElement["getContext"];
-  vi.stubGlobal("requestAnimationFrame", vi.fn(() => 0));
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn(() => 0),
+  );
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
   vi.stubGlobal(
     "fetch",
@@ -53,17 +56,17 @@ afterEach(() => {
 async function renderHome() {
   const utils = render(
     <MemoryRouter>
-      <PitchcraftPage />
+      <SingadoodlePage />
     </MemoryRouter>,
   );
   await screen.findByText("Ways to play"); // lets the async stats load settle
   return utils;
 }
 
-describe("PitchcraftPage home (warm reskin)", () => {
+describe("SingadoodlePage home (warm reskin)", () => {
   it("leads with play: hero, onramp, three game cards, train-your-ear, feedback", async () => {
     await renderHome();
-    expect(screen.getByRole("heading", { name: /pitchcraft/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /singadoodle/i })).toBeInTheDocument();
     expect(screen.getByText(/no lessons, no pressure/i)).toBeInTheDocument();
     expect(screen.getByText(/new here\? start here/i)).toBeInTheDocument();
     for (const name of ["Range Explorer", "Voice Garden", "Chroma Loom", "The Trainer"]) {
@@ -72,7 +75,7 @@ describe("PitchcraftPage home (warm reskin)", () => {
     expect(screen.getByText("Train your ear")).toBeInTheDocument();
     expect(screen.getByText(/open your practice/i)).toBeInTheDocument();
     // The standard per-entity feedback feature stays on the title screen.
-    expect(screen.getByText(/help shape pitchcraft/i)).toBeInTheDocument();
+    expect(screen.getByText(/help shape singadoodle/i)).toBeInTheDocument();
   });
 
   it("voice chip opens the picker; choosing a voice updates the chip and closes it", async () => {

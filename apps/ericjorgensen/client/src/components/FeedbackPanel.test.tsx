@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe("FeedbackPanel — entry", () => {
   it("shows the two standard buttons", () => {
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vote on feature requests" })).toBeInTheDocument();
   });
@@ -26,7 +26,7 @@ describe("FeedbackPanel — entry", () => {
     const onWindowKey = vi.fn();
     window.addEventListener("keydown", onWindowKey);
     try {
-      render(<FeedbackPanel entity="pitchcraft" />);
+      render(<FeedbackPanel entity="singadoodle" />);
       fireEvent.click(screen.getByRole("button", { name: "Feature Request" }));
       fireEvent.keyDown(screen.getByLabelText("Your feedback"), {
         key: "ArrowUp",
@@ -41,7 +41,7 @@ describe("FeedbackPanel — entry", () => {
 
 describe("FeedbackPanel — leave feedback", () => {
   it("caps the textarea at 1000 characters and counts as you type", () => {
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature Request" }));
     const box = screen.getByLabelText("Your feedback") as HTMLTextAreaElement;
     expect(box.maxLength).toBe(MAX_FEEDBACK);
@@ -53,7 +53,7 @@ describe("FeedbackPanel — leave feedback", () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ id: 1 }, true, 201)));
     global.fetch = fetchMock as typeof fetch;
 
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature Request" }));
     fireEvent.change(screen.getByLabelText("Your feedback"), {
       target: { value: "  add more keys  " },
@@ -64,13 +64,13 @@ describe("FeedbackPanel — leave feedback", () => {
     const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/feedback");
     expect(JSON.parse(opts.body as string)).toEqual({
-      entity: "pitchcraft",
+      entity: "singadoodle",
       text: "add more keys",
     });
   });
 
   it("disables submit until there is non-whitespace text", () => {
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Feature Request" }));
     const submit = screen.getByRole("button", { name: "Submit" });
     expect(submit).toBeDisabled();
@@ -96,12 +96,12 @@ describe("FeedbackPanel — vote on feedback", () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(ITEMS)));
     global.fetch = fetchMock as typeof fetch;
 
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Vote on feature requests" }));
 
     expect(await screen.findByText("add a metronome")).toBeInTheDocument();
     expect(screen.getByText("more tunes")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/feedback/random?entity=pitchcraft");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/feedback/random?entity=singadoodle");
   });
 
   it("upvotes an item, records it in localStorage, and disables re-voting", async () => {
@@ -113,7 +113,7 @@ describe("FeedbackPanel — vote on feedback", () => {
     });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Vote on feature requests" }));
 
     const upBtn = await screen.findByRole("button", { name: "Upvote (2)" });
@@ -130,7 +130,7 @@ describe("FeedbackPanel — vote on feedback", () => {
     localStorage.setItem("feedback_voted", JSON.stringify([22]));
     global.fetch = vi.fn(() => Promise.resolve(jsonResponse(ITEMS))) as typeof fetch;
 
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Vote on feature requests" }));
 
     expect(await screen.findByRole("button", { name: "Voted (5)" })).toBeDisabled();
@@ -138,14 +138,14 @@ describe("FeedbackPanel — vote on feedback", () => {
 
   it("shows a friendly empty state when there is no feedback", async () => {
     global.fetch = vi.fn(() => Promise.resolve(jsonResponse([]))) as typeof fetch;
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Vote on feature requests" }));
     expect(await screen.findByText(/be the first to leave some/i)).toBeInTheDocument();
   });
 
   it("surfaces a load error", async () => {
     global.fetch = vi.fn(() => Promise.resolve(jsonResponse(null, false, 500))) as typeof fetch;
-    render(<FeedbackPanel entity="pitchcraft" />);
+    render(<FeedbackPanel entity="singadoodle" />);
     fireEvent.click(screen.getByRole("button", { name: "Vote on feature requests" }));
     await waitFor(() => expect(screen.getByText(/could not load feedback/i)).toBeInTheDocument());
   });

@@ -1,4 +1,4 @@
-// PitchcraftEngine — the imperative game core: microphone capture, the 60fps
+// SingadoodleEngine — the imperative game core: microphone capture, the 60fps
 // game loop, per-tick scoring, the canvas piano-roll, and HUD updates. It wraps
 // the framework-free modules under src/ (pitch/tone/notes/scoring) without
 // rewriting their tuned algorithms; React just drives start/stop and renders the
@@ -126,7 +126,7 @@ export function blankHud(): Hud {
   };
 }
 
-export class PitchcraftEngine {
+export class SingadoodleEngine {
   private opts: EngineOpts;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;

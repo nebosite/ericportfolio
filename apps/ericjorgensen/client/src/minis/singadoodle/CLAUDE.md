@@ -1,6 +1,6 @@
-# Pitchcraft — build guide for Claude
+# Singadoodle — build guide for Claude
 
-You are implementing **Pitchcraft**, a single-page browser game that helps beginning
+You are implementing **Singadoodle**, a single-page browser game that helps beginning
 singers learn to hear a pitch and match it with their voice. It is one page of Eric
 Jorgensen's portfolio, linked under the **"Pure AI Output"** section. This folder is
 self-contained: it holds a working visual reference, the core game logic as plain
@@ -24,7 +24,7 @@ component. Do not rewrite the algorithms; they are tuned and correct.
 
 ## Reference files
 
-- `reference/Pitchcraft.dc.html` — the **visual + behavioral reference** (the approved
+- `reference/Singadoodle.dc.html` — the **visual + behavioral reference** (the approved
   prototype). It was authored in a design tool and depends on that tool's runtime, so
   use it to see the intended look, layout, copy, colors, and game feel — not as code to
   run directly. Recreate its UI in the real stack.
@@ -96,7 +96,7 @@ residual single-frame flips.
 
 ## Persistence
 
-- **IndexedDB** database `pitchcraft` (see `src/storage/history.ts`):
+- **IndexedDB** database `singadoodle` (see `src/storage/history.ts`):
   - object store `history` (keyPath `id`, autoIncrement): one record per finished
     session `{ ts, d (YYYY-MM-DD), score, accuracy, voice, level }`.
   - object store `kv`: aggregate `stats` under key `"stats"` —
@@ -104,9 +104,9 @@ residual single-frame flips.
     `notes` powers the per-note "pitch map" mastery; `streak` is consecutive-day play;
     `prefs` remembers the last voice/level.
 - **Server high scores:** `submitHighScore(record)` POSTs to
-  `import.meta.env.VITE_PITCHCRAFT_API + '/highscores'` when configured, else no-ops.
+  `import.meta.env.VITE_SINGADOODLE_API + '/highscores'` when configured, else no-ops.
   Implement the real leaderboard endpoint on the site's backend; keep the local best
-  as fallback. (The prototype used `window.PITCHCRAFT_API`; switch to the Vite env var.)
+  as fallback. (The prototype used `window.SINGADOODLE_API`; switch to the Vite env var.)
 
 ## Design system (rhymes with the portfolio, but uses more color)
 

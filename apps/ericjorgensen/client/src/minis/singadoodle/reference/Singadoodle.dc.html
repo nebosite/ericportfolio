@@ -116,7 +116,7 @@
                 color: #f3efe6;
               "
             >
-              Pitchcraft<span style="color: #f4b23e">.</span>
+              Singadoodle<span style="color: #f4b23e">.</span>
             </h1>
             <p
               style="
@@ -1052,7 +1052,7 @@
         openDB() {
           return new Promise((res, rej) => {
             if (!window.indexedDB) return rej(new Error('no idb'));
-            const r = indexedDB.open('pitchcraft', 1);
+            const r = indexedDB.open('singadoodle', 1);
             r.onupgradeneeded = () => {
               const db = r.result;
               if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
@@ -1083,11 +1083,11 @@
           this.history = (this.history || []).concat([rec]).slice(-200);
           try { const db = await this.openDB(); db.transaction('history', 'readwrite').objectStore('history').add(rec); } catch (e) {}
         }
-        // High scores belong on a server — prototype has none. Wire window.PITCHCRAFT_API in production.
+        // High scores belong on a server — prototype has none. Wire window.SINGADOODLE_API in production.
         submitHighScore(rec) {
           try {
-            if (window.PITCHCRAFT_API) {
-              fetch(window.PITCHCRAFT_API.replace(/\/$/, '') + '/highscores', {
+            if (window.SINGADOODLE_API) {
+              fetch(window.SINGADOODLE_API.replace(/\/$/, '') + '/highscores', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec),
               }).catch(() => {});
             }

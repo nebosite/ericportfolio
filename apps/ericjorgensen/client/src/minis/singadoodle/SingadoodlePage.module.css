@@ -1,4 +1,4 @@
-/* Pitchcraft — the warm, play-first reskin. Three palettes (default "dawn")
+/* Singadoodle — the warm, play-first reskin. Three palettes (default "dawn")
    live as CSS custom properties on the page root's data-theme attribute; every
    piece of chrome reads tokens so the whole mini rethemes from one attribute.
    Canvas interiors deliberately stay dark in all themes — they're little lit

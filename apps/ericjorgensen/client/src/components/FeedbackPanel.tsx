@@ -4,7 +4,7 @@ import styles from "./FeedbackPanel.module.css";
 // Standard per-entity feedback feature: two buttons that let visitors leave
 // feedback (<=1000 chars) or vote on three random active items. Repeat votes
 // are blocked per-browser via localStorage. `entity` is the game or app slug
-// (e.g. "snake", "pixelwhimsy", "pitchcraft"). Kept in sync with the copies in
+// (e.g. "snake", "pixelwhimsy", "singadoodle"). Kept in sync with the copies in
 // the other client apps.
 
 export const MAX_FEEDBACK = 1000;

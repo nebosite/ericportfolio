@@ -82,9 +82,9 @@ const RAW: RawCategory[] = [
     style: "crystal",
     items: [
       {
-        name: "Pitchcraft",
+        name: "Singadoodle",
         desc: "A microphone pitch-matching trainer for beginning singers.",
-        to: "/pitchcraft",
+        to: "/singadoodle",
       },
       {
         name: "PixelWhimsy",
