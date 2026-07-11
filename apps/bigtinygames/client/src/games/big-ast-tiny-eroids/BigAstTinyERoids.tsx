@@ -6,22 +6,28 @@ import {
   GameState,
   InputState,
   MAX_SHIELD,
+  NOVA_CHARGE,
   PowerupKind,
   RING_BAND,
   ROID_R,
   SHIP_R,
-  SWEEP_DURATION,
   CORE_R,
+  SUPER_BULLET_R,
+  WEAPON_AMMO,
   initialState,
+  novaHitR,
   step,
+  traceHitscan,
 } from "./roidsLogic";
+import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
+import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
 import styles from "./BigAstTinyERoids.module.css";
 
 // The Big Tiny aesthetic, vector edition: glowing arcade line-art on a black
 // field that fills the screen. Every rule lives in roidsLogic.ts (unit
-// tested); this file is only pixels, timers and input plumbing.
+// tested); this file is only pixels, timers, sound and input plumbing.
 
 const ENTITY = "big-ast-tiny-eroids";
 
@@ -56,10 +62,24 @@ const POWERUP_STYLE: Record<PowerupKind, { label: string; color: string }> = {
   puffball: { label: "P", color: "#ffffff" },
 };
 
-const RING_COLORS = ["#57ff7a", "#ffce3b", "#ff5757"]; // outer → inner
+// Rising pickup announcements, in full words.
+const FLOATER_LABEL: Record<PowerupKind, string> = {
+  shield: "SHIELD +2",
+  bouncy: "BOUNCY ARMOR",
+  life: "EXTRA SHIP",
+  machine: "MACHINE GUN",
+  super: "SUPER BULLETS",
+  laser: "LASER BOLT",
+  superlaser: "SUPER LASER",
+  ultralaser: "ULTRA LASER",
+  puffball: "PUFFBALL",
+};
 
-/** Stroke the same path twice — a fat translucent pass then a thin bright
- *  one — under additive compositing. That's the whole vector-glow trick. */
+const RING_COLORS = ["#57ff7a", "#ffce3b", "#ff5757", "#57d8ff", "#ff5af5", "#b06bff"]; // outer → inner
+
+/** Oscilloscope-phosphor stroke: a clearly visible glow underlay ~5× the
+ *  line width, a hot inner bloom, then the thin bright core — all additive.
+ *  Caller widths are halved here (the "50% thinner" house rule). */
 function glowStroke(
   ctx: CanvasRenderingContext2D,
   color: string,
@@ -69,14 +89,65 @@ function glowStroke(
 ) {
   ctx.beginPath();
   path(ctx);
+  const w = width * 0.5;
   ctx.strokeStyle = color;
-  ctx.lineWidth = width * 3.2;
-  ctx.globalAlpha = 0.28 * alpha;
+  ctx.lineCap = "round";
+  ctx.lineWidth = w * 5;
+  ctx.globalAlpha = 0.32 * alpha; // the glow underlay
   ctx.stroke();
-  ctx.lineWidth = width;
-  ctx.globalAlpha = alpha;
+  ctx.lineWidth = w * 2;
+  ctx.globalAlpha = 0.5 * alpha; // hot inner bloom
+  ctx.stroke();
+  ctx.lineWidth = w;
+  ctx.globalAlpha = alpha; // the trace itself
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+// Seven-segment vector digits for the in-game score (unit box 0.6 × 1).
+const SEG_PTS: Record<string, [number, number, number, number]> = {
+  A: [0, 0, 0.6, 0],
+  B: [0.6, 0, 0.6, 0.5],
+  C: [0.6, 0.5, 0.6, 1],
+  D: [0, 1, 0.6, 1],
+  E: [0, 0.5, 0, 1],
+  F: [0, 0, 0, 0.5],
+  G: [0, 0.5, 0.6, 0.5],
+};
+const DIGIT_SEGS: Record<string, string> = {
+  "0": "ABCDEF",
+  "1": "BC",
+  "2": "ABGED",
+  "3": "ABGCD",
+  "4": "FGBC",
+  "5": "AFGCD",
+  "6": "AFGECD",
+  "7": "ABC",
+  "8": "ABCDEFG",
+  "9": "ABCDFG",
+};
+
+function drawVectorDigits(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  h: number,
+  color: string,
+) {
+  const advance = h * 0.6 + h * 0.35;
+  glowStroke(ctx, color, 1.6, 1, (c) => {
+    for (let i = 0; i < text.length; i++) {
+      const segs = DIGIT_SEGS[text[i]];
+      if (!segs) continue;
+      const ox = x + i * advance;
+      for (const s of segs) {
+        const [x1, y1, x2, y2] = SEG_PTS[s];
+        c.moveTo(ox + x1 * h, y + y1 * h);
+        c.lineTo(ox + x2 * h, y + y2 * h);
+      }
+    }
+  });
 }
 
 export default function BigAstTinyERoids() {
@@ -85,11 +156,11 @@ export default function BigAstTinyERoids() {
   const stateRef = useRef<GameState | null>(null);
   const keysRef = useRef<InputState>({ left: false, right: false, thrust: false, fire: false });
   const starsRef = useRef<Array<{ x: number; y: number; r: number }>>([]);
+  const sfxRef = useRef<Sfx | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(0); // mirrored for the overlays; in-game it's vector-drawn
   const [wave, setWave] = useState(1);
-  const [lives, setLives] = useState(0);
   const [shield, setShield] = useState(0);
   const [bouncy, setBouncy] = useState(false);
   const [weapon, setWeapon] = useState<GameState["weapon"]>("bullet");
@@ -105,6 +176,22 @@ export default function BigAstTinyERoids() {
   }, []);
 
   useEffect(loadLeaderboard, [loadLeaderboard]);
+
+  // Web Audio lives for the lifetime of the mount.
+  useEffect(() => {
+    let sfx: Sfx | null = null;
+    try {
+      sfx = new Sfx(); // no-op in environments without Web Audio (e.g. tests)
+      void sfx.load();
+      sfxRef.current = sfx;
+    } catch {
+      sfxRef.current = null;
+    }
+    return () => {
+      sfx?.destroy();
+      sfxRef.current = null;
+    };
+  }, []);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -147,7 +234,7 @@ export default function BigAstTinyERoids() {
     for (const roid of state.roids) {
       const r = ROID_R[roid.size];
       drawWrapped(roid.pos, r * 1.3, () => {
-        glowStroke(ctx, "#9fd8ff", 1.5, 1, (c) => {
+        glowStroke(ctx, "#9fd8ff", 1.3, 1, (c) => {
           for (let i = 0; i <= roid.shape.length; i++) {
             const k = i % roid.shape.length;
             const a = roid.angle + (k / roid.shape.length) * Math.PI * 2;
@@ -161,8 +248,49 @@ export default function BigAstTinyERoids() {
       });
     }
 
-    // The StarCastle.
-    if (state.castle) drawCastle(ctx, state.castle, now, drawWrapped);
+    // The StarCastles.
+    for (const castle of state.castles) drawCastle(ctx, castle, now, drawWrapped);
+
+    // Novas: the castle's swelling radiant bullets (they never wrap). The
+    // radiation lines trace from the center out to the kill radius — if a
+    // line can touch you, so can the nova.
+    for (const nova of state.novas) {
+      glowStroke(ctx, "#ffffff", 1.6, 1, (c) =>
+        c.arc(nova.pos.x, nova.pos.y, Math.max(1.5, nova.r * 0.35), 0, Math.PI * 2),
+      );
+      glowStroke(ctx, "#ff5757", 1.8, 0.9, (c) =>
+        c.arc(nova.pos.x, nova.pos.y, nova.r, 0, Math.PI * 2),
+      );
+      const rays = 12;
+      const reach = novaHitR(nova.r);
+      glowStroke(ctx, "#ff9a57", 1, 0.9, (c) => {
+        for (let i = 0; i < rays; i++) {
+          const a = nova.age * 2.2 + (i / rays) * Math.PI * 2;
+          const flick = 0.6 + 0.4 * Math.sin(now * 30 + i * 2.1);
+          const r1 = reach * flick;
+          c.moveTo(nova.pos.x, nova.pos.y);
+          c.lineTo(nova.pos.x + Math.cos(a) * r1, nova.pos.y + Math.sin(a) * r1);
+        }
+      });
+    }
+
+    // Laser sight: while a laser tier is armed, a faint line previews exactly
+    // where the shot will go (including pierces and the ultra's wrap).
+    const armed = state.weapon;
+    if (
+      (armed === "laser" || armed === "superlaser" || armed === "ultralaser") &&
+      state.respawn <= 0 &&
+      !state.over
+    ) {
+      const sightColor =
+        armed === "laser" ? "#ff4a4a" : armed === "superlaser" ? "#ff2d95" : "#b06bff";
+      for (const seg of traceHitscan(state, armed).segs) {
+        glowStroke(ctx, sightColor, 0.8, 0.14, (c) => {
+          c.moveTo(seg.a.x, seg.a.y);
+          c.lineTo(seg.b.x, seg.b.y);
+        });
+      }
+    }
 
     // Beams (lasers + already-applied damage; these just afterglow).
     for (const beam of state.beams) {
@@ -173,10 +301,8 @@ export default function BigAstTinyERoids() {
             ? "#ff4a4a"
             : beam.kind === "superlaser"
               ? "#ff2d95"
-              : beam.kind === "sweep"
-                ? "#ff3030"
-                : `hsl(${(i * 47 + now * 300) % 360} 100% 65%)`;
-        glowStroke(ctx, color, beam.kind === "laser" ? 1.5 : 2.2, fade, (c) => {
+              : `hsl(${(i * 47 + now * 300) % 360} 100% 65%)`;
+        glowStroke(ctx, color, beam.kind === "laser" ? 1.3 : 1.8, fade, (c) => {
           c.moveTo(seg.a.x, seg.a.y);
           c.lineTo(seg.b.x, seg.b.y);
         });
@@ -187,16 +313,14 @@ export default function BigAstTinyERoids() {
     for (const bullet of state.bullets) {
       const spec =
         bullet.kind === "enemy"
-          ? { color: "#ff5757", r: 2.5 }
+          ? { color: "#ff5757", r: 1.6 }
           : bullet.kind === "super"
-            ? { color: "#ff5af5", r: 4 }
-            : bullet.kind === "frag"
-              ? { color: "#ff9df8", r: 1.8 }
-              : bullet.kind === "machine"
-                ? { color: "#ffa03c", r: 2 }
-                : { color: "#ffce3b", r: 2.4 };
-      drawWrapped(bullet.pos, 6, () => {
-        glowStroke(ctx, spec.color, spec.r, 1, (c) =>
+            ? { color: "#ff5af5", r: SUPER_BULLET_R }
+            : bullet.kind === "machine"
+              ? { color: "#ffa03c", r: 1.3 }
+              : { color: "#ffce3b", r: 1.5 };
+      drawWrapped(bullet.pos, spec.r + 4, () => {
+        glowStroke(ctx, spec.color, Math.min(spec.r, 3), 1, (c) =>
           c.arc(bullet.pos.x, bullet.pos.y, spec.r, 0, Math.PI * 2),
         );
       });
@@ -206,28 +330,39 @@ export default function BigAstTinyERoids() {
     for (const blast of state.blasts) {
       const t = blast.age / blast.ttl;
       const color = blast.kind === "puff" ? "#7df9ff" : "#ffce3b";
-      glowStroke(ctx, color, 2.5, 1 - t, (c) =>
+      glowStroke(ctx, color, 2, 1 - t, (c) =>
         c.arc(blast.pos.x, blast.pos.y, blast.maxR * t, 0, Math.PI * 2),
       );
+    }
+
+    // Explosion debris: tumbling line shards that burn out.
+    for (const shard of state.debris) {
+      const t = shard.age / shard.ttl;
+      const dx = (Math.cos(shard.angle) * shard.len) / 2;
+      const dy = (Math.sin(shard.angle) * shard.len) / 2;
+      glowStroke(ctx, "#9fd8ff", 0.9, 1 - t, (c) => {
+        c.moveTo(shard.pos.x - dx, shard.pos.y - dy);
+        c.lineTo(shard.pos.x + dx, shard.pos.y + dy);
+      });
     }
 
     // Powerups: glowing hexagons with a letter inside.
     for (const pu of state.powerups) {
       const { label, color } = POWERUP_STYLE[pu.kind];
       const blink = pu.ttl < 3 && now % 0.4 < 0.2 ? 0.25 : 1;
-      drawWrapped(pu.pos, 14, () => {
-        glowStroke(ctx, color, 1.4, blink, (c) => {
+      drawWrapped(pu.pos, 10, () => {
+        glowStroke(ctx, color, 1.2, blink, (c) => {
           for (let i = 0; i <= 6; i++) {
             const a = now * 0.8 + (i / 6) * Math.PI * 2;
-            const x = pu.pos.x + Math.cos(a) * 11;
-            const y = pu.pos.y + Math.sin(a) * 11;
+            const x = pu.pos.x + Math.cos(a) * 7;
+            const y = pu.pos.y + Math.sin(a) * 7;
             if (i === 0) c.moveTo(x, y);
             else c.lineTo(x, y);
           }
         });
         ctx.fillStyle = color;
         ctx.globalAlpha = blink;
-        ctx.font = "bold 9px 'Courier New', monospace";
+        ctx.font = "bold 7px 'Courier New', monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(label, pu.pos.x, pu.pos.y + 0.5);
@@ -235,23 +370,36 @@ export default function BigAstTinyERoids() {
       });
     }
 
+    // Rising pickup announcements.
+    for (const floater of state.floaters) {
+      const t = floater.age / floater.ttl;
+      const { color } = POWERUP_STYLE[floater.kind];
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 1 - t;
+      ctx.font = "bold 11px 'Courier New', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(FLOATER_LABEL[floater.kind], floater.pos.x, floater.pos.y - 12 - t * 30);
+      ctx.globalAlpha = 1;
+    }
+
     // The ship.
     if (state.respawn <= 0 && !state.over) {
       const ship = state.ship;
       const blink = ship.invuln > 0 && now % 0.25 < 0.12;
       if (!blink) {
-        drawWrapped(ship.pos, 30, () => {
+        drawWrapped(ship.pos, 20, () => {
           const cos = Math.cos(ship.angle);
           const sin = Math.sin(ship.angle);
           const pt = (fx: number, fy: number) => ({
             x: ship.pos.x + fx * cos - fy * sin,
             y: ship.pos.y + fx * sin + fy * cos,
           });
-          const nose = pt(SHIP_R + 2, 0);
-          const rearL = pt(-9, -9);
-          const rearR = pt(-9, 9);
-          const notch = pt(-5, 0);
-          glowStroke(ctx, "#eaffff", 1.6, 1, (c) => {
+          const nose = pt(SHIP_R + 1, 0);
+          const rearL = pt(-4.5, -4.5);
+          const rearR = pt(-4.5, 4.5);
+          const notch = pt(-2.5, 0);
+          glowStroke(ctx, "#eaffff", 1.3, 1, (c) => {
             c.moveTo(nose.x, nose.y);
             c.lineTo(rearL.x, rearL.y);
             c.lineTo(notch.x, notch.y);
@@ -259,28 +407,53 @@ export default function BigAstTinyERoids() {
             c.closePath();
           });
           if (ship.thrusting && now % 0.1 < 0.07) {
-            const flame = pt(-14 - 5 * ((now * 60) % 1), 0);
-            const baseL = pt(-7, -4);
-            const baseR = pt(-7, 4);
-            glowStroke(ctx, "#ffb347", 1.4, 1, (c) => {
+            const flame = pt(-7 - 2.5 * ((now * 60) % 1), 0);
+            const baseL = pt(-3.5, -2);
+            const baseR = pt(-3.5, 2);
+            glowStroke(ctx, "#ffb347", 1.2, 1, (c) => {
               c.moveTo(baseL.x, baseL.y);
               c.lineTo(flame.x, flame.y);
               c.lineTo(baseR.x, baseR.y);
             });
           }
           if (ship.shield > 0) {
-            glowStroke(ctx, "#57d8ff", 1, 0.25 + 0.5 * (ship.shield / MAX_SHIELD), (c) =>
-              c.arc(ship.pos.x, ship.pos.y, SHIP_R + 7, 0, Math.PI * 2),
+            glowStroke(ctx, "#57d8ff", 0.9, 0.25 + 0.5 * (ship.shield / MAX_SHIELD), (c) =>
+              c.arc(ship.pos.x, ship.pos.y, SHIP_R + 4, 0, Math.PI * 2),
             );
           }
           if (ship.bouncy > 0) {
             const pulse = 0.6 + 0.4 * Math.sin(now * 10);
-            glowStroke(ctx, "#57ff7a", 1.4, ship.bouncy < 2 ? pulse * 0.5 : pulse, (c) =>
-              c.arc(ship.pos.x, ship.pos.y, SHIP_R + 12, 0, Math.PI * 2),
+            glowStroke(ctx, "#57ff7a", 1.2, ship.bouncy < 2 ? pulse * 0.5 : pulse, (c) =>
+              c.arc(ship.pos.x, ship.pos.y, SHIP_R + 7, 0, Math.PI * 2),
             );
+          }
+          // A weapon powerup is armed: red dot on the nose, blinking faster
+          // as the magazine runs low.
+          const armed = state.weapon;
+          if (armed !== "bullet") {
+            const low = state.ammo / WEAPON_AMMO[armed] <= 1 / 3;
+            const period = low ? 0.14 : 0.5;
+            if (now % period < period / 2) {
+              glowStroke(ctx, "#ff3030", 1.6, 1, (c) => c.arc(nose.x, nose.y, 1.6, 0, Math.PI * 2));
+            }
           }
         });
       }
+    }
+
+    // In-game vector HUD: the score in seven-segment digits, remaining ships
+    // as little hulls beneath it. Drawn last so it rides above the action.
+    drawVectorDigits(ctx, String(state.score).padStart(6, "0"), 12, 12, 16, "#ffce3b");
+    for (let i = 0; i < Math.min(state.lives, 8); i++) {
+      const x = 12 + i * 14;
+      const y = 38;
+      glowStroke(ctx, "#eaffff", 1.1, 1, (c) => {
+        c.moveTo(x + 4, y);
+        c.lineTo(x, y + 11);
+        c.lineTo(x + 4, y + 8);
+        c.lineTo(x + 8, y + 11);
+        c.closePath();
+      });
     }
 
     ctx.globalCompositeOperation = "source-over";
@@ -290,7 +463,6 @@ export default function BigAstTinyERoids() {
   const syncHud = useCallback((state: GameState) => {
     setScore(state.score);
     setWave(state.wave);
-    setLives(state.lives);
     setShield(state.ship.shield);
     setBouncy(state.ship.bouncy > 0);
     setWeapon(state.weapon);
@@ -318,6 +490,7 @@ export default function BigAstTinyERoids() {
       ctx.fillStyle = "#06080e";
       ctx.fillRect(0, 0, w, h);
     }
+    sfxRef.current?.resume();
     syncHud(state);
     setInitials("");
     trackEvent("game_start", { game: ENTITY });
@@ -397,8 +570,17 @@ export default function BigAstTinyERoids() {
       const state = stateRef.current;
       if (!state) return;
       step(state, input, dt);
+      // One shot per distinct sound per frame, so a puffball clearing a dozen
+      // rocks doesn't fire a dozen overlapping booms.
+      for (const event of new Set(state.events)) sfxRef.current?.play(event);
+      // The engine rumble loops for exactly as long as the ship is thrusting,
+      // and the deep synth buzz for as long as any nova is in flight.
+      sfxRef.current?.setLoop("thrust", state.respawn <= 0 && !state.over && state.ship.thrusting);
+      sfxRef.current?.setLoop("nova", state.novas.length > 0);
       syncHud(state);
       if (state.over) {
+        sfxRef.current?.setLoop("thrust", false);
+        sfxRef.current?.setLoop("nova", false);
         trackEvent("game_over", { game: ENTITY, score: state.score });
         setPhase("gameover");
         return;
@@ -407,7 +589,11 @@ export default function BigAstTinyERoids() {
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      sfxRef.current?.setLoop("thrust", false);
+      sfxRef.current?.setLoop("nova", false);
+    };
   }, [phase, draw, syncHud]);
 
   // Follow window resizes mid-game: the field really is the whole stage.
@@ -475,12 +661,7 @@ export default function BigAstTinyERoids() {
   return (
     <div className={styles.game}>
       <div className={styles.hud}>
-        <span>SCORE: {score.toString().padStart(6, "0")}</span>
         <span>WAVE {wave}</span>
-        <span>
-          SHIPS {"▲".repeat(Math.max(0, Math.min(lives, 6)))}
-          {lives > 6 ? `×${lives}` : ""}
-        </span>
         <span className={styles.shieldPips}>SHIELD {"◆".repeat(shield) || "—"}</span>
         {bouncy && <span className={styles.bouncyTag}>BOUNCY!</span>}
         <span className={styles.weaponTag}>
@@ -517,8 +698,9 @@ export default function BigAstTinyERoids() {
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG AST TINY EROIDS</p>
             <p>
-              Blast the rocks, surf the wrap. Watch for the STARCASTLE — when its spinning shields
-              open a hole, a sweeping beam is coming.
+              Blast the rocks, surf the wrap. Watch for the STARCASTLES — when their spinning
+              shields open a hole, a sweeping beam is coming. Higher waves mean more castles with
+              thicker shields, all at once.
             </p>
             <p>
               Grab power-ups: three tiers of laser, machine gun, super bullets, the puffball blast —
@@ -528,6 +710,7 @@ export default function BigAstTinyERoids() {
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
             </button>
+            <VolumeControl />
             <FeedbackPanel entity={ENTITY} />
           </div>
         )}
@@ -579,63 +762,86 @@ export default function BigAstTinyERoids() {
   );
 }
 
-/** The StarCastle: three counter-rotating segmented shield rings, a spinning
- *  core, and the charge/sweep beam telegraphs. */
+/** A StarCastle: counter-rotating rings of flat, gapless shield segments
+ *  around a little winged core ship, plus the charge/sweep beam telegraphs. */
 function drawCastle(
   ctx: CanvasRenderingContext2D,
   castle: Castle,
   now: number,
   drawWrapped: (pos: { x: number; y: number }, r: number, fn: () => void) => void,
 ) {
-  const outer = castle.rings[0]?.r ?? 66;
-  drawWrapped(castle.pos, outer + RING_BAND + 10, () => {
+  const outer = castle.rings[0]?.r ?? 26;
+  drawWrapped(castle.pos, outer + RING_BAND + 8, () => {
+    // Shield rings: each segment is a flat chord between adjacent ring
+    // vertices, drawn edge-to-edge so intact stretches read as one solid wall.
     castle.rings.forEach((ring, ri) => {
       const color = RING_COLORS[ri % RING_COLORS.length];
       const arc = (Math.PI * 2) / ring.segs.length;
-      const gap = arc * 0.12;
       for (let i = 0; i < ring.segs.length; i++) {
         if (!ring.segs[i]) continue;
-        const a0 = ring.angle + i * arc + gap;
-        const a1 = ring.angle + (i + 1) * arc - gap;
-        glowStroke(ctx, color, 2.2, 1, (c) => c.arc(castle.pos.x, castle.pos.y, ring.r, a0, a1));
+        const a0 = ring.angle + i * arc;
+        const a1 = a0 + arc;
+        glowStroke(ctx, color, 1.8, 1, (c) => {
+          c.moveTo(castle.pos.x + Math.cos(a0) * ring.r, castle.pos.y + Math.sin(a0) * ring.r);
+          c.lineTo(castle.pos.x + Math.cos(a1) * ring.r, castle.pos.y + Math.sin(a1) * ring.r);
+        });
       }
     });
 
-    // The core: a slowly spinning triangle that flares while charging.
-    const charging = castle.sweep?.phase === "charge";
+    // The core: a tiny winged gunship that fires the way it points.
+    const charging = castle.charge != null;
     const flare = charging ? 0.6 + 0.4 * Math.sin(now * 30) : 0.9;
-    glowStroke(ctx, charging ? "#ff3030" : "#ffffff", 1.6, flare, (c) => {
-      for (let i = 0; i <= 3; i++) {
-        const a = now * 1.5 + (i / 3) * Math.PI * 2;
-        const x = castle.pos.x + Math.cos(a) * CORE_R;
-        const y = castle.pos.y + Math.sin(a) * CORE_R;
-        if (i === 0) c.moveTo(x, y);
-        else c.lineTo(x, y);
-      }
+    const color = charging ? "#ff3030" : "#ffffff";
+    const cos = Math.cos(castle.coreAngle);
+    const sin = Math.sin(castle.coreAngle);
+    const pt = (fx: number, fy: number) => ({
+      x: castle.pos.x + fx * cos - fy * sin,
+      y: castle.pos.y + fx * sin + fy * cos,
+    });
+    // Body.
+    const nose = pt(CORE_R + 1, 0);
+    const rearL = pt(-CORE_R * 0.7, -CORE_R * 0.7);
+    const rearR = pt(-CORE_R * 0.7, CORE_R * 0.7);
+    glowStroke(ctx, color, 1.3, flare, (c) => {
+      c.moveTo(nose.x, nose.y);
+      c.lineTo(rearL.x, rearL.y);
+      c.lineTo(rearR.x, rearR.y);
+      c.closePath();
+    });
+    // Wings.
+    glowStroke(ctx, color, 1.1, flare, (c) => {
+      const wl0 = pt(-1, -CORE_R * 0.6);
+      const wl1 = pt(-3, -CORE_R * 1.4);
+      const wr0 = pt(-1, CORE_R * 0.6);
+      const wr1 = pt(-3, CORE_R * 1.4);
+      c.moveTo(wl0.x, wl0.y);
+      c.lineTo(wl1.x, wl1.y);
+      c.moveTo(wr0.x, wr0.y);
+      c.lineTo(wr1.x, wr1.y);
+    });
+    // Gun barrel.
+    glowStroke(ctx, color, 1.1, flare, (c) => {
+      const tip = pt(CORE_R + 5, 0);
+      c.moveTo(nose.x, nose.y);
+      c.lineTo(tip.x, tip.y);
     });
 
-    const sweep = castle.sweep;
-    if (sweep?.phase === "charge") {
-      // Telegraph: a thin aiming line flickering toward the ship.
-      const len = 2000;
-      glowStroke(ctx, "#ff3030", 0.8, 0.35 + 0.3 * Math.sin(now * 25), (c) => {
-        c.moveTo(castle.pos.x, castle.pos.y);
-        c.lineTo(
-          castle.pos.x + Math.cos(sweep.angle) * len,
-          castle.pos.y + Math.sin(sweep.angle) * len,
-        );
-      });
-    } else if (sweep?.phase === "fire") {
-      const frac = Math.min(1, sweep.t / SWEEP_DURATION);
-      const angle = sweep.from + (sweep.to - sweep.from) * frac;
-      const len = 3000;
-      glowStroke(ctx, "#ff3030", 6, 0.9, (c) => {
-        c.moveTo(castle.pos.x, castle.pos.y);
-        c.lineTo(castle.pos.x + Math.cos(angle) * len, castle.pos.y + Math.sin(angle) * len);
-      });
-      glowStroke(ctx, "#ffffff", 1.6, 1, (c) => {
-        c.moveTo(castle.pos.x, castle.pos.y);
-        c.lineTo(castle.pos.x + Math.cos(angle) * len, castle.pos.y + Math.sin(angle) * len);
+    const charge = castle.charge;
+    if (charge) {
+      // Telegraph: a proto-nova swelling on the core (no beams, ever) —
+      // a pulsing red orb with sprouting radiance stubs.
+      const t = Math.min(1, charge.t / NOVA_CHARGE);
+      const r = 2 + 7 * t + 1.2 * Math.sin(now * 30);
+      glowStroke(ctx, "#ff3030", 1.6, 0.5 + 0.5 * t, (c) =>
+        c.arc(castle.pos.x, castle.pos.y, Math.max(1, r), 0, Math.PI * 2),
+      );
+      glowStroke(ctx, "#ff9a57", 0.9, 0.4 + 0.5 * t, (c) => {
+        for (let i = 0; i < 8; i++) {
+          const a = now * 4 + (i / 8) * Math.PI * 2;
+          const r1 = r + 2 + 4 * t * (0.6 + 0.4 * Math.sin(now * 25 + i * 1.7));
+          c.moveTo(castle.pos.x + Math.cos(a) * (r + 1), castle.pos.y + Math.sin(a) * (r + 1));
+          c.lineTo(castle.pos.x + Math.cos(a) * r1, castle.pos.y + Math.sin(a) * r1);
+        }
       });
     }
   });

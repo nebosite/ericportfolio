@@ -4,7 +4,9 @@
 // torus, and rng is injectable for deterministic tests.
 //
 // Like pipeLogic, step() mutates the state it is given (the render layer keeps
-// it in a mutable ref) and returns it for convenience.
+// it in a mutable ref) and returns it for convenience. Sounds are decoupled:
+// rules push SoundEvents onto state.events (cleared at the top of each step)
+// and the render layer drains them into the Web Audio sfx after stepping.
 
 export type Vec2 = { x: number; y: number };
 
@@ -21,6 +23,20 @@ export type WeaponKind =
 
 export type PowerupKind = Exclude<WeaponKind, "bullet"> | "shield" | "bouncy" | "life";
 
+export type SoundEvent =
+  | "shoot"
+  | "laser"
+  | "boom"
+  | "powerup"
+  | "puff"
+  | "sweep" // nova charge-up alarm
+  | "hit"
+  | "shipdown"
+  | "castledown"
+  | "castlespawn"
+  | "empty" // weapon powerup exhausted
+  | "gameover";
+
 export interface InputState {
   left: boolean;
   right: boolean;
@@ -32,6 +48,7 @@ export interface Ship {
   pos: Vec2;
   vel: Vec2;
   angle: number; // radians, 0 = +x
+  turnVel: number; // rad/s — turning carries a little inertia
   shield: number; // hits absorbed before losing a life
   bouncy: number; // seconds of bouncy armor remaining
   invuln: number; // seconds of post-hit / respawn grace
@@ -48,7 +65,7 @@ export interface Roid {
   shape: number[]; // radial multipliers giving each rock its own outline
 }
 
-export type BulletKind = "std" | "machine" | "super" | "frag" | "enemy";
+export type BulletKind = "std" | "machine" | "super" | "enemy";
 
 export interface Bullet {
   pos: Vec2;
@@ -62,7 +79,7 @@ export interface BeamSeg {
   b: Vec2;
 }
 
-export type BeamKind = "laser" | "superlaser" | "ultralaser" | "sweep";
+export type BeamKind = "laser" | "superlaser" | "ultralaser";
 
 export interface Beam {
   segs: BeamSeg[];
@@ -85,6 +102,37 @@ export interface Powerup {
   ttl: number;
 }
 
+/** Rising "you got X" text where a powerup was scooped up. */
+export interface Floater {
+  pos: Vec2;
+  kind: PowerupKind;
+  age: number;
+  ttl: number;
+}
+
+/** A short line shard flung out by an explosion (pure vector confetti). */
+export interface Debris {
+  pos: Vec2;
+  vel: Vec2;
+  angle: number;
+  spin: number;
+  len: number;
+  age: number;
+  ttl: number;
+}
+
+/**
+ * The castle's big gun: a slow radiant bullet that starts small, swells to
+ * maxR as it flies, and dies at the screen edge (it does NOT wrap).
+ */
+export interface Nova {
+  pos: Vec2;
+  vel: Vec2;
+  r: number;
+  maxR: number;
+  age: number;
+}
+
 export interface CastleRing {
   r: number;
   segs: boolean[]; // alive flags, index 0 starts at ring.angle
@@ -93,17 +141,15 @@ export interface CastleRing {
   regen: number; // seconds until one destroyed segment grows back
 }
 
-export type SweepState =
-  | { phase: "charge"; t: number; angle: number }
-  | { phase: "fire"; t: number; from: number; to: number };
-
 export interface Castle {
   pos: Vec2;
   vel: Vec2;
   rings: CastleRing[]; // outer → inner
+  coreAngle: number; // the core ship's facing — it only shoots this way
+  coreSpin: number; // rad/s
   gunCooldown: number;
-  sweep: SweepState | null;
-  sweepCooldown: number;
+  charge: { t: number; angle: number } | null; // nova charging up
+  novaCooldown: number;
 }
 
 export interface GameState {
@@ -120,42 +166,48 @@ export interface GameState {
   beams: Beam[];
   blasts: Blast[];
   powerups: Powerup[];
-  castle: Castle | null;
-  castleTimer: number; // counts down to the next castle while none is out
+  floaters: Floater[];
+  debris: Debris[];
+  novas: Nova[];
+  castles: Castle[]; // up to `wave` of them at once
+  castleTimer: number; // counts down to the next castle while below the cap
   respawn: number; // >0 while the ship is dead and waiting to respawn
   over: boolean;
+  events: SoundEvent[]; // cleared at the top of every step
 }
 
 // ---------------------------------------------------------------------------
 // Tuning constants (exported so tests and the HUD agree with the rules)
 
-export const SHIP_R = 12;
-export const TURN_RATE = 4.2; // rad/s
+export const SHIP_R = 6;
+export const TURN_RATE = 4.2; // rad/s, the max turn speed
+export const TURN_ACCEL = 35; // rad/s² — spin-up and spin-down of the turn
 export const THRUST = 320; // px/s²
 export const DRAG = 0.55; // exponential decay per second
 export const MAX_SPEED = 480;
 
 export const BULLET_SPEED = 520;
-export const BULLET_LIFE = 1.0;
+// Player bullets fly all the way to the screen edge and die there (they do
+// not wrap); this life is only a backstop against anything getting stuck.
+export const BULLET_LIFE = 10;
 export const MACHINE_SPRAY = 0.09; // radians of random jitter
-export const FRAG_COUNT = 10;
-export const FRAG_SPEED = 340;
-export const FRAG_LIFE = 0.5;
-export const PUFF_RADIUS = 190;
+export const SUPER_BULLET_R = 9; // super bullets are ~4× the size of a pea
+export const FRAG_COUNT = 20; // a super bullet bursts into this many regular bullets
+export const PUFF_RADIUS = 95;
 export const ULTRA_SCREENS = 10;
 
 export const FIRE_COOLDOWN: Record<WeaponKind, number> = {
-  bullet: 0.26,
-  machine: 0.07,
-  super: 0.38,
-  laser: 0.32,
-  superlaser: 0.5,
-  ultralaser: 0.65,
-  puffball: 0.8,
+  bullet: 0.13,
+  machine: 0.0125, // the 100-round magazine rushes out as one held-trigger spray
+  super: 0.19,
+  laser: 0.16,
+  superlaser: 0.25,
+  ultralaser: 0.325,
+  puffball: 0.4,
 };
 
 export const WEAPON_AMMO: Record<Exclude<WeaponKind, "bullet">, number> = {
-  machine: 120,
+  machine: 100,
   super: 16,
   laser: 24,
   superlaser: 12,
@@ -163,21 +215,29 @@ export const WEAPON_AMMO: Record<Exclude<WeaponKind, "bullet">, number> = {
   puffball: 3,
 };
 
-export const ROID_R: Record<RoidSize, number> = { 1: 13, 2: 25, 3: 44 };
+export const ROID_R: Record<RoidSize, number> = { 1: 7, 2: 13, 3: 22 };
 export const ROID_SCORE: Record<RoidSize, number> = { 3: 20, 2: 50, 1: 100 };
+
+/** Opening rocks per wave: 10 + 5·wave big rocks per million square pixels. */
+export function waveRoidCount(w: number, h: number, wave: number): number {
+  const count = Math.round(((10 + 5 * wave) * w * h) / 1_000_000);
+  return Math.max(1, Math.min(120, count));
+}
+export const SPAWN_CLEAR = 120; // opening rocks spawn at least this far from the ship
 
 export const START_LIVES = 3;
 export const START_SHIELD = 1;
 export const MAX_SHIELD = 5;
 export const SHIELD_PICKUP = 2;
-export const BOUNCY_TIME = 9;
+export const BOUNCY_TIME = 18;
 export const RESPAWN_DELAY = 1.6;
 export const RESPAWN_INVULN = 2.5;
 export const HIT_GRACE = 1.0; // grace after a shield absorbs a hit
 
-export const POWERUP_TTL = 11;
-export const POWERUP_R = 11;
+export const POWERUP_TTL = 22;
+export const POWERUP_R = 8;
 export const DROP_CHANCE = 0.12;
+export const FLOATER_TTL = 1.2;
 
 // Weighted drop table — extra life is deliberately the rare one.
 export const DROP_TABLE: Array<{ kind: PowerupKind; weight: number }> = [
@@ -193,24 +253,46 @@ export const DROP_TABLE: Array<{ kind: PowerupKind; weight: number }> = [
 ];
 
 export const CASTLE_FIRST = 18; // seconds before the first castle warps in
-export const CASTLE_EVERY = 26; // and between castles after that
-export const CORE_R = 12;
+export const CASTLE_EVERY = 26; // base seconds between castles (shrinks per wave)
+export const CORE_R = 6;
 export const CASTLE_SEG_SCORE = 25;
 export const CASTLE_CORE_SCORE = 1500;
-export const RING_BAND = 7; // half-thickness of a shield ring
+export const RING_BAND = 4; // half-thickness of a shield ring
 export const RING_REGEN = 7; // seconds per segment regrown, per ring
 export const CASTLE_GUN_SPEED = 190;
 export const CASTLE_GUN_LIFE = 2.6;
-export const SWEEP_CHARGE = 0.9;
-export const SWEEP_SPAN = (100 * Math.PI) / 180;
-export const SWEEP_DURATION = 1.3;
-export const SWEEP_WIDTH = 13; // half-width of the destructive zone
-export const SWEEP_COOLDOWN = 4.5;
-export const CASTLE_RINGS: Array<{ r: number; n: number; spin: number }> = [
-  { r: 66, n: 12, spin: 0.6 },
-  { r: 50, n: 10, spin: -0.85 },
-  { r: 36, n: 8, spin: 1.15 },
-];
+export const CASTLE_GUN_RATE = 0.3; // pot-shot cadence multiplier (1 = the old rate)
+
+// The nova: the castle's telegraphed big shot through an aligned hole.
+export const NOVA_CHARGE = 0.9; // telegraph time before it fires
+export const NOVA_COOLDOWN = 4.5;
+export const NOVA_START_R = 4; // launches small…
+export const NOVA_GROW_TIME = 1.2; // …and swells to full size over this long
+export function novaSpeed(wave: number): number {
+  return Math.min(90 + 18 * wave, 260);
+}
+export function novaMaxR(wave: number): number {
+  return Math.min(28 + 6 * wave, 80);
+}
+/** The nova's kill radius: the reach of its outermost radiation line. */
+export function novaHitR(r: number): number {
+  return r * 1.5 + 6;
+}
+
+export const DEBRIS_PER_ROID = 6;
+export const DEBRIS_CAP = 300; // oldest shards drop first past this
+
+// Shield layers: two on wave 1, one more each wave, capped.
+export const CASTLE_LAYER_BASE_R = 36; // innermost ring radius
+export const CASTLE_LAYER_STEP = 16; // radius gap between rings
+export const CASTLE_MAX_LAYERS = 6;
+export function castleLayers(wave: number): number {
+  return Math.min(1 + wave, CASTLE_MAX_LAYERS);
+}
+/** Seconds between castle spawns at this wave — they come faster each level. */
+export function castleInterval(wave: number): number {
+  return Math.max(8, CASTLE_EVERY - 2 * (wave - 1));
+}
 
 export const BEAM_TTL = 0.22;
 
@@ -231,6 +313,18 @@ export function normAngle(a: number): number {
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** The image of point c (e.g. a castle center) nearest to p on the torus, so
+ *  collision math works on the wrapped-around part of a castle too. */
+export function nearestImage(c: Vec2, p: Vec2, w: number, h: number): Vec2 {
+  let x = c.x;
+  let y = c.y;
+  if (p.x - x > w / 2) x += w;
+  else if (x - p.x > w / 2) x -= w;
+  if (p.y - y > h / 2) y += h;
+  else if (y - p.y > h / 2) y -= h;
+  return { x, y };
 }
 
 /** Shortest toroidal distance between two points on the wrapping field. */
@@ -280,15 +374,6 @@ export function rayExit(p: Vec2, dir: Vec2, w: number, h: number): number {
   return Number.isFinite(t) ? Math.max(t, 0) : Math.max(w, h);
 }
 
-/** Distance from point c to the segment a→b. */
-function segPointDist(a: Vec2, b: Vec2, c: Vec2): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len2 = dx * dx + dy * dy;
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((c.x - a.x) * dx + (c.y - a.y) * dy) / len2));
-  return Math.hypot(a.x + dx * t - c.x, a.y + dy * t - c.y);
-}
-
 // ---------------------------------------------------------------------------
 // Construction
 
@@ -297,6 +382,7 @@ export function makeShip(w: number, h: number): Ship {
     pos: { x: w / 2, y: h / 2 },
     vel: { x: 0, y: 0 },
     angle: -Math.PI / 2,
+    turnVel: 0,
     shield: START_SHIELD,
     bouncy: 0,
     invuln: RESPAWN_INVULN,
@@ -306,8 +392,8 @@ export function makeShip(w: number, h: number): Ship {
 }
 
 export function makeRoid(pos: Vec2, size: RoidSize, wave: number, rng: () => number): Roid {
-  const base: Record<RoidSize, number> = { 3: 40, 2: 70, 1: 110 };
-  const speed = base[size] + rng() * base[size] + wave * 4;
+  const base: Record<RoidSize, number> = { 3: 20, 2: 35, 1: 55 };
+  const speed = base[size] + rng() * base[size] + wave * 2;
   const dir = rng() * TAU;
   const shape: number[] = [];
   for (let i = 0; i < 10; i++) shape.push(0.72 + rng() * 0.52);
@@ -321,7 +407,7 @@ export function makeRoid(pos: Vec2, size: RoidSize, wave: number, rng: () => num
   };
 }
 
-export function makeCastle(w: number, h: number, rng: () => number): Castle {
+export function makeCastle(w: number, h: number, rng: () => number, wave: number): Castle {
   // Warp in on a random edge, drifting across the field.
   const edge = Math.floor(rng() * 4);
   const pos =
@@ -334,19 +420,27 @@ export function makeCastle(w: number, h: number, rng: () => number): Castle {
           : { x: w, y: rng() * h };
   const dir = rng() * TAU;
   const speed = 28 + rng() * 26;
+  const layers = castleLayers(wave);
+  const rings: CastleRing[] = [];
+  for (let k = layers - 1; k >= 0; k--) {
+    // k = 0 innermost; array is outer → inner.
+    rings.push({
+      r: CASTLE_LAYER_BASE_R + CASTLE_LAYER_STEP * k,
+      segs: new Array<boolean>(8 + 2 * k).fill(true),
+      angle: rng() * TAU,
+      spin: (k % 2 === 0 ? 1 : -1) * (0.55 + 0.1 * k),
+      regen: RING_REGEN,
+    });
+  }
   return {
     pos,
     vel: { x: Math.cos(dir) * speed, y: Math.sin(dir) * speed },
-    rings: CASTLE_RINGS.map((spec) => ({
-      r: spec.r,
-      segs: new Array<boolean>(spec.n).fill(true),
-      angle: rng() * TAU,
-      spin: spec.spin,
-      regen: RING_REGEN,
-    })),
+    rings,
+    coreAngle: rng() * TAU,
+    coreSpin: (rng() < 0.5 ? -1 : 1) * (0.4 + rng() * 0.5),
     gunCooldown: 1 + rng(),
-    sweep: null,
-    sweepCooldown: 2,
+    charge: null,
+    novaCooldown: 2,
   };
 }
 
@@ -365,22 +459,26 @@ export function initialState(w: number, h: number, rng: () => number = Math.rand
     beams: [],
     blasts: [],
     powerups: [],
-    castle: null,
+    floaters: [],
+    debris: [],
+    novas: [],
+    castles: [],
     castleTimer: CASTLE_FIRST,
     respawn: 0,
     over: false,
+    events: [],
   };
   spawnWave(state, rng);
   return state;
 }
 
-/** Populate the field for the current wave: 2+wave big rocks, clear of the ship. */
+/** Populate the field for the current wave, clear of the ship. */
 export function spawnWave(state: GameState, rng: () => number): void {
-  const count = Math.min(2 + state.wave, 12);
+  const count = waveRoidCount(state.w, state.h, state.wave);
   for (let i = 0; i < count; i++) {
     let pos = { x: rng() * state.w, y: rng() * state.h };
     for (let tries = 0; tries < 24; tries++) {
-      if (torusDist(pos, state.ship.pos, state.w, state.h) > 170) break;
+      if (torusDist(pos, state.ship.pos, state.w, state.h) > SPAWN_CLEAR) break;
       pos = { x: rng() * state.w, y: rng() * state.h };
     }
     state.roids.push(makeRoid(pos, 3, state.wave, rng));
@@ -390,18 +488,19 @@ export function spawnWave(state: GameState, rng: () => number): void {
 // ---------------------------------------------------------------------------
 // Scoring, splitting, drops
 
-function maybeDrop(state: GameState, pos: Vec2, rng: () => number): void {
-  if (rng() >= DROP_CHANCE) return;
+function rollDrop(rng: () => number): PowerupKind {
   const total = DROP_TABLE.reduce((sum, d) => sum + d.weight, 0);
   let roll = rng() * total;
-  let kind: PowerupKind = DROP_TABLE[0].kind;
   for (const d of DROP_TABLE) {
     roll -= d.weight;
-    if (roll <= 0) {
-      kind = d.kind;
-      break;
-    }
+    if (roll <= 0) return d.kind;
   }
+  return DROP_TABLE[0].kind;
+}
+
+function maybeDrop(state: GameState, pos: Vec2, rng: () => number): void {
+  if (rng() >= DROP_CHANCE) return;
+  const kind = rollDrop(rng);
   const dir = rng() * TAU;
   state.powerups.push({
     pos: { x: pos.x, y: pos.y },
@@ -413,9 +512,29 @@ function maybeDrop(state: GameState, pos: Vec2, rng: () => number): void {
 
 /**
  * A rock takes a hit: score it, break a big one into two smaller ones (unless
- * shatter — the puffball vaporizes outright), maybe drop a powerup. The roid
- * must already have been removed from state.roids by the caller.
+ * shatter — the puffball/sweep vaporize outright), maybe drop a powerup. The
+ * roid must already have been removed from state.roids by the caller.
  */
+/** Fling explosion shards out from a point — the little vector boom. */
+export function spawnDebris(state: GameState, pos: Vec2, count: number, rng: () => number): void {
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * TAU + rng() * 0.6;
+    const speed = 60 + rng() * 80;
+    state.debris.push({
+      pos: { x: pos.x, y: pos.y },
+      vel: { x: Math.cos(a) * speed, y: Math.sin(a) * speed },
+      angle: rng() * TAU,
+      spin: (rng() - 0.5) * 12,
+      len: 3 + rng() * 4,
+      age: 0,
+      ttl: 0.5 + rng() * 0.3,
+    });
+  }
+  if (state.debris.length > DEBRIS_CAP) {
+    state.debris.splice(0, state.debris.length - DEBRIS_CAP);
+  }
+}
+
 export function breakRoid(
   state: GameState,
   roid: Roid,
@@ -423,6 +542,10 @@ export function breakRoid(
   opts: { shatter?: boolean } = {},
 ): void {
   state.score += ROID_SCORE[roid.size];
+  state.events.push("boom");
+  // Drop roll first so its rng draws stay stable regardless of debris/children.
+  maybeDrop(state, roid.pos, rng);
+  spawnDebris(state, roid.pos, DEBRIS_PER_ROID, rng);
   if (!opts.shatter && roid.size > 1) {
     const childSize = (roid.size - 1) as RoidSize;
     for (let i = 0; i < 2; i++) {
@@ -433,13 +556,13 @@ export function breakRoid(
       state.roids.push(child);
     }
   }
-  maybeDrop(state, roid.pos, rng);
 }
 
 // ---------------------------------------------------------------------------
 // Powerups
 
 export function collectPowerup(state: GameState, kind: PowerupKind): void {
+  state.events.push("powerup");
   switch (kind) {
     case "shield":
       state.ship.shield = Math.min(MAX_SHIELD, state.ship.shield + SHIELD_PICKUP);
@@ -468,6 +591,7 @@ function spendAmmo(state: GameState): void {
   if (state.ammo <= 0) {
     state.weapon = "bullet";
     state.ammo = Infinity;
+    state.events.push("empty");
   }
 }
 
@@ -495,35 +619,52 @@ function fireProjectile(state: GameState, kind: BulletKind, jitter: number, rng:
   });
 }
 
-/** Ring-rim crossings of a beam segment, as castle shield hits. */
+/** Ring-rim crossings of a beam segment, as castle shield hits — checked
+ *  against every wrap image of the castle, so the wrapped-around part of a
+ *  castle straddling a screen edge takes hits too. */
 function beamRingHits(
   castle: Castle,
   p: Vec2,
   dir: Vec2,
   maxT: number,
+  w: number,
+  h: number,
 ): Array<{ t: number; ring: CastleRing; seg: number }> {
   const hits: Array<{ t: number; ring: CastleRing; seg: number }> = [];
-  for (const ring of castle.rings) {
-    for (const t of rayRimTs(p, dir, castle.pos, ring.r, maxT)) {
-      const hit = { x: p.x + dir.x * t, y: p.y + dir.y * t };
-      const seg = ringSegmentAt(ring, Math.atan2(hit.y - castle.pos.y, hit.x - castle.pos.x));
-      if (ring.segs[seg]) hits.push({ t, ring, seg });
+  for (const dx of [-w, 0, w]) {
+    for (const dy of [-h, 0, h]) {
+      const c = { x: castle.pos.x + dx, y: castle.pos.y + dy };
+      for (const ring of castle.rings) {
+        for (const t of rayRimTs(p, dir, c, ring.r, maxT)) {
+          const hit = { x: p.x + dir.x * t, y: p.y + dir.y * t };
+          const seg = ringSegmentAt(ring, Math.atan2(hit.y - c.y, hit.x - c.x));
+          if (ring.segs[seg]) hits.push({ t, ring, seg });
+        }
+      }
     }
   }
   return hits;
 }
 
+export interface HitscanTrace {
+  segs: BeamSeg[];
+  roids: Roid[];
+  ringHits: Array<{ ring: CastleRing; seg: number }>;
+  cores: Castle[];
+}
+
 /**
- * Hitscan for the three laser tiers. Applies all damage immediately and pushes
- * a Beam for the render layer. laser: stops at the first hit. superlaser:
- * pierces everything out to the screen edge. ultralaser: pierces and wraps for
- * ULTRA_SCREENS screen lengths.
+ * Trace a laser-tier shot WITHOUT applying any damage: the segments the beam
+ * would draw and everything it would hit. fireHitscan applies it; the render
+ * layer also calls this every frame to draw the aiming sight while a laser
+ * weapon is equipped. laser: stops at the first hit. superlaser: pierces out
+ * to the screen edge. ultralaser: pierces and wraps for ULTRA_SCREENS screen
+ * lengths.
  */
-export function fireHitscan(
+export function traceHitscan(
   state: GameState,
   kind: "laser" | "superlaser" | "ultralaser",
-  rng: () => number,
-): void {
+): HitscanTrace {
   const pierce = kind !== "laser";
   const wrap = kind === "ultralaser";
   const dir = { x: Math.cos(state.ship.angle), y: Math.sin(state.ship.angle) };
@@ -533,7 +674,7 @@ export function fireHitscan(
   const segs: BeamSeg[] = [];
   const roidHits = new Set<Roid>();
   const ringHits: Array<{ ring: CastleRing; seg: number }> = [];
-  let coreHit = false;
+  const coreHits = new Set<Castle>();
 
   let guard = ULTRA_SCREENS * 4; // safety against degenerate zero-length loops
   while (remaining > 0.5 && guard-- > 0) {
@@ -545,21 +686,19 @@ export function fireHitscan(
       const t = rayCircleT(p, dir, roid.pos, ROID_R[roid.size], segLen);
       if (t != null) hits.push({ t, apply: () => roidHits.add(roid) });
     }
-    const castle = state.castle;
-    if (castle) {
-      for (const rh of beamRingHits(castle, p, dir, segLen)) {
+    for (const castle of state.castles) {
+      for (const rh of beamRingHits(castle, p, dir, segLen, state.w, state.h)) {
         if (ringHits.some((h) => h.ring === rh.ring && h.seg === rh.seg)) continue;
         hits.push({ t: rh.t, apply: () => ringHits.push({ ring: rh.ring, seg: rh.seg }) });
       }
-      if (!coreHit) {
-        const t = rayCircleT(p, dir, castle.pos, CORE_R, segLen);
-        if (t != null)
-          hits.push({
-            t,
-            apply: () => {
-              coreHit = true;
-            },
-          });
+      if (!coreHits.has(castle)) {
+        for (const dx of [-state.w, 0, state.w]) {
+          for (const dy of [-state.h, 0, state.h]) {
+            const c = { x: castle.pos.x + dx, y: castle.pos.y + dy };
+            const t = rayCircleT(p, dir, c, CORE_R, segLen);
+            if (t != null) hits.push({ t, apply: () => coreHits.add(castle) });
+          }
+        }
       }
     }
     hits.sort((a, b) => a.t - b.t);
@@ -586,20 +725,30 @@ export function fireHitscan(
     );
   }
 
-  for (const roid of roidHits) {
+  return { segs, roids: [...roidHits], ringHits, cores: [...coreHits] };
+}
+
+/** Fire a laser tier: trace it, then apply all the damage at once. */
+export function fireHitscan(
+  state: GameState,
+  kind: "laser" | "superlaser" | "ultralaser",
+  rng: () => number,
+): void {
+  const trace = traceHitscan(state, kind);
+  for (const roid of trace.roids) {
     const idx = state.roids.indexOf(roid);
     if (idx >= 0) {
       state.roids.splice(idx, 1);
       breakRoid(state, roid, rng);
     }
   }
-  for (const { ring, seg } of ringHits) {
+  for (const { ring, seg } of trace.ringHits) {
     ring.segs[seg] = false;
     state.score += CASTLE_SEG_SCORE;
   }
-  if (coreHit && state.castle) destroyCastle(state, rng);
+  for (const castle of trace.cores) destroyCastle(state, castle, rng);
 
-  state.beams.push({ segs, kind, ttl: BEAM_TTL });
+  state.beams.push({ segs: trace.segs, kind, ttl: BEAM_TTL });
 }
 
 /** The puffball: a circular energy blast that vaporizes everything nearby. */
@@ -615,8 +764,7 @@ export function firePuffball(state: GameState, rng: () => number): void {
   state.bullets = state.bullets.filter(
     (b) => b.kind !== "enemy" || torusDist(b.pos, at, state.w, state.h) > PUFF_RADIUS,
   );
-  const castle = state.castle;
-  if (castle) {
+  for (const castle of state.castles) {
     for (const ring of castle.rings) {
       for (let i = 0; i < ring.segs.length; i++) {
         if (!ring.segs[i]) continue;
@@ -639,6 +787,7 @@ export function firePuffball(state: GameState, rng: () => number): void {
     age: 0,
     kind: "puff",
   });
+  state.events.push("puff");
 }
 
 export function fireWeapon(state: GameState, rng: () => number): void {
@@ -647,17 +796,21 @@ export function fireWeapon(state: GameState, rng: () => number): void {
   switch (weapon) {
     case "bullet":
       fireProjectile(state, "std", 0, rng);
+      state.events.push("shoot");
       break;
     case "machine":
       fireProjectile(state, "machine", MACHINE_SPRAY, rng);
+      state.events.push("shoot");
       break;
     case "super":
       fireProjectile(state, "super", 0, rng);
+      state.events.push("shoot");
       break;
     case "laser":
     case "superlaser":
     case "ultralaser":
       fireHitscan(state, weapon, rng);
+      state.events.push("laser");
       break;
     case "puffball":
       firePuffball(state, rng);
@@ -680,13 +833,15 @@ export function castleHoleAt(castle: Castle, theta: number): boolean {
   return castle.rings.every((ring) => !ring.segs[ringSegmentAt(ring, theta)]);
 }
 
-export function destroyCastle(state: GameState, rng: () => number): void {
-  const castle = state.castle;
-  if (!castle) return;
+export function destroyCastle(state: GameState, castle: Castle, rng: () => number): void {
+  const idx = state.castles.indexOf(castle);
+  if (idx < 0) return;
+  state.castles.splice(idx, 1);
   state.score += CASTLE_CORE_SCORE;
+  state.events.push("castledown");
   state.blasts.push({
     pos: { x: castle.pos.x, y: castle.pos.y },
-    maxR: 120,
+    maxR: 60,
     ttl: 0.7,
     age: 0,
     kind: "wreck",
@@ -694,132 +849,153 @@ export function destroyCastle(state: GameState, rng: () => number): void {
   // A slain castle always coughs up two gifts.
   for (let i = 0; i < 2; i++) {
     const dir = rng() * TAU;
-    const total = DROP_TABLE.reduce((sum, d) => sum + d.weight, 0);
-    let roll = rng() * total;
-    let kind: PowerupKind = DROP_TABLE[0].kind;
-    for (const d of DROP_TABLE) {
-      roll -= d.weight;
-      if (roll <= 0) {
-        kind = d.kind;
-        break;
-      }
-    }
     state.powerups.push({
       pos: { x: castle.pos.x, y: castle.pos.y },
       vel: { x: Math.cos(dir) * 60, y: Math.sin(dir) * 60 },
-      kind,
+      kind: rollDrop(rng),
       ttl: POWERUP_TTL,
     });
   }
-  state.castle = null;
-  state.castleTimer = CASTLE_EVERY;
 }
 
-function stepCastle(state: GameState, dt: number, rng: () => number): void {
-  const castle = state.castle;
-  if (!castle) {
+function stepCastles(state: GameState, dt: number, rng: () => number): void {
+  // Spawn cadence: the timer only runs while there's a free slot; the cap on
+  // simultaneous castles is the wave number.
+  if (state.castles.length < state.wave) {
     state.castleTimer -= dt;
-    if (state.castleTimer <= 0) state.castle = makeCastle(state.w, state.h, rng);
-    return;
-  }
-
-  castle.pos.x += castle.vel.x * dt;
-  castle.pos.y += castle.vel.y * dt;
-  wrapPos(castle.pos, state.w, state.h);
-
-  for (const ring of castle.rings) {
-    ring.angle = normAngle(ring.angle + ring.spin * dt);
-    ring.regen -= dt;
-    if (ring.regen <= 0) {
-      ring.regen = RING_REGEN;
-      const dead: number[] = [];
-      for (let i = 0; i < ring.segs.length; i++) if (!ring.segs[i]) dead.push(i);
-      if (dead.length > 0) ring.segs[dead[Math.floor(rng() * dead.length)]] = true;
+    if (state.castleTimer <= 0) {
+      state.castles.push(makeCastle(state.w, state.h, rng, state.wave));
+      state.castleTimer = castleInterval(state.wave);
+      state.events.push("castlespawn");
     }
   }
 
-  // Pot-shots: small bullets spat out in random directions.
-  castle.gunCooldown -= dt;
-  if (castle.gunCooldown <= 0) {
-    castle.gunCooldown = 0.5 + rng() * 1.2;
-    const a = rng() * TAU;
-    state.bullets.push({
-      pos: { x: castle.pos.x, y: castle.pos.y },
-      vel: { x: Math.cos(a) * CASTLE_GUN_SPEED, y: Math.sin(a) * CASTLE_GUN_SPEED },
-      life: CASTLE_GUN_LIFE,
-      kind: "enemy",
-    });
-  }
-
-  // The signature attack: when the rotating shields open a radial hole toward
-  // the ship, charge up and sweep a wide destructive beam across that arc.
-  castle.sweepCooldown = Math.max(0, castle.sweepCooldown - dt);
   const shipTargetable = state.respawn <= 0 && !state.over;
-  if (!castle.sweep && castle.sweepCooldown <= 0 && shipTargetable) {
-    const theta = Math.atan2(state.ship.pos.y - castle.pos.y, state.ship.pos.x - castle.pos.x);
-    if (castleHoleAt(castle, theta)) castle.sweep = { phase: "charge", t: 0, angle: theta };
-  }
+  for (const castle of state.castles) {
+    castle.pos.x += castle.vel.x * dt;
+    castle.pos.y += castle.vel.y * dt;
+    wrapPos(castle.pos, state.w, state.h);
 
-  const sweep = castle.sweep;
-  if (sweep) {
-    sweep.t += dt;
-    if (sweep.phase === "charge") {
-      if (sweep.t >= SWEEP_CHARGE) {
-        castle.sweep = {
-          phase: "fire",
-          t: 0,
-          from: sweep.angle - SWEEP_SPAN / 2,
-          to: sweep.angle + SWEEP_SPAN / 2,
-        };
+    for (const ring of castle.rings) {
+      ring.angle = normAngle(ring.angle + ring.spin * dt);
+      ring.regen -= dt;
+      if (ring.regen <= 0) {
+        ring.regen = RING_REGEN;
+        const dead: number[] = [];
+        for (let i = 0; i < ring.segs.length; i++) if (!ring.segs[i]) dead.push(i);
+        if (dead.length > 0) ring.segs[dead[Math.floor(rng() * dead.length)]] = true;
       }
-    } else {
-      const frac = Math.min(1, sweep.t / SWEEP_DURATION);
-      const angle = sweep.from + (sweep.to - sweep.from) * frac;
-      const len = Math.max(state.w, state.h) * 1.5;
-      const a = castle.pos;
-      const b = { x: a.x + Math.cos(angle) * len, y: a.y + Math.sin(angle) * len };
-      // The beam carves through rocks…
-      const survivors: Roid[] = [];
-      for (const roid of state.roids) {
-        if (segPointDist(a, b, roid.pos) <= SWEEP_WIDTH + ROID_R[roid.size]) {
-          breakRoid(state, roid, rng, { shatter: true });
-        } else survivors.push(roid);
+    }
+
+    // The core ship slowly turns, and only fires the way it is pointing.
+    castle.coreAngle = normAngle(castle.coreAngle + castle.coreSpin * dt);
+    castle.gunCooldown -= dt;
+    if (castle.gunCooldown <= 0) {
+      castle.gunCooldown = (0.5 + rng() * 1.2) / CASTLE_GUN_RATE;
+      state.bullets.push({
+        pos: { x: castle.pos.x, y: castle.pos.y },
+        vel: {
+          x: Math.cos(castle.coreAngle) * CASTLE_GUN_SPEED,
+          y: Math.sin(castle.coreAngle) * CASTLE_GUN_SPEED,
+        },
+        life: CASTLE_GUN_LIFE,
+        kind: "enemy",
+      });
+    }
+
+    // The signature attack: when the rotating shields open a radial hole
+    // toward the ship, charge up and loose a nova — a slow radiant bullet
+    // that swells as it flies and dies at the screen edge.
+    castle.novaCooldown = Math.max(0, castle.novaCooldown - dt);
+    if (!castle.charge && castle.novaCooldown <= 0 && shipTargetable) {
+      const theta = Math.atan2(state.ship.pos.y - castle.pos.y, state.ship.pos.x - castle.pos.x);
+      if (castleHoleAt(castle, theta)) {
+        castle.charge = { t: 0, angle: theta };
+        state.events.push("sweep");
       }
-      state.roids = survivors;
-      // …and through the ship.
-      if (shipTargetable && segPointDist(a, b, state.ship.pos) <= SWEEP_WIDTH + SHIP_R) {
-        hitShip(state);
-      }
-      if (sweep.t >= SWEEP_DURATION) {
-        castle.sweep = null;
-        castle.sweepCooldown = SWEEP_COOLDOWN;
+    }
+
+    const charge = castle.charge;
+    if (charge) {
+      charge.t += dt;
+      if (charge.t >= NOVA_CHARGE) {
+        const speed = novaSpeed(state.wave);
+        state.novas.push({
+          pos: { x: castle.pos.x, y: castle.pos.y },
+          vel: { x: Math.cos(charge.angle) * speed, y: Math.sin(charge.angle) * speed },
+          r: NOVA_START_R,
+          maxR: novaMaxR(state.wave),
+          age: 0,
+        });
+        castle.charge = null;
+        castle.novaCooldown = NOVA_COOLDOWN;
       }
     }
   }
+}
+
+/** Advance the novas: swell, fly straight (no wrap), carve, die off-screen. */
+function stepNovas(state: GameState, dt: number, rng: () => number): void {
+  if (state.novas.length === 0) return;
+  const shipTargetable = state.respawn <= 0 && !state.over;
+  const kept: Nova[] = [];
+  for (const nova of state.novas) {
+    nova.age += dt;
+    nova.r = Math.min(
+      nova.maxR,
+      NOVA_START_R + (nova.maxR - NOVA_START_R) * (nova.age / NOVA_GROW_TIME),
+    );
+    nova.pos.x += nova.vel.x * dt;
+    nova.pos.y += nova.vel.y * dt;
+
+    // It carves through rocks (vaporized, not split)…
+    const survivors: Roid[] = [];
+    for (const roid of state.roids) {
+      if (dist(nova.pos, roid.pos) <= nova.r + ROID_R[roid.size]) {
+        breakRoid(state, roid, rng, { shatter: true });
+      } else survivors.push(roid);
+    }
+    state.roids = survivors;
+    // …and through the ship — deadly out to the tip of its radiation lines.
+    if (shipTargetable && dist(nova.pos, state.ship.pos) <= novaHitR(nova.r) + SHIP_R) {
+      hitShip(state, rng);
+    }
+
+    // No wrap: gone once fully past any screen edge.
+    const m = nova.maxR;
+    if (nova.pos.x < -m || nova.pos.x > state.w + m || nova.pos.y < -m || nova.pos.y > state.h + m)
+      continue;
+    kept.push(nova);
+  }
+  state.novas = kept;
 }
 
 // ---------------------------------------------------------------------------
 // Ship damage
 
 /** One hit lands on the ship: shields absorb it, otherwise a life is lost. */
-export function hitShip(state: GameState): void {
+export function hitShip(state: GameState, rng: () => number = Math.random): void {
   const ship = state.ship;
   if (ship.invuln > 0 || state.respawn > 0 || state.over) return;
   if (ship.shield > 0) {
     ship.shield -= 1;
     ship.invuln = HIT_GRACE;
+    state.events.push("hit");
     return;
   }
   state.lives -= 1;
+  state.events.push("shipdown");
   state.blasts.push({
     pos: { x: ship.pos.x, y: ship.pos.y },
-    maxR: 60,
+    maxR: 30,
     ttl: 0.6,
     age: 0,
     kind: "wreck",
   });
+  spawnDebris(state, ship.pos, 8, rng);
   if (state.lives <= 0) {
     state.over = true;
+    state.events.push("gameover");
     return;
   }
   state.respawn = RESPAWN_DELAY;
@@ -838,6 +1014,7 @@ export function step(
   dt: number,
   rng: () => number = Math.random,
 ): GameState {
+  state.events.length = 0;
   if (state.over) return state;
   const ship = state.ship;
 
@@ -849,6 +1026,16 @@ export function step(
   state.beams = state.beams.filter((b) => b.ttl > 0);
   for (const blast of state.blasts) blast.age += dt;
   state.blasts = state.blasts.filter((b) => b.age < b.ttl);
+  for (const floater of state.floaters) floater.age += dt;
+  state.floaters = state.floaters.filter((f) => f.age < f.ttl);
+  for (const shard of state.debris) {
+    shard.age += dt;
+    shard.pos.x += shard.vel.x * dt;
+    shard.pos.y += shard.vel.y * dt;
+    shard.angle += shard.spin * dt;
+    wrapPos(shard.pos, state.w, state.h);
+  }
+  state.debris = state.debris.filter((s) => s.age < s.ttl);
   for (const pu of state.powerups) {
     pu.ttl -= dt;
     pu.pos.x += pu.vel.x * dt;
@@ -868,8 +1055,18 @@ export function step(
 
   // -- ship control -------------------------------------------------------
   if (shipAlive) {
-    if (input.left) ship.angle -= TURN_RATE * dt;
-    if (input.right) ship.angle += TURN_RATE * dt;
+    // Turning carries a little inertia: ramp quickly toward the target rate,
+    // then wind back down when the stick is released.
+    const turnTarget = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    if (turnTarget !== 0) {
+      ship.turnVel += turnTarget * TURN_ACCEL * dt;
+      ship.turnVel = Math.max(-TURN_RATE, Math.min(TURN_RATE, ship.turnVel));
+    } else {
+      const brake = TURN_ACCEL * dt;
+      if (Math.abs(ship.turnVel) <= brake) ship.turnVel = 0;
+      else ship.turnVel -= Math.sign(ship.turnVel) * brake;
+    }
+    ship.angle += ship.turnVel * dt;
     ship.thrusting = input.thrust;
     if (input.thrust) {
       ship.vel.x += Math.cos(ship.angle) * THRUST * dt;
@@ -891,13 +1088,20 @@ export function step(
   }
 
   // -- projectiles ----------------------------------------------------------
+  // Enemy bullets wrap like everything else; player bullets fly straight and
+  // die exactly at the screen edge.
   for (const bullet of state.bullets) {
     bullet.life -= dt;
     bullet.pos.x += bullet.vel.x * dt;
     bullet.pos.y += bullet.vel.y * dt;
-    wrapPos(bullet.pos, state.w, state.h);
+    if (bullet.kind === "enemy") wrapPos(bullet.pos, state.w, state.h);
   }
-  state.bullets = state.bullets.filter((b) => b.life > 0);
+  state.bullets = state.bullets.filter(
+    (b) =>
+      b.life > 0 &&
+      (b.kind === "enemy" ||
+        (b.pos.x >= -4 && b.pos.x <= state.w + 4 && b.pos.y >= -4 && b.pos.y <= state.h + 4)),
+  );
 
   // -- asteroids ------------------------------------------------------------
   for (const roid of state.roids) {
@@ -907,8 +1111,9 @@ export function step(
     wrapPos(roid.pos, state.w, state.h);
   }
 
-  // -- the castle -----------------------------------------------------------
-  stepCastle(state, dt, rng);
+  // -- the castles and their novas ---------------------------------------------
+  stepCastles(state, dt, rng);
+  stepNovas(state, dt, rng);
 
   // -- collisions -----------------------------------------------------------
   resolveCollisions(state, dt, rng);
@@ -932,20 +1137,21 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
   const spawned: Bullet[] = []; // frags queued so we never mutate mid-iteration
   for (const bullet of state.bullets) {
     if (bullet.kind === "enemy") continue;
+    const bulletR = bullet.kind === "super" ? SUPER_BULLET_R : 2;
     for (const roid of state.roids) {
       if (deadRoids.has(roid)) continue;
-      if (torusDist(bullet.pos, roid.pos, state.w, state.h) <= ROID_R[roid.size] + 2) {
+      if (torusDist(bullet.pos, roid.pos, state.w, state.h) <= ROID_R[roid.size] + bulletR) {
         deadBullets.add(bullet);
         deadRoids.add(roid);
         if (bullet.kind === "super") {
-          // Super bullets burst into a radial spray of frags on impact.
+          // Super bullets burst into a radial spray of regular bullets.
           for (let i = 0; i < FRAG_COUNT; i++) {
             const a = (i / FRAG_COUNT) * TAU + rng() * 0.3;
             spawned.push({
               pos: { x: bullet.pos.x, y: bullet.pos.y },
-              vel: { x: Math.cos(a) * FRAG_SPEED, y: Math.sin(a) * FRAG_SPEED },
-              life: FRAG_LIFE,
-              kind: "frag",
+              vel: { x: Math.cos(a) * BULLET_SPEED, y: Math.sin(a) * BULLET_SPEED },
+              life: BULLET_LIFE,
+              kind: "std",
             });
           }
         }
@@ -962,9 +1168,10 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
     }
   }
 
-  // Player bullets vs the castle (swept so fast bullets can't tunnel a ring).
-  const castle = state.castle;
-  if (castle) {
+  // Player bullets vs the castles (swept so fast bullets can't tunnel a ring;
+  // collision runs against the castle image nearest the bullet, so the
+  // wrapped-around part of an edge-straddling castle registers hits too).
+  for (const castle of [...state.castles]) {
     for (const bullet of state.bullets) {
       if (bullet.kind === "enemy" || deadBullets.has(bullet)) continue;
       const speed = Math.hypot(bullet.vel.x, bullet.vel.y);
@@ -972,13 +1179,14 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
       const dir = { x: bullet.vel.x / speed, y: bullet.vel.y / speed };
       const back = { x: bullet.pos.x - bullet.vel.x * dt, y: bullet.pos.y - bullet.vel.y * dt };
       const travel = speed * dt;
+      const center = nearestImage(castle.pos, back, state.w, state.h);
       let hitT = Infinity;
       let hitRing: CastleRing | null = null;
       let hitSeg = -1;
       for (const ring of castle.rings) {
-        for (const t of rayRimTs(back, dir, castle.pos, ring.r, travel)) {
+        for (const t of rayRimTs(back, dir, center, ring.r, travel)) {
           const at = { x: back.x + dir.x * t, y: back.y + dir.y * t };
-          const seg = ringSegmentAt(ring, Math.atan2(at.y - castle.pos.y, at.x - castle.pos.x));
+          const seg = ringSegmentAt(ring, Math.atan2(at.y - center.y, at.x - center.x));
           if (ring.segs[seg] && t < hitT) {
             hitT = t;
             hitRing = ring;
@@ -986,11 +1194,11 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
           }
         }
       }
-      const coreT = rayCircleT(back, dir, castle.pos, CORE_R + 2, travel);
+      const coreT = rayCircleT(back, dir, center, CORE_R + 2, travel);
       if (coreT != null && coreT < hitT) {
         deadBullets.add(bullet);
-        destroyCastle(state, rng);
-        break; // castle is gone; stop checking bullets against it
+        destroyCastle(state, castle, rng);
+        break; // this castle is gone; move on to the next
       }
       if (hitRing) {
         deadBullets.add(bullet);
@@ -1006,7 +1214,7 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
       if (bullet.kind !== "enemy") continue;
       if (torusDist(bullet.pos, ship.pos, state.w, state.h) <= SHIP_R + 3) {
         deadBullets.add(bullet);
-        hitShip(state);
+        hitShip(state, rng);
       }
     }
   }
@@ -1026,40 +1234,46 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
         const idx = state.roids.indexOf(roid);
         if (idx >= 0) state.roids.splice(idx, 1);
         breakRoid(state, roid, rng);
-        hitShip(state);
+        hitShip(state, rng);
       } else {
-        hitShip(state);
+        hitShip(state, rng);
       }
       break;
     }
   }
 
-  // The castle's shield rings are solid walls to the ship.
-  if (castle && state.respawn <= 0 && !state.over && ship.invuln <= 0) {
-    const d = dist(ship.pos, castle.pos);
-    for (const ring of castle.rings) {
-      if (Math.abs(d - ring.r) > RING_BAND + SHIP_R) continue;
-      const theta = Math.atan2(ship.pos.y - castle.pos.y, ship.pos.x - castle.pos.x);
-      const seg = ringSegmentAt(ring, theta);
-      if (!ring.segs[seg]) continue;
-      if (ship.bouncy > 0) {
-        // Bounce radially off the ring.
-        const nx = (ship.pos.x - castle.pos.x) / (d || 1);
-        const ny = (ship.pos.y - castle.pos.y) / (d || 1);
-        const dot = ship.vel.x * nx + ship.vel.y * ny;
-        ship.vel.x -= 2 * dot * nx;
-        ship.vel.y -= 2 * dot * ny;
-        const push = d < ring.r ? ring.r - RING_BAND - SHIP_R - 1 : ring.r + RING_BAND + SHIP_R + 1;
-        ship.pos.x = castle.pos.x + nx * push;
-        ship.pos.y = castle.pos.y + ny * push;
-      } else if (ship.shield > 0) {
-        ring.segs[seg] = false;
-        state.score += CASTLE_SEG_SCORE;
-        hitShip(state);
-      } else {
-        hitShip(state);
+  // The castles' shield rings are solid walls to the ship (wrap-aware, so the
+  // wrapped-around part of an edge-straddling castle is solid too).
+  if (state.respawn <= 0 && !state.over && ship.invuln <= 0) {
+    outer: for (const castle of state.castles) {
+      const center = nearestImage(castle.pos, ship.pos, state.w, state.h);
+      const d = dist(ship.pos, center);
+      for (const ring of castle.rings) {
+        if (Math.abs(d - ring.r) > RING_BAND + SHIP_R) continue;
+        const theta = Math.atan2(ship.pos.y - center.y, ship.pos.x - center.x);
+        const seg = ringSegmentAt(ring, theta);
+        if (!ring.segs[seg]) continue;
+        if (ship.bouncy > 0) {
+          // Bounce radially off the ring.
+          const nx = (ship.pos.x - center.x) / (d || 1);
+          const ny = (ship.pos.y - center.y) / (d || 1);
+          const dot = ship.vel.x * nx + ship.vel.y * ny;
+          ship.vel.x -= 2 * dot * nx;
+          ship.vel.y -= 2 * dot * ny;
+          const push =
+            d < ring.r ? ring.r - RING_BAND - SHIP_R - 1 : ring.r + RING_BAND + SHIP_R + 1;
+          ship.pos.x = center.x + nx * push;
+          ship.pos.y = center.y + ny * push;
+          wrapPos(ship.pos, state.w, state.h);
+        } else if (ship.shield > 0) {
+          ring.segs[seg] = false;
+          state.score += CASTLE_SEG_SCORE;
+          hitShip(state, rng);
+        } else {
+          hitShip(state, rng);
+        }
+        break outer;
       }
-      break;
     }
   }
 
@@ -1069,6 +1283,12 @@ function resolveCollisions(state: GameState, dt: number, rng: () => number): voi
     for (const pu of state.powerups) {
       if (torusDist(pu.pos, ship.pos, state.w, state.h) <= SHIP_R + POWERUP_R) {
         collectPowerup(state, pu.kind);
+        state.floaters.push({
+          pos: { x: pu.pos.x, y: pu.pos.y },
+          kind: pu.kind,
+          age: 0,
+          ttl: FLOATER_TTL,
+        });
       } else kept.push(pu);
     }
     state.powerups = kept;

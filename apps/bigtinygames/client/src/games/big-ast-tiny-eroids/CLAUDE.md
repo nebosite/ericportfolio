@@ -17,30 +17,42 @@ least one of them:
    fantasy they buy — machine gun → super bullets → laser → super laser →
    ultra laser → puffball. Ammo always runs dry, so the high never lasts and
    the hunt starts again.
-2. **The StarCastle.** The "UFO" is a boss: a core wrapped in three
-   counter-rotating segmented shield rings (an homage to Star Castle). It
-   pot-shots small bullets at random, its rings slowly **regenerate**, and the
-   moment a radial hole in all three rings lines up with your ship it charges
-   and **sweeps a wide destructive beam** across your half of the sky —
-   vaporizing rocks and ship alike. Your own path to its core is the same hole
-   it shoots through.
+2. **The StarCastles.** The "UFO" is a boss: a tiny winged gunship wrapped in
+   counter-rotating rings of flat, gapless shield segments (an homage to Star
+   Castle). The core slowly turns and pot-shots **only along its own facing**,
+   its rings slowly **regenerate**, and the moment a radial hole through every
+   ring lines up with your ship it charges and looses a **nova** — a slow,
+   radiant bullet that starts small and **swells as it flies**, vaporizing
+   rocks and ship alike before dying at the screen edge (it never wraps; no
+   lasers from the castle). Novas get **faster and bigger with the wave**.
+   Your own path to its core is the same hole it shoots through. Castles
+   escalate with the wave: **one more shield layer each wave** (2 at wave 1,
+   capped at 6), they spawn **faster** each wave, **up to `wave` of them at
+   once**, each arrival announced by an ominous drone.
 
 ### The arsenal (all rules in `roidsLogic.ts`)
 
 | Weapon        | Behavior                                                                 | Ammo |
 | ------------- | ------------------------------------------------------------------------ | ---- |
 | Pea shooter   | Default projectile, infinite                                             | ∞    |
-| Machine gun   | ~4× fire rate, slight spray                                              | 120  |
-| Super bullets | Explode into a radial burst of frag bullets on impact                    | 16   |
+| Machine gun   | The whole magazine rushes out as a held-trigger spray (12.5ms cadence)   | 100  |
+| Super bullets | ~4× the size; burst into **20 regular bullets** on impact                | 16   |
 | Laser bolt    | Hitscan — instantly hits the first thing in line                         | 24   |
 | Super laser   | Hitscan, **penetrates everything** out to the screen edge                | 12   |
 | Ultra laser   | Hitscan, penetrates **and wraps** for 10 screen lengths                  | 6    |
 | Puffball      | Circular energy blast centered on the ship; vaporizes (no splits) nearby | 3    |
 
+All fire cooldowns are in `FIRE_COOLDOWN` (halved once already — the game
+likes a high rate of fire). While a laser tier is armed, a **faint sight
+line** previews the exact path of the next shot every frame (including
+pierces and the ultra's wrap), via the pure `traceHitscan` — the same
+function `fireHitscan` uses to apply damage, so the preview can never lie.
+
 Defensive drops: **shield power** (+2, max 5 — absorbs any hit, shatters the
-offending rock), **bouncy armor** (9 s — rocks and shield rings deflect the
-ship instead of harming it; bullets and the sweep still hurt), and the rare
-**extra ship**.
+offending rock), **bouncy armor** (18 s — rocks and shield rings deflect the
+ship instead of harming it; bullets and the nova still hurt), and the rare
+**extra ship**. Player bullets **fly all the way to the screen edge** and die
+there (they never wrap; only the ultra laser gets the wrap).
 
 ### Principles for new features
 
@@ -48,12 +60,20 @@ ship instead of harming it; bullets and the sweep still hurt), and the rare
   firing pattern/decision, not just bigger numbers.
 - **Risk and reward together.** Drops fall where rocks die — usually in the
   most dangerous spot on the field.
-- **The castle telegraphs.** Every deadly castle move is signposted (flaring
-  core + flickering aim line during the charge). Deaths should feel read-able,
-  never random.
+- **The castle telegraphs — but never with a line.** Every deadly castle move
+  is signposted (the core flares and a proto-nova orb swells on it during the
+  charge). Nothing the castle does may ever draw a beam/laser line; its
+  attacks are always bullets. Deaths should feel readable, never random.
 - **Stay legible in the glow.** Honor the color language: white = ship,
-  ice-blue = rocks, gold = friendly fire, red = enemy fire and the sweep,
-  green/gold/red = shield rings (outer→inner), hexagon + letter = powerup.
+  ice-blue = rocks (and their debris shards), gold = friendly fire and the
+  vector score, red = enemy fire and the nova, shield rings cycle
+  green/gold/red/… outer→inner, hexagon + letter = powerup, and every pickup
+  announces itself with a rising floater in its own color. Everything is drawn
+  at ~50% scale with **thin oscilloscope-bloom strokes** (two soft halos + a
+  hot core in `glowStroke`) — density carries the spectacle, not sprite size.
+  The score and remaining ships live **inside the game** as seven-segment
+  vector digits and little hulls; an armed weapon shows as a **red dot on the
+  ship's nose** that blinks faster as the magazine runs low.
 - **Everything wraps.** The field is a torus; the ultra laser, the ship, rocks
   and bullets all use it. Mechanics that exploit the wrap are on-theme.
 
@@ -69,9 +89,13 @@ component.**
   whole arsenal (`fireWeapon`, hitscan `fireHitscan` with wrap-walking beam
   segments, `firePuffball`), the weighted powerup drop table, shield /
   bouncy / lives damage rules (`hitShip`), wave progression, and the entire
-  StarCastle (`makeCastle`, ring rotation + regen, random pot-shots,
-  `castleHoleAt` hole detection, the charge→sweep beam). Deterministic: rng is
-  injectable everywhere.
+  StarCastle fleet (`makeCastle` with per-wave layer count, ring rotation +
+  regen, the aimed core gun, `castleHoleAt` hole detection, the charge→nova
+  launch and `stepNovas` flight/growth/carving, spawn cadence `castleInterval`
+  capped at `wave` simultaneous). Deterministic: rng is injectable everywhere.
+  Sounds are data too: rules push `SoundEvent`s onto `state.events` (cleared
+  each step) and the component drains them into the sfx; pickups push rising
+  `state.floaters`, and explosions push `state.debris` line shards.
 - `roidsLogic.test.ts` — unit tests for all of the above (the safety net;
   extend it for every rule change). Uses `seqRng`/`lcg` helpers plus
   `freshState`/`parkedRoid`/`quietCastle` builders for exact setups.
@@ -95,18 +119,44 @@ itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
 
 ## Current defaults worth knowing (tune freely)
 
-- Waves: `2 + wave` big rocks (cap 12), spawned ≥170 px from the ship; next
-  wave starts the moment the field is clear (even mid-castle).
+- Waves: **`10 + 5·wave` big rocks per million square pixels**
+  (`waveRoidCount`, floor 1, perf ceiling 120), spawned ≥120 px from the ship;
+  the next wave starts the moment the field is clear (even mid-castle).
 - Scores: rocks 20/50/100 (big/med/small), castle shield segment 25, castle
   core **1500** (+ two guaranteed powerup drops).
-- Castle cadence: first at 18 s, then 26 s after each kill; rings regenerate
-  one destroyed segment per ring every 7 s.
-- Sweep: 0.9 s telegraphed charge, then a 100° arc over 1.3 s centered on
-  where you were. Shield blocks one tick of it (1 s grace).
+- Castles: first at 18 s; spawn interval `max(8, 26 − 2·(wave−1))` s, and up
+  to **`wave` castles at once**. Layers = `min(1 + wave, 6)` (inner ring r 36,
+  +16 px per layer; 8 segments inner, +2 per layer outward). Rings regenerate
+  one destroyed segment per ring every 7 s. The core gun fires along the
+  core's facing at **30% of the old cadence** (~1.7–5.7 s between shots).
+- Rock drift: `base + rng·base + 2·wave` px/s with base 20/35/55 (big/med/
+  small) — half the original pace; splits stay 3→2→1.
+- Nova: 0.9 s telegraphed charge (flaring core + swelling proto-nova orb — no
+  aim line), then a bullet at `min(90 + 18·wave, 260)` px/s swelling from r 4
+  to `min(28 + 6·wave, 80)` over 1.2 s; 4.5 s cooldown. Its **kill radius is
+  the reach of its outermost radiation line** (`novaHitR = 1.5r + 6`); the
+  rays are drawn from the bullet's center out to that reach, so if a line can
+  touch you, so can the nova. A deep synth buzz (`novabuzz.wav` loop) runs
+  for as long as any nova is in flight. Shield blocks one touch (1 s grace) —
+  but sitting inside a passing nova longer than the grace is fatal.
+- Castle collisions are **wrap-aware**: bullets, beams and the ship's hull
+  all collide with the nearest torus image of a castle (`nearestImage`; beams
+  check all nine images), so the wrapped-around part of an edge-straddling
+  castle is fully solid and shootable.
+- Ship feel: turning has angular inertia (`TURN_ACCEL` 35 rad/s² up to
+  `TURN_RATE` 4.2 rad/s, braking at the same rate on release).
+- Powerup pods drift for 22 s before fading; bouncy armor runs 18 s.
 - Drops: 12% chance per destroyed rock, weighted table in `DROP_TABLE`
   (extra life rarest at 5/100).
-- No sound yet — when adding it, follow the house pattern (`sfx.ts`, WAV <2s,
-  shared `lib/volume` + `VolumeControl` on the title screen).
+- Sound: `sfx.ts` plays the placeholder synth WAVs in `assets/sounds/` (all
+  <2 s, hand-editable — regenerate or replace freely), gated by the shared
+  `lib/volume` master + the `VolumeControl` on the title screen. One-shot clip
+  names match the model's `SoundEvent` union (`castlespawn` → `ominous.wav`;
+  `boom` is the deep rumbly rock explosion; `shipdown` is a high-pitched
+  white-noise blast; `empty` is the magazine-dry click). `thrust.wav` (engine
+  rumble) and `novabuzz.wav` (live-nova buzz) are seamless loops driven by
+  `Sfx.setLoop` (integer-Hz partials only, so regenerated versions must also
+  loop cleanly).
 
 ## How to evaluate a change here
 
