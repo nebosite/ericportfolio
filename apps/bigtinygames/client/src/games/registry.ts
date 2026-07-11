@@ -32,10 +32,10 @@ export const GAMES: GameMeta[] = [
     status: "ready",
   },
   {
-    id: "big-ast-tiny-eroids",
-    title: "BIG AST TINY EROIDS",
+    id: "big-aster-tiny-oids",
+    title: "BIG ASTER TINY OIDS",
     blurb: "That's no moon. It's 12,000 moons.",
-    path: "/big-ast-tiny-eroids",
+    path: "/big-aster-tiny-oids",
     status: "ready",
   },
 ];

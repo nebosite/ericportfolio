@@ -15,7 +15,7 @@ import novabuzzUrl from "./assets/sounds/novabuzz.wav";
 import { SoundEvent } from "./roidsLogic";
 import { getVolume } from "../../lib/volume";
 
-// Sound effects for Big Ast Tiny eRoids. Plays the clips in this game's
+// Sound effects for Big Aster Tiny Oids. Plays the clips in this game's
 // assets/sounds/ folder through the Web Audio API (decoded once, fired as
 // cheap one-shots). These are placeholder synth clips — per the repo asset
 // rule every clip is a short (<2s) hand-editable WAV; replace the files to

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
-import BigAstTinyERoids from "./BigAstTinyERoids";
+import BigAsterTinyOids from "./BigAsterTinyOids";
 import { trackEvent } from "../../lib/analytics";
 
 // The canvas/rAF game loop is exercised in manual browser review (and the
@@ -23,28 +23,28 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("BigAstTinyERoids — overlays & wiring", () => {
+describe("BigAsterTinyOids — overlays & wiring", () => {
   it("opens on the title screen with START and the feedback panel", () => {
-    render(<BigAstTinyERoids />);
-    expect(screen.getByText("BIG AST TINY EROIDS")).toBeInTheDocument();
+    render(<BigAsterTinyOids />);
+    expect(screen.getByText("BIG ASTER TINY OIDS")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "▶ START" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
   });
 
   it("loads this game's leaderboard by slug on mount", async () => {
-    render(<BigAstTinyERoids />);
+    render(<BigAsterTinyOids />);
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith("/api/leaderboard?game=big-ast-tiny-eroids"),
+      expect(fetch).toHaveBeenCalledWith("/api/leaderboard?game=big-aster-tiny-oids"),
     );
   });
 
   it("START begins wave 1 and fires game_start", () => {
-    render(<BigAstTinyERoids />);
+    render(<BigAsterTinyOids />);
     fireEvent.click(screen.getByRole("button", { name: "▶ START" }));
-    expect(trackEvent).toHaveBeenCalledWith("game_start", { game: "big-ast-tiny-eroids" });
+    expect(trackEvent).toHaveBeenCalledWith("game_start", { game: "big-aster-tiny-oids" });
     expect(screen.getByText("WAVE 1")).toBeInTheDocument();
     expect(screen.getByText(/PEA SHOOTER/)).toBeInTheDocument();
     // Title overlay is gone once play begins.
-    expect(screen.queryByText("BIG AST TINY EROIDS")).not.toBeInTheDocument();
+    expect(screen.queryByText("BIG ASTER TINY OIDS")).not.toBeInTheDocument();
   });
 });

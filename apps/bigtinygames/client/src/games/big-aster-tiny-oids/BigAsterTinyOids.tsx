@@ -23,13 +23,13 @@ import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
-import styles from "./BigAstTinyERoids.module.css";
+import styles from "./BigAsterTinyOids.module.css";
 
 // The Big Tiny aesthetic, vector edition: glowing arcade line-art on a black
 // field that fills the screen. Every rule lives in roidsLogic.ts (unit
 // tested); this file is only pixels, timers, sound and input plumbing.
 
-const ENTITY = "big-ast-tiny-eroids";
+const ENTITY = "big-aster-tiny-oids";
 
 type Phase = "idle" | "playing" | "gameover" | "saved";
 
@@ -150,7 +150,7 @@ function drawVectorDigits(
   });
 }
 
-export default function BigAstTinyERoids() {
+export default function BigAsterTinyOids() {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<GameState | null>(null);
@@ -696,7 +696,7 @@ export default function BigAstTinyERoids() {
 
         {phase === "idle" && (
           <div className={styles.overlay}>
-            <p className={styles.overlayTitle}>BIG AST TINY EROIDS</p>
+            <p className={styles.overlayTitle}>BIG ASTER TINY OIDS</p>
             <p>
               Blast the rocks, surf the wrap. Watch for the STARCASTLES — when their spinning
               shields open a hole, a sweeping beam is coming. Higher waves mean more castles with
@@ -720,9 +720,9 @@ export default function BigAstTinyERoids() {
             <p className={styles.overlayTitle}>GAME OVER</p>
             <p>FINAL SCORE: {score}</p>
             <form className={styles.initialsForm} onSubmit={submitScore}>
-              <label htmlFor="eroids-initials">ENTER INITIALS:</label>
+              <label htmlFor="oids-initials">ENTER INITIALS:</label>
               <input
-                id="eroids-initials"
+                id="oids-initials"
                 className={styles.initialsInput}
                 value={initials}
                 onChange={(e) =>

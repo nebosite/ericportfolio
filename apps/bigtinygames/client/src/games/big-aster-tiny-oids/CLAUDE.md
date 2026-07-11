@@ -1,6 +1,6 @@
-# Big Ast Tiny eRoids — Game Instructions
+# Big Aster Tiny Oids — Game Instructions
 
-App-specific notes for the Big Ast Tiny eRoids game. The repo-wide `CLAUDE.md`
+App-specific notes for the Big Aster Tiny Oids game. The repo-wide `CLAUDE.md`
 (local review before deploy, **tests for every change**, deployment guards, the
 standard per-entity feedback feature) and the Big Tiny Games house style still
 apply on top of this.
@@ -99,7 +99,7 @@ component.**
 - `roidsLogic.test.ts` — unit tests for all of the above (the safety net;
   extend it for every rule change). Uses `seqRng`/`lcg` helpers plus
   `freshState`/`parkedRoid`/`quietCastle` builders for exact setups.
-- `BigAstTinyERoids.tsx` — the **render + loop + input** layer: a
+- `BigAsterTinyOids.tsx` — the **render + loop + input** layer: a
   `requestAnimationFrame` loop, the vector-glow canvas renderer (each path
   stroked twice — fat translucent + thin bright — under `lighter`
   compositing, with a translucent-black fill each frame for phosphor
@@ -107,13 +107,13 @@ component.**
   polling, virtual touch buttons (coarse-pointer only), the HUD, the
   idle/gameover/saved overlays, and the high-score flow
   (`GET/POST /api/leaderboard` **with the `game` slug passed explicitly**).
-- `BigAstTinyERoids.module.css` / `BigAstTinyERoidsPage*` — fill-the-stage
+- `BigAsterTinyOids.module.css` / `BigAsterTinyOidsPage*` — fill-the-stage
   layout, overlays, touch buttons; page chrome (lobby link, title, footer).
-- Registered in `../registry.ts` (id `big-ast-tiny-eroids`, route
-  `/big-ast-tiny-eroids`).
+- Registered in `../registry.ts` (id `big-aster-tiny-oids`, route
+  `/big-aster-tiny-oids`).
 
 Standard wiring: the title screen carries
-`<FeedbackPanel entity="big-ast-tiny-eroids" />`; analytics fire `game_start`,
+`<FeedbackPanel entity="big-aster-tiny-oids" />`; analytics fire `game_start`,
 `game_over` (with score) and `score_submitted` via `lib/analytics`. Feedback
 itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
 

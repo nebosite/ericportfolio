@@ -1,4 +1,4 @@
-// Big Ast Tiny eRoids — the pure game model. Every rule lives here (unit
+// Big Aster Tiny Oids — the pure game model. Every rule lives here (unit
 // tested in roidsLogic.test.ts); the component owns only pixels, timers and
 // input plumbing. All motion is dt-based (seconds), the field wraps like a
 // torus, and rng is injectable for deterministic tests.
