@@ -561,7 +561,7 @@ describe("special weapons", () => {
     expect(s.lives).toBe(START_LIVES - 1);
   });
 
-  it("the ground nuke has a fuse, rises, then a big blast + molten ground", () => {
+  it("the ground nuke sits on the ground during countdown, then blasts at ground level and the visual rises", () => {
     const s = freshState();
     s.nukeAmmo = 1;
     s.player.invuln = 9999; // don't blow ourselves up in this check
@@ -571,18 +571,20 @@ describe("special weapons", () => {
     expect(s.fuses).toHaveLength(1);
     const startY = s.fuses[0].y;
     step(s, IDLE, 0.1, half);
-    expect(s.fuses[0].y).toBeLessThan(startY - 15); // rose ~20px in 0.1s
+    expect(s.fuses[0].y).toBe(startY); // stays on the ground during countdown
     let sawNuke = false;
-    for (let t = 0; t < NUKE_FUSE + 0.05; t += 0.05) {
+    for (let t = 0; t < NUKE_FUSE + 0.1; t += 0.05) {
       step(s, IDLE, 0.05, half);
       if (s.events.includes("nuke")) sawNuke = true;
     }
-    expect(s.fuses).toHaveLength(0);
+    // After detonation the blasted fuse visual rises; it's still on-screen briefly.
+    expect(s.fuses.every((f) => f.blasted)).toBe(true);
     const nukeBlast = s.blasts.find((b) => b.kind === "nuke");
     expect(nukeBlast?.maxR).toBe(NUKE_BLAST_R);
-    expect(nukeBlast!.y).toBeLessThan(ground - 200); // detonated well up in the air
+    expect(nukeBlast!.y).toBeGreaterThanOrEqual(ground - 10); // detonated at ground level
     expect(sawNuke).toBe(true);
     expect(s.lavas.length).toBeGreaterThan(0); // molten ground left at the launch x
+    void ground;
   });
 
   it("each nuke stack doubles the blast area (radius × √2)", () => {

@@ -158,6 +158,7 @@ export interface NukeFuse {
   x: number;
   y: number;
   fuse: number;
+  blasted?: boolean; // true after detonation — visual rises off-screen
 }
 
 export interface Shield {
@@ -342,14 +343,14 @@ export function areaStackMul(stack: number): number {
 }
 export const CHAIN_BULLET_CAP = 2500; // perf guard: forks stop past this many bolts
 export const LAVA_TTL = 3.5; // seconds a nuke's molten ground stays deadly-hot
-export const NUKE_FUSE = 1.5;
-export const NUKE_BLAST_R = 30 * SPACING; // twice the old footprint
-export const NUKE_RISE_SPEED = 200; // the fused charge rises this fast before it blows
+export const NUKE_FUSE = 3; // 3-second countdown on the ground
+export const NUKE_BLAST_R = 15 * SPACING; // half the old footprint
+export const NUKE_RISE_SPEED = 200; // the visual rises this fast after detonation
 
 // Air support: a barrage of half-strength missiles raining from above the
 // strike point, each exploding on the first invader/shield/ground it hits.
-export const AIR_MISSILE_COUNT = 50;
-export const AIR_MISSILE_SPREAD = 200; // ± horizontal offset from the strike x
+export const AIR_MISSILE_COUNT = 100;
+export const AIR_MISSILE_SPREAD = 50; // ± horizontal offset from the strike x (tight barrage)
 export const AIR_MISSILE_SPEED = 340;
 export const AIR_MISSILE_BLAST_R = MISSILE_BLAST_R * 0.5; // half strength
 export const AIR_SPREAD_PER_STACK = 0.3; // each air stack: +30% spread width
@@ -358,13 +359,13 @@ export const EBULLET_CAP = 150;
 export const SCRAP_MAX = 15000;
 export const SCRAP_TTL_MIN = 10;
 export const SCRAP_TTL_MAX = 15;
-export const SCRAP_DROP_CHANCE = 1 / 5; // ~1 in 5 kills sheds scrap
+export const SCRAP_DROP_CHANCE = 2 / 5; // ~2 in 5 kills shed scrap (2× more common)
 export const SCRAP_PER_KILL = 1; // + up to 1 more, random (when a kill does drop)
 export const SCRAP_GROUND_TTL = 20; // a grain lingers 20s on the ground
 export const PICKUP_RADIUS = 16;
 export const MAGNET_RADIUS = 60;
 
-export const POWERUP_CHANCE = 0.0008; // per invader death (rare)
+export const POWERUP_CHANCE = 0.0016; // per invader death (2× more common)
 export const SHIELD_DROP_CHANCE = 0.005; // per bullet that bites a shield wall
 export const PICKUP_GRAVITY = 60; // same pull as the scrap grains
 export const PICKUP_GROUND_TTL = 4; // seconds a landed pickup waits to be grabbed
@@ -1686,18 +1687,25 @@ export function step(
     }
   }
 
-  // -- nuke fuses: the charge rises into the air, then blows -------------------
+  // -- nuke fuses: sits on the ground during countdown, then blows at ground
+  //    level and the visual rises off-screen after detonation ------------------
   for (let i = state.fuses.length - 1; i >= 0; i--) {
     const fuse = state.fuses[i];
-    fuse.fuse -= dt;
-    fuse.y -= NUKE_RISE_SPEED * dt; // climbs ~200px/s while the fuse burns
-    if (fuse.fuse <= 0) {
-      state.fuses.splice(i, 1);
-      const nukeR = NUKE_BLAST_R * areaStackMul(state.nukeStack);
-      state.blasts.push({ x: fuse.x, y: fuse.y, maxR: nukeR, age: 0, ttl: 0.8, kind: "nuke" });
-      // Leave a patch of deadly molten ground where it launched from.
-      state.lavas.push({ x: fuse.x, halfW: nukeR * 0.85, age: 0, ttl: LAVA_TTL });
-      state.events.push("nuke");
+    if (fuse.blasted) {
+      // Post-detonation: the spent charge rises until off-screen.
+      fuse.y -= NUKE_RISE_SPEED * dt;
+      if (fuse.y < -20) state.fuses.splice(i, 1);
+    } else {
+      // Countdown: the charge sits on the ground.
+      fuse.fuse -= dt;
+      if (fuse.fuse <= 0) {
+        const nukeR = NUKE_BLAST_R * areaStackMul(state.nukeStack);
+        state.blasts.push({ x: fuse.x, y: fuse.y, maxR: nukeR, age: 0, ttl: 0.8, kind: "nuke" });
+        // Leave a patch of deadly molten ground where it launched from.
+        state.lavas.push({ x: fuse.x, halfW: nukeR * 0.85, age: 0, ttl: LAVA_TTL });
+        state.events.push("nuke");
+        fuse.blasted = true; // visual keeps rising post-detonation
+      }
     }
   }
 

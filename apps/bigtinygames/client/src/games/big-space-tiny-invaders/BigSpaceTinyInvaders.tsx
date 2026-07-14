@@ -431,13 +431,25 @@ export default function BigSpaceTinyInvaders() {
       }
     }
 
-    // Nuke fuses: a blinking charge rising into the air with a little trail.
+    // Nuke fuses: a blinking charge on the ground with countdown, then rising
+    // after detonation.
     for (const fuse of state.fuses) {
-      const fast = fuse.fuse < 0.5;
+      const fast = !fuse.blasted && fuse.fuse < 1;
       ctx.fillStyle = "#ffb04733";
       ctx.fillRect(fuse.x - 1, fuse.y, 2, 10); // exhaust trail below it
       ctx.fillStyle = now % (fast ? 0.12 : 0.3) < (fast ? 0.06 : 0.15) ? "#ffffff" : "#ff5757";
       ctx.fillRect(fuse.x - 3, fuse.y - 4, 6, 6);
+      if (!fuse.blasted) {
+        // Countdown seconds above the charge.
+        const secs = Math.ceil(fuse.fuse);
+        ctx.font = "bold 14px 'Courier New', monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillStyle = "rgba(0,0,0,0.8)";
+        ctx.fillText(String(secs), fuse.x + 1, fuse.y - 5 + 1);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(String(secs), fuse.x, fuse.y - 5);
+      }
     }
 
     // Air-support missiles raining down.
@@ -596,7 +608,12 @@ export default function BigSpaceTinyInvaders() {
       ctx.fillStyle = color;
       ctx.fillText(text, x, y);
     };
-    hudText(`SCORE ${String(state.score).padStart(6, "0")}`, 10, 8, "#ffce3b", 20, "left");
+    // Score (top-left) — measure width so CHARGE can follow immediately after.
+    ctx.font = "bold 20px 'Courier New', monospace";
+    const scoreTxt = `SCORE ${String(state.score).padStart(6, "0")}`;
+    const scoreW = ctx.measureText(scoreTxt).width;
+    hudText(scoreTxt, 10, 8, "#ffce3b", 20, "left");
+    hudText(`CHARGE ${Math.floor(state.charge)}`, 10 + scoreW + 18, 8, "#ff9a57", 20, "left");
     hudText(
       `LEVEL ${state.level}   SHIPS ${"▲".repeat(Math.max(0, Math.min(state.lives, 6)))}`,
       state.w - 10,
@@ -607,16 +624,15 @@ export default function BigSpaceTinyInvaders() {
     );
     const lvl = (n: number) => (n > 0 ? `+${n}` : "");
     // The equipped weapon, with the other unlocked ones shown dim so you know
-    // what Z cycles to.
+    // what S cycles to.
     const stackFor = (w: GameState["weapon"]) =>
       w === "chain" ? state.chainStack : w === "sprinkler" ? state.sprinklerStack : 0;
     const wlabel = (w: GameState["weapon"]) => `${WEAPON_LABEL[w]}${lvl(stackFor(w))}`;
     hudText(`▸ ${wlabel(state.weapon)}`, 10, 34, "#b8e6ff", 15, "left");
     const others = state.weapons.filter((w) => w !== state.weapon);
     if (others.length > 0) {
-      hudText(`Z: ${others.map(wlabel).join(" / ")}`, 10, 52, "#5b6a8a", 12, "left");
+      hudText(`S: ${others.map(wlabel).join(" / ")}`, 10, 52, "#5b6a8a", 12, "left");
     }
-    hudText(`CHARGE ${Math.floor(state.charge)}`, state.w - 10, 34, "#ff9a57", 15, "right");
 
     // Rising bonus banners (squadron wipe-out).
     for (const b of state.banners) {
@@ -646,7 +662,7 @@ export default function BigSpaceTinyInvaders() {
     // Control reminder centered along the very bottom.
     ctx.textAlign = "center";
     ctx.font = "bold 12px 'Courier New', monospace";
-    const controls = "◀ ▶ MOVE   SPACE FIRE   Z SWAP WEAPON   CLICK MISSILE   X AIR   C NUKE";
+    const controls = "◀ A D ▶ MOVE   SPACE FIRE   S SWAP   CLICK MISSILE   E AIR   Q NUKE";
     ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
     ctx.fillText(controls, state.w / 2 + 1, state.h - 4 + 1);
     ctx.fillStyle = "#7385a8";
@@ -698,37 +714,48 @@ export default function BigSpaceTinyInvaders() {
       const code = e.code;
       const keys = keysRef.current;
       const shots = oneShotRef.current;
-      if (key === "ArrowLeft") keys.left = down;
-      else if (key === "ArrowRight" || key === "d" || key === "D") keys.right = down;
-      else if (key === " " || key === "ArrowUp") keys.fire = down;
-      // Air support: X, S, E, Right Ctrl, Down arrow, 1.
+      // Move left: A, J, Left arrow, Numpad4.
+      if (key === "ArrowLeft" || key === "a" || key === "A" || key === "j" || key === "J" || code === "Numpad4")
+        keys.left = down;
+      // Move right: D, L, Right arrow, Numpad6.
+      else if (key === "ArrowRight" || key === "d" || key === "D" || key === "l" || key === "L" || code === "Numpad6")
+        keys.right = down;
+      // Fire: W, I, Spacebar, Up arrow, Numpad7.
+      else if (key === " " || key === "ArrowUp" || key === "w" || key === "W" || key === "i" || key === "I" || code === "Numpad7")
+        keys.fire = down;
+      // Air support: E, Left Alt, C, period, O, Enter, Numpad9, Numpad3.
       else if (
         down &&
-        (key === "x" ||
-          key === "X" ||
-          key === "s" ||
-          key === "S" ||
-          key === "e" ||
+        (key === "e" ||
           key === "E" ||
-          code === "ControlRight" ||
-          key === "ArrowDown" ||
-          key === "1")
+          key === "c" ||
+          key === "C" ||
+          key === "o" ||
+          key === "O" ||
+          key === "." ||
+          key === "Enter" ||
+          code === "AltLeft" ||
+          code === "Numpad9" ||
+          code === "Numpad3")
       )
         shots.air = true;
-      // Ground nuke: C, A, keypad 0, either Shift.
+      // Ground nuke: Q, Left shift, U, N, Right ctrl, Right shift, Numpad0.
       else if (
         down &&
-        (key === "c" ||
-          key === "C" ||
-          key === "a" ||
-          key === "A" ||
-          code === "Numpad0" ||
+        (key === "q" ||
+          key === "Q" ||
+          key === "u" ||
+          key === "U" ||
+          key === "n" ||
+          key === "N" ||
           code === "ShiftLeft" ||
-          code === "ShiftRight")
+          code === "ShiftRight" ||
+          code === "ControlRight" ||
+          code === "Numpad0")
       )
         shots.nuke = true;
-      // Swap weapon: Z, Left Ctrl.
-      else if (down && (key === "z" || key === "Z" || code === "ControlLeft"))
+      // Swap weapon: S, K, Down arrow, Numpad5.
+      else if (down && (key === "s" || key === "S" || key === "k" || key === "K" || key === "ArrowDown" || code === "Numpad5"))
         shots.selectWeapon = true;
       else return;
       e.preventDefault();
@@ -931,7 +958,7 @@ export default function BigSpaceTinyInvaders() {
               right-click); a random bonus also drifts in from an edge every so often.
             </p>
             <p>
-              MOVE ◀ ▶ · FIRE SPACE · SWAP WEAPON Z · CLICK = MISSILE · X = AIR SUPPORT · C = NUKE
+              MOVE ◀ A D ▶ · FIRE SPACE · SWAP WEAPON S · CLICK = MISSILE · E = AIR SUPPORT · Q = NUKE
             </p>
 
             <div className={styles.legend}>
