@@ -16,13 +16,15 @@ the design flows from that scale:
    every level) opens with the whole horde **flying in** — each invader takes
    its **own curving spline straight to its slot**, the **lowest rows filling
    first**, and the whole grid (deep enough to cover the top half of the
-   screen) populates in **~4 seconds**. You don't clear it invader by invader;
+   screen) populates in **~7 seconds**. You don't clear it invader by invader;
    you carve into it with area weapons while the classic march grinds down.
    The three tiers differ: **grunts** (bottom, 10pts) and **soldiers**
    (middle, 20pts — they drop **3× the bullets**) hold formation; **elites**
    (top, 30pts) are the **only tier that flies low**, detaching as galaga-style
    **squadrons of 10–15** that swoop over your sky (never below 10px above the
-   shield tops) and glide back. **Wipe out a whole squadron** before it
+   shield tops) and glide back — they **only open fire once they've dropped
+   down low** (within `FLYER_LOW_BAND` of the swoop floor), not from up high.
+   **Wipe out a whole squadron** before it
    returns for a **+1000 bonus** (rising banner). **Destroyed invaders are
    never replaced** — every hole is permanent for the level.
 2. **Performance is a design constraint, not an afterthought.** Tens of
@@ -37,18 +39,23 @@ Bullets and missiles both drain a single **charge** pool (starts **2500**,
 deliberately big and chunky). Costs: **pea/sprinkler bullet 10**, **chain shot
 500**, **missile 1000**. Out of charge = no shot (the weapon never "runs dry"
 into the gun; it just can't fire). Air support and the nuke keep their own
-stockpile counts (from pickups).
+stockpile counts (you **start with one of each**, plus whatever pickups grant).
+
+Every **~20 seconds** (`EDGE_POWERUP_GAP`) a bonus **powerup drifts in from the
+left or right screen edge** with a little announcing chime (`reload`), so you're
+never starved of upgrades in a long grind.
 
 ### Shooting weapons — selectable
 
 The equipped shooting weapon is one of the **unlocked** ones (`state.weapons`,
 starts `["gun"]`; sprinkler/chain pickups unlock + equip them). **Z / right-
-click / Ctrl** cycles through them (`cycleWeapon`).
+click / Left Ctrl** cycles through them (`cycleWeapon`).
 
 - **Pea cannon** (default) — single shots, straight up. Cost 1.
 - **Sprinkler** (unlock) — a rapid spray sweeping a 20° arc. **Stackable**:
   each `sprinklerStack` is **+50% fire rate** (max +3). Cost 1/bullet.
-- **Chain bullets** (unlock, cost **50**/shot — a horde-clearer). The bolt
+- **Lightning Burst** (unlock, cost **50**/shot — a horde-clearer; the pickup
+  and HUD label read "Lightning Burst"). The bolt
   buzzes with crackly blue energy; on impact it **forks to the 4 nearest
   unharmed ships**, each fork a homing bolt that arcs _over_ everything to land
   exactly one kill. Forks run **3 generations** (~**1+4+16+64 ≈ 85** kills); a
@@ -62,13 +69,15 @@ click / Ctrl** cycles through them (`cycleWeapon`).
   blast, **bending through the nearest shield gap**. Fuelled by charge (100).
   The **missile pickup is a stackable upgrade**: each **doubles the blast
   area** (`missileStack`, radius ×√2, max +3 → ×8 area).
-- **Air support** (X, stockpiled) — a **barrage of 50 half-strength missiles**
+- **Air support** (X / S / E / Down / 1 / Right Ctrl, stockpiled) — a **barrage
+  of 50 half-strength missiles**
   (`airMissiles`) raining from above the strike x, each spread ±200px and
   exploding on the first invader / shield / ground it hits (half the normal
   blast radius). **A missile landing on the ship kills it** — calling it over
   your own head is dangerous. **Stackable**: each `airStack` is **+30% spread
   width** (max +3).
-- **Ground nuke** (C, stockpiled — the pickup grants a nuke to drop **and**
+- **Ground nuke** (C / A / keypad 0 / either Shift, stockpiled — the pickup
+  grants a nuke to drop **and**
   stacks its area). Drops a fused charge that **rises ~200px/s** while the fuse
   burns; 1.5s later a **plasma-filled hemisphere** (base radius **30 invaders**,
   `nukeStack` doubles the area per pickup up to +3) vaporizes everything inside
@@ -79,10 +88,10 @@ click / Ctrl** cycles through them (`cycleWeapon`).
 - **Rebuild walls** (`wall` pickup, "W") — instantly restores every shield
   wall to full.
 
-**Scrap & charge:** only ~**1 in 10 kills** sheds scrap — 1–2 sparkly
+**Scrap & charge:** only ~**1 in 5 kills** sheds scrap — 1–2 sparkly
 **blue/white** grains (each fades between shades on its own 200–400ms cycle)
-that drift, fall (and **die 2s after landing**), and add **+20 to the shared
-charge pool** when collected. UFOs are **rare and solitary**
+that drift, fall (and then **linger ~20s on the ground** before fading), and
+add **+20 to the shared charge pool** when collected. UFOs are **rare and solitary**
 (one at a time, ~25–45s apart, **worth 1000**); after a visible charge-up each fires a bright,
 animated straight-down laser whose leading front **crawls to the ground over
 2 seconds** (so you have two full seconds to slide out from under it — it only
@@ -139,8 +148,11 @@ component.**
   deaths/births clear/draw single 8px cells; a level change rebuilds them.
   Shields render to small offscreen canvases repainted only when dirty.
   Scrap draws as two batched single-fillStyle passes (alternating grains
-  twinkle). Input: ◀▶ move, Space fire (held), **mouse/tap = missile**, X =
-  air support, C = nuke; gamepad and coarse-pointer touch buttons included.
+  twinkle). Input: ◀▶ move, Space fire (held), **mouse/tap = missile**;
+  **air support** on X / S / E / ↓ / 1 / Right Ctrl and **nuke** on C / A /
+  keypad 0 / either Shift (Z or Left Ctrl swaps shooting weapon); gamepad and
+  coarse-pointer touch buttons included. The **MSL / AIR / NUKE meters** are
+  drawn **bottom-left**, just left of the centered control hint.
 - `sfx.ts` + `assets/sounds/*.wav` — placeholder synth clips (<2s,
   hand-editable); one-shot names match the `SoundEvent` union, plus two
   loopable extras (`ClipName = SoundEvent | "siren"`). The **UFO `laser`** and
@@ -165,8 +177,9 @@ explicitly**.
 ## Current defaults worth knowing (tune freely)
 
 - Grid: 9px pitch (7px invader + 2px gap); `formationDims` ≈ 76×33 (~2.5k) at
-  800×600, ~11k at 1920×1080, hard-capped at 20k slots; rows cover the top
-  half of the screen. March speed
+  800×600, ~11k at 1920×1080, hard-capped at 60k slots; rows fill until they
+  cover the **top half of the screen** (always more rows on a taller stage).
+  March speed
   `min(150, (10+6·level)·(1+2·(1−aliveFrac)))`, drop 10px per edge; reaching
   the ground = game over. The march **recomputes the true alive column/row
   extent from the counts every frame** (not a maintained minCol/maxCol) so a
@@ -174,8 +187,8 @@ explicitly**.
 - Intro (`makeIntroQueue` + `launchIntro`): an air-raid **siren wails for a
   `INTRO_WARMUP` (3s) warmup** with nothing on screen, then the queue — every
   slot ordered **lowest row first** (shuffled within a row) — launches over
-  `INTRO_LAUNCH_WINDOW` (3s) so with ~1s flights the grid fills ~4s after the
-  warmup. Each invader flies its **own** short curving bezier from offscreen
+  `INTRO_LAUNCH_WINDOW` (**6s** — a deliberately long fly-in) so with ~1s
+  flights the grid fills ~7s after the warmup. Each invader flies its **own** short curving bezier from offscreen
   straight to its slot (no low swoop). March is **paused until the fill fully
   settles** (`introDone`). Per-ship steering jitter (`FLYER_JITTER`) fades on
   settle.
@@ -186,19 +199,22 @@ explicitly**.
 - Dive squadrons: 10–15 **elite** ships (`SQUAD_MIN/MAX`), staggered 0.12s
   along a shared spline (offsets shrink once airborne → follow-the-leader),
   slow 9s swoop to the floor and back up, 2.6s return; floor at `swoopFloorY`
-  (shield tops − 10px); each fires often (~0.5–1.25s). A `Squad` record tracks
+  (shield tops − 10px); each fires often (~0.5–1.25s) **but only while within
+  `FLYER_LOW_BAND` (90px) of that floor**. A `Squad` record tracks
   killed/returned; a clean wipe (`resolveSquad`) pays `SQUAD_BONUS`.
 - Missiles fly their bezier at 840 px/s.
 - Scores: invader tiers 10/20/30 (grunt/soldier/elite), flyer 50, UFO **1000**,
   full-squadron wipe **+1000**.
-- Scrap: only ~**1/10 of kills** shed any (`SCRAP_DROP_CHANCE`), then 1–2
-  grains, 10–15s airborne life but **only `SCRAP_GROUND_TTL` (2s) once landed**,
-  pool capped at 15k; magnet radius 60, pickup radius 16.
+- Scrap: only ~**1/5 of kills** shed any (`SCRAP_DROP_CHANCE`), then 1–2
+  grains, 10–15s airborne life and a **fresh `SCRAP_GROUND_TTL` (20s) once
+  landed** (touchdown resets the timer, so ground debris accumulates), pool
+  capped at 15k; magnet radius 60, pickup radius 16.
 - Powerups: **0.08%** drop per invader kill (`POWERUP_CHANCE`, 1/10 of before),
   shield-bite drop 0.5%; always from a shot UFO; caught at the ship. **Extra
   ships are rare** (life weight 0.8,
   ~1/10 of the others).
-- Starter loadout: 250 charge, 3 lives, gun only. Stack upgrades (`chainStack`/
+- Starter loadout: 2500 charge, 3 lives, gun only, **one air strike + one
+  ground nuke** in stock. Stack upgrades (`chainStack`/
   `missileStack`/`nukeStack`/`sprinklerStack`/`airStack`, `areaStackMul` =
   √2^stack; sprinkler/air are linear per-stack) persist across levels but are
   **lost on death** along with the rest of your toys (the charge pool is kept).

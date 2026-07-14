@@ -13,15 +13,18 @@ import {
   COST_CHAIN,
   COST_MISSILE,
   DROP,
+  EDGE_POWERUP_GAP,
   INTRO_WARMUP,
   FLYER_FIRE_MAX,
   FLYER_FIRE_MIN,
+  FLYER_LOW_BAND,
   GameState,
   InputState,
   LAVA_TTL,
   MISSILE_BLAST_R,
   NUKE_BLAST_R,
   NUKE_FUSE,
+  SCRAP_GROUND_TTL,
   SCRAP_TTL_MAX,
   SCRAP_TTL_MIN,
   SPACING,
@@ -91,7 +94,7 @@ describe("scale & setup", () => {
     const d1080 = formationDims(1920, 1080);
     expect(d1080.cols * d1080.rows).toBeGreaterThan(10000);
     const capped = formationDims(4000, 4000);
-    expect(capped.cols * capped.rows).toBeLessThanOrEqual(20000);
+    expect(capped.cols * capped.rows).toBeLessThanOrEqual(60000);
   });
 
   it("the grid is deep enough to cover the top half of the screen", () => {
@@ -123,9 +126,13 @@ describe("scale & setup", () => {
     expect(s.weapons).toEqual(["gun"]);
     expect(s.charge).toBe(CHARGE_START);
     expect(s.shields).toHaveLength(shieldCount(800));
+    // You start armed with one of each ground/air special.
+    expect(s.airAmmo).toBe(1);
+    expect(s.nukeAmmo).toBe(1);
+    expect(s.edgePowerupTimer).toBe(EDGE_POWERUP_GAP);
   });
 
-  it("holds a warmup, then flies everyone in (grid full ~4s after warmup)", () => {
+  it("holds a warmup, then flies everyone in (grid full ~7s after warmup)", () => {
     const s = initialState(800, 600, lcg(3));
     s.player.invuln = 9999;
     s.lives = 99;
@@ -139,14 +146,14 @@ describe("scale & setup", () => {
     // Then everyone flies in and settles.
     let sawArrivals = false;
     let t = 0;
-    for (; t < 6 && s.form.aliveCount < total; t += 0.05) {
+    for (; t < 10 && s.form.aliveCount < total; t += 0.05) {
       step(s, IDLE, 0.05, lcg(3));
       if (s.flyers.some((f) => f.mode === "arrive")) sawArrivals = true;
     }
     expect(sawArrivals).toBe(true);
     expect(s.form.aliveCount).toBe(total);
     expect(s.flyers).toHaveLength(0);
-    expect(t).toBeLessThanOrEqual(4.6); // fill itself inside ~4 seconds
+    expect(t).toBeLessThanOrEqual(8); // the doubled fly-in fills inside ~7 seconds
   });
 
   it("the fly-in fills the lowest rows first", () => {
@@ -682,7 +689,7 @@ describe("charge", () => {
     expect(before - s.charge).toBeCloseTo(COST_BULLET - CHARGE_REGEN * 0.001, 3);
   });
 
-  it("a scrap grain that lands dies ~2s later (not its full 10–15s life)", () => {
+  it("a scrap grain lands and then lingers ~20s on the ground before fading", () => {
     const s = freshState();
     s.player.x = 50; // far from the grain so it's never collected
     const sc = s.scrap;
@@ -690,13 +697,18 @@ describe("charge", () => {
     sc.y[0] = groundY(s.h) - 2;
     sc.vx[0] = 0;
     sc.vy[0] = 40; // falling; lands almost immediately
-    sc.ttl[0] = 12;
+    sc.ttl[0] = 3; // little air-life left…
     sc.seed[0] = 0.5;
     sc.count = 1;
-    step(s, IDLE, 0.05, half); // lands → ttl clamped to ~2s
-    expect(sc.ttl[0]).toBeLessThanOrEqual(2);
-    for (let t = 0; t < 2.1; t += 0.05) step(s, IDLE, 0.05, half);
-    expect(sc.count).toBe(0); // gone ~2s after landing
+    step(s, IDLE, 0.05, half); // lands → gets a fresh SCRAP_GROUND_TTL to sit
+    expect(sc.ttl[0]).toBeGreaterThan(3); // refreshed past its old air-life
+    expect(sc.ttl[0]).toBeLessThanOrEqual(SCRAP_GROUND_TTL);
+    // Still sitting there a good 15s later…
+    for (let t = 0; t < 15; t += 0.05) step(s, IDLE, 0.05, half);
+    expect(sc.count).toBe(1);
+    // …and finally gone once the 20s ground life runs out.
+    for (let t = 0; t < 6; t += 0.05) step(s, IDLE, 0.05, half);
+    expect(sc.count).toBe(0);
   });
 });
 
@@ -730,6 +742,20 @@ describe("powerups", () => {
     expect(s.pickups).toHaveLength(0);
   });
 
+  it("every ~20s a bonus powerup drifts in from a screen edge with a chime", () => {
+    const s = freshState();
+    expect(s.edgePowerupTimer).toBe(EDGE_POWERUP_GAP);
+    s.edgePowerupTimer = 0.001; // about to fire
+    step(s, IDLE, 0.016, lcg(5));
+    expect(s.pickups).toHaveLength(1);
+    // It enters hugging the left or right edge of the screen.
+    const px = s.pickups[0].x;
+    expect(px < 20 || px > s.w - 20).toBe(true);
+    expect(s.events).toContain("reload"); // the little announcing chime
+    // The timer rewinds to roughly another full gap.
+    expect(s.edgePowerupTimer).toBeGreaterThan(EDGE_POWERUP_GAP * 0.8);
+  });
+
   it("battered shield walls occasionally shake a powerup loose", () => {
     const s = freshState();
     const shield = s.shields[0];
@@ -749,6 +775,8 @@ describe("powerups", () => {
 
   it("each powerup kind applies its effect", () => {
     const s = freshState();
+    s.airAmmo = 0; // spend the starter ammo so the grant is unambiguous
+    s.nukeAmmo = 0;
     applyPowerup(s, "air");
     expect(s.airAmmo).toBe(1);
     expect(s.airStack).toBe(1); // air stacks (wider beam)
@@ -949,6 +977,35 @@ describe("dive squadrons", () => {
     }
     expect(maxY).toBeLessThanOrEqual(floor + 0.001);
     expect(shots).toBeGreaterThan(0);
+  });
+
+  it("swoopers hold their fire up high and only shoot once they're low", () => {
+    const floor = swoopFloorY(600);
+    const diver = (y: number) => ({
+      mode: "dive" as const,
+      slot: 0,
+      type: 2,
+      x: 400,
+      y,
+      path: [400, y, 400, y, 400, y], // a flat path pins it at height y
+      offx: 0,
+      offy: 0,
+      t: 0.5, // airborne (u > 0) but nowhere near the end of the dive
+      dur: 100,
+      fireCooldown: -1, // trigger is ready
+      wob: 0,
+      squad: -1,
+    });
+    // Well above the low band: ready to fire, but holds.
+    const high = freshState();
+    high.flyers = [diver(floor - FLYER_LOW_BAND - 30)];
+    step(high, IDLE, 0.016, half);
+    expect(high.ebullets).toHaveLength(0);
+    // Down at the swoop floor: now it opens up.
+    const low = freshState();
+    low.flyers = [diver(floor)];
+    step(low, IDLE, 0.016, half);
+    expect(low.ebullets).toHaveLength(1);
   });
 
   it("survivors glide back into their own slots", () => {

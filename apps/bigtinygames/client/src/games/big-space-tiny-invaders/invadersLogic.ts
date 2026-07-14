@@ -285,6 +285,7 @@ export interface GameState {
   eShotTimer: number;
   flyerTimer: number;
   ufoTimer: number;
+  edgePowerupTimer: number; // counts down to the next drift-in-from-the-edge bonus
   ufoDefeated: boolean; // once shot down, no UFO returns until the next level
   over: boolean;
   events: SoundEvent[];
@@ -357,9 +358,9 @@ export const EBULLET_CAP = 150;
 export const SCRAP_MAX = 15000;
 export const SCRAP_TTL_MIN = 10;
 export const SCRAP_TTL_MAX = 15;
-export const SCRAP_DROP_CHANCE = 1 / 10; // ~1 in 10 kills sheds scrap
+export const SCRAP_DROP_CHANCE = 1 / 5; // ~1 in 5 kills sheds scrap
 export const SCRAP_PER_KILL = 1; // + up to 1 more, random (when a kill does drop)
-export const SCRAP_GROUND_TTL = 2; // a grain dies 2s after it lands
+export const SCRAP_GROUND_TTL = 20; // a grain lingers 20s on the ground
 export const PICKUP_RADIUS = 16;
 export const MAGNET_RADIUS = 60;
 
@@ -389,15 +390,19 @@ export const DIVE_STAGGER = 0.12; // per-ship time offset — follow the leader
 export const RETURN_DUR = 2.6;
 export const FLYER_FIRE_MIN = 0.5; // each swooping ship shoots ~4× as often (0.5–1.25 s)
 export const FLYER_FIRE_MAX = 1.25;
+export const FLYER_LOW_BAND = 90; // swoopers only fire while within this of the floor
 export const FLYER_JITTER = 2.2; // px of organic steering wobble
 
 // Fly-in: an air-raid siren wails for INTRO_WARMUP seconds first (nothing
 // launches), then every invader takes its own curving path to its slot, the
 // lowest rows filling first, over INTRO_LAUNCH_WINDOW (+ ~1s flight).
 export const INTRO_WARMUP = 3;
-export const INTRO_LAUNCH_WINDOW = 3;
+export const INTRO_LAUNCH_WINDOW = 6; // twice as long a fly-in
 export const INTRO_DUR_MIN = 0.8;
 export const INTRO_DUR_MAX = 1.1;
+
+// Every ~20s a bonus powerup drifts in from a screen edge, with a chime.
+export const EDGE_POWERUP_GAP = 20;
 
 export const SHIELD_CELL = 2; // px per shield bitmap cell
 export const SHIELD_W = 24; // cells
@@ -419,12 +424,14 @@ export function shieldCount(w: number): number {
   return Math.max(2, Math.round((w / 1000) * 5));
 }
 
-/** How big the horde is: wide, and deep enough to cover the top half. */
+/** How big the horde is: wide, and always deep enough to cover the top half of
+ *  the screen — more rows on bigger playing areas. */
 export function formationDims(w: number, h: number): { cols: number; rows: number } {
   const cols = Math.max(10, Math.floor((w * 0.86) / SPACING));
   const rows = Math.max(6, Math.floor((h * 0.5) / SPACING));
-  // Perf ceiling: cap the grid at 20k slots, trimming rows first.
-  const cap = 20000;
+  // Perf backstop only for absurd resolutions; normal screens keep the full
+  // half-height fill.
+  const cap = 60000;
   return cols * rows <= cap ? { cols, rows } : { cols, rows: Math.max(6, Math.floor(cap / cols)) };
 }
 
@@ -612,8 +619,8 @@ export function initialState(w: number, h: number, rng: () => number = Math.rand
     },
     weapon: "gun",
     weapons: ["gun"],
-    airAmmo: 0,
-    nukeAmmo: 0,
+    airAmmo: 1, // start with one air strike…
+    nukeAmmo: 1, // …and one ground nuke
     chainStack: 0,
     missileStack: 0,
     nukeStack: 0,
@@ -622,6 +629,7 @@ export function initialState(w: number, h: number, rng: () => number = Math.rand
     eShotTimer: 1,
     flyerTimer: 7,
     ufoTimer: UFO_GAP_MIN,
+    edgePowerupTimer: EDGE_POWERUP_GAP,
     ufoDefeated: false,
     over: false,
     events: [],
@@ -1240,7 +1248,9 @@ function stepFlyers(state: GameState, dt: number, rng: () => number): void {
       f.x = p.x + f.offx * shrink + jx;
       f.y = Math.min(p.y + f.offy * shrink + jy, floorY);
       f.fireCooldown -= dt;
-      if (u > 0 && f.fireCooldown <= 0 && state.ebullets.length < EBULLET_CAP) {
+      // Swoopers only shoot while they're down low (near the swoop floor).
+      const low = f.y >= floorY - FLYER_LOW_BAND;
+      if (u > 0 && low && f.fireCooldown <= 0 && state.ebullets.length < EBULLET_CAP) {
         f.fireCooldown = FLYER_FIRE_MIN + rng() * (FLYER_FIRE_MAX - FLYER_FIRE_MIN);
         state.ebullets.push({ x: f.x, y: f.y + 4, vy: eBulletSpeed(state.level) });
       }
@@ -1465,6 +1475,20 @@ export function step(
         });
       }
     }
+  }
+
+  // -- edge bonus: every ~20s a random powerup drifts in from a screen edge ----
+  state.edgePowerupTimer -= dt;
+  if (state.edgePowerupTimer <= 0) {
+    state.edgePowerupTimer = EDGE_POWERUP_GAP * (0.85 + rng() * 0.3);
+    const fromLeft = rng() < 0.5;
+    dropPickup(
+      state,
+      fromLeft ? 8 : state.w - 8,
+      state.h * (0.25 + rng() * 0.25),
+      rollPowerup(rng),
+    );
+    state.events.push("reload"); // a little chime to announce it
   }
 
   // -- flyers -----------------------------------------------------------------
@@ -1882,13 +1906,16 @@ function stepScrap(state: GameState, dt: number, playerAlive: boolean): void {
       s.vy[k] += 60 * dt; // gravity
       s.vx[k] *= 1 - 0.6 * dt;
     }
+    const prevY = s.y[k];
     s.x[k] += s.vx[k] * dt;
     s.y[k] += s.vy[k] * dt;
     if (s.y[k] > ground - 1) {
+      const justLanded = prevY < ground - 1; // was airborne last frame, touching down now
       s.y[k] = ground - 1;
       s.vy[k] = 0;
       s.vx[k] = 0;
-      if (s.ttl[k] > SCRAP_GROUND_TTL) s.ttl[k] = SCRAP_GROUND_TTL; // dies 2s after landing
+      // On touchdown a grain lingers on the ground for a fresh SCRAP_GROUND_TTL.
+      if (justLanded) s.ttl[k] = SCRAP_GROUND_TTL;
     }
     if (playerAlive && d2 < PICKUP_RADIUS * PICKUP_RADIUS) {
       removeScrap(s, k);

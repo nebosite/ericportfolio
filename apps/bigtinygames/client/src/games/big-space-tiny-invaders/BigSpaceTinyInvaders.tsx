@@ -39,7 +39,7 @@ interface ScoreRow {
 const WEAPON_LABEL: Record<GameState["weapon"], string> = {
   gun: "PEA CANNON",
   sprinkler: "SPRINKLER",
-  chain: "CHAIN BULLETS",
+  chain: "LIGHTNING BURST",
 };
 
 const PICKUP_STYLE: Record<PowerupKind, { label: string; color: string }> = {
@@ -56,7 +56,7 @@ const PICKUP_STYLE: Record<PowerupKind, { label: string; color: string }> = {
 const FLOATER_LABEL: Record<PowerupKind, string> = {
   missiles: "MISSILE BOOST",
   sprinkler: "SPRINKLER GUN",
-  chain: "CHAIN BULLETS",
+  chain: "LIGHTNING BURST",
   air: "AIR SUPPORT +1",
   nuke: "GROUND NUKE",
   wall: "SHIELDS REBUILT",
@@ -69,14 +69,14 @@ const ENEMY_LEGEND: Array<{ label: string; score: string; color?: string; ufo?: 
   { label: "Soldier", score: "20", color: "#57d8ff" },
   { label: "Elite", score: "30", color: "#ff5af5" },
   { label: "Swooper", score: "50", color: "#ffffff" },
-  { label: "UFO", score: "200", ufo: true },
+  { label: "UFO", score: "1000", ufo: true },
 ];
 const POWERUP_LEGEND: Array<{ kind: PowerupKind; desc: string }> = [
   { kind: "sprinkler", desc: "Sprinkler" },
-  { kind: "chain", desc: "Chain (stacks)" },
-  { kind: "missiles", desc: "Missile boost (stacks)" },
+  { kind: "chain", desc: "Lightning Burst" },
+  { kind: "missiles", desc: "Missile boost" },
   { kind: "air", desc: "Air support" },
-  { kind: "nuke", desc: "Ground nuke (stacks)" },
+  { kind: "nuke", desc: "Ground nuke" },
   { kind: "wall", desc: "Rebuild shields" },
   { kind: "life", desc: "Extra ship" },
 ];
@@ -616,16 +616,7 @@ export default function BigSpaceTinyInvaders() {
     if (others.length > 0) {
       hudText(`Z: ${others.map(wlabel).join(" / ")}`, 10, 52, "#5b6a8a", 12, "left");
     }
-    hudText(
-      `CHARGE ${Math.floor(state.charge)}   MSL${lvl(state.missileStack)}   AIR${lvl(
-        state.airStack,
-      )} ${state.airAmmo}   NUKE${lvl(state.nukeStack)} ${state.nukeAmmo}`,
-      state.w - 10,
-      34,
-      "#ff9a57",
-      15,
-      "right",
-    );
+    hudText(`CHARGE ${Math.floor(state.charge)}`, state.w - 10, 34, "#ff9a57", 15, "right");
 
     // Rising bonus banners (squadron wipe-out).
     for (const b of state.banners) {
@@ -643,8 +634,17 @@ export default function BigSpaceTinyInvaders() {
 
     // Control reminder along the very bottom (the active weapon now shows as an
     // icon under the ship, not as text here).
-    ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
+    // The special-weapon meters live bottom-left, to the left of the controls.
+    ctx.textAlign = "left";
+    ctx.font = "bold 14px 'Courier New', monospace";
+    const meters = `MSL${lvl(state.missileStack)}   AIR${lvl(state.airStack)} ${state.airAmmo}   NUKE${lvl(state.nukeStack)} ${state.nukeAmmo}`;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillText(meters, 11, state.h - 3);
+    ctx.fillStyle = "#ff9a57";
+    ctx.fillText(meters, 10, state.h - 4);
+    // Control reminder centered along the very bottom.
+    ctx.textAlign = "center";
     ctx.font = "bold 12px 'Courier New', monospace";
     const controls = "◀ ▶ MOVE   SPACE FIRE   Z SWAP WEAPON   CLICK MISSILE   X AIR   C NUKE";
     ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
@@ -694,37 +694,43 @@ export default function BigSpaceTinyInvaders() {
   useEffect(() => {
     if (phase !== "playing") return;
     const setKey = (e: KeyboardEvent, down: boolean) => {
-      switch (e.key) {
-        case "ArrowLeft":
-        case "a":
-        case "A":
-          keysRef.current.left = down;
-          break;
-        case "ArrowRight":
-        case "d":
-        case "D":
-          keysRef.current.right = down;
-          break;
-        case " ":
-        case "ArrowUp":
-          keysRef.current.fire = down;
-          break;
-        case "x":
-        case "X":
-          if (down) oneShotRef.current.air = true;
-          break;
-        case "c":
-        case "C":
-          if (down) oneShotRef.current.nuke = true;
-          break;
-        case "z":
-        case "Z":
-        case "Control":
-          if (down) oneShotRef.current.selectWeapon = true;
-          break;
-        default:
-          return;
-      }
+      const key = e.key;
+      const code = e.code;
+      const keys = keysRef.current;
+      const shots = oneShotRef.current;
+      if (key === "ArrowLeft") keys.left = down;
+      else if (key === "ArrowRight" || key === "d" || key === "D") keys.right = down;
+      else if (key === " " || key === "ArrowUp") keys.fire = down;
+      // Air support: X, S, E, Right Ctrl, Down arrow, 1.
+      else if (
+        down &&
+        (key === "x" ||
+          key === "X" ||
+          key === "s" ||
+          key === "S" ||
+          key === "e" ||
+          key === "E" ||
+          code === "ControlRight" ||
+          key === "ArrowDown" ||
+          key === "1")
+      )
+        shots.air = true;
+      // Ground nuke: C, A, keypad 0, either Shift.
+      else if (
+        down &&
+        (key === "c" ||
+          key === "C" ||
+          key === "a" ||
+          key === "A" ||
+          code === "Numpad0" ||
+          code === "ShiftLeft" ||
+          code === "ShiftRight")
+      )
+        shots.nuke = true;
+      // Swap weapon: Z, Left Ctrl.
+      else if (down && (key === "z" || key === "Z" || code === "ControlLeft"))
+        shots.selectWeapon = true;
+      else return;
       e.preventDefault();
     };
     const onDown = (e: KeyboardEvent) => setKey(e, true);
@@ -920,10 +926,9 @@ export default function BigSpaceTinyInvaders() {
               swooping squadrons that dive and rejoin it, and the UFOs with their down-beam lasers.
             </p>
             <p>
-              Bullets and missiles drain one shared CHARGE pool (starts at 250, +1/sec). Dead
-              invaders shed shimmering scrap — scoop it up to refill. Catch falling powerups:
-              sprinkler and chain unlock new shooting weapons (swap with Z / right-click), and they
-              plus missiles, air support and the ground nuke all stack up to +3.
+              Bullets and missiles drain one shared CHARGE pool that scrap refills. Catch falling
+              powerups: Sprinkler and Lightning Burst unlock new shooting weapons (swap with Z /
+              right-click); a random bonus also drifts in from an edge every so often.
             </p>
             <p>
               MOVE ◀ ▶ · FIRE SPACE · SWAP WEAPON Z · CLICK = MISSILE · X = AIR SUPPORT · C = NUKE
