@@ -1,0 +1,76 @@
+.page {
+  /* Fill exactly the viewport (dvh tracks mobile browser chrome) and never
+     scroll — the battlefield flexes to whatever space is left. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 0.5rem;
+}
+
+.backLink {
+  color: var(--phosphor-dim);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.backLink:hover {
+  color: var(--coin-gold);
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  color: var(--coin-gold);
+  letter-spacing: 0.2em;
+  font-size: 1.5rem;
+}
+
+/* Balances the back link so the title stays centered */
+.spacer {
+  width: 5rem;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 1rem 3rem;
+}
+
+/* Mobile: trim the chrome so the battlefield fills the screen without scrolling. */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 0.5rem 0.75rem 0.35rem;
+    gap: 0.5rem;
+  }
+
+  .title {
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+  }
+
+  .backLink {
+    font-size: 0.8rem;
+  }
+
+  .spacer {
+    width: 3rem;
+  }
+
+  .main {
+    padding: 0.5rem;
+  }
+}

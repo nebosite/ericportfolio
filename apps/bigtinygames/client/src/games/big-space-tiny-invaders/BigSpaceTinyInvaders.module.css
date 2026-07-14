@@ -1,0 +1,286 @@
+.game {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  padding: 0 0.5rem 0.5rem;
+  color: var(--coin-gold);
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+}
+
+.hordeTag {
+  color: var(--phosphor);
+}
+
+.energyTag {
+  color: #ffe9a8;
+  text-shadow: 0 0 6px rgba(255, 233, 168, 0.6);
+}
+
+.weaponTag {
+  color: #b8e6ff;
+  text-shadow: 0 0 6px rgba(87, 216, 255, 0.5);
+}
+
+.stockTag {
+  color: #ff9a57;
+}
+
+/* The battlefield fills the remaining space; the canvas is sized to it in JS. */
+.stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #06080e;
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.canvas {
+  display: block;
+  background: #06080e;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  /* Touch drives the game directly: no scroll, zoom, long-press or selection. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(6, 8, 14, 0.92);
+  text-align: center;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+}
+
+.overlayTitle {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.25em;
+  color: var(--coin-gold);
+  text-shadow:
+    0 0 8px rgba(255, 206, 59, 0.8),
+    0 0 24px rgba(255, 206, 59, 0.4);
+}
+
+.overlay p {
+  margin: 0;
+  max-width: 36rem;
+}
+
+/* Enemy + power-up legend on the title screen. */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 40rem;
+}
+
+.legendGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem 0.9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.legendHead {
+  color: var(--coin-gold);
+  letter-spacing: 0.15em;
+  font-size: 0.8rem;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.legendChip {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.legendChipUfo {
+  width: 1.1rem;
+  height: 0.55rem;
+  border-radius: 0.4rem;
+  background: #ff5757;
+  flex: 0 0 auto;
+}
+
+.legendChipBox {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: bold;
+  flex: 0 0 auto;
+}
+
+.arcadeButton {
+  font-family: inherit;
+  font-size: 1.1rem;
+  letter-spacing: 0.15em;
+  padding: 0.6rem 1.6rem;
+  background: var(--phosphor);
+  color: var(--crt-black);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.arcadeButton:hover {
+  background: var(--coin-gold);
+}
+
+.initialsForm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.initialsInput {
+  width: 4.5rem;
+  font-family: inherit;
+  font-size: 1.4rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  background: var(--crt-black);
+  color: var(--phosphor);
+  border: 2px solid var(--phosphor-dim);
+  border-radius: 4px;
+  padding: 0.35rem 0.2rem;
+}
+
+.skipButton {
+  font-family: inherit;
+  background: none;
+  border: none;
+  color: var(--phosphor-dim);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.lobbyLink {
+  color: var(--phosphor-dim);
+  text-decoration: none;
+  letter-spacing: 0.12em;
+  font-size: 0.9rem;
+}
+
+.lobbyLink:hover {
+  color: var(--coin-gold);
+}
+
+/* High-scores list, shown inside the idle/game-over overlays. */
+.scoreList {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  min-width: 14rem;
+}
+
+.scoreRow {
+  display: grid;
+  grid-template-columns: 2rem 3.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.rank {
+  color: var(--phosphor-dim);
+}
+
+.scoreInitials {
+  color: var(--phosphor);
+}
+
+.scoreValue {
+  text-align: right;
+  color: var(--coin-gold);
+}
+
+.scoreEmpty {
+  color: var(--phosphor-dim);
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+/* Virtual buttons for touch play — hidden wherever a fine pointer exists. */
+.touchControls {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: none;
+  justify-content: space-between;
+  padding: 0 1rem 1rem;
+  pointer-events: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .touchControls {
+    display: flex;
+  }
+}
+
+.touchCluster {
+  display: flex;
+  gap: 0.75rem;
+  pointer-events: auto;
+}
+
+.touchButton,
+.touchButtonFire {
+  font-family: inherit;
+  font-size: 1.3rem;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--phosphor-dim);
+  background: rgba(13, 13, 20, 0.55);
+  color: var(--phosphor);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touchButtonFire {
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  border-color: var(--alert-red);
+  color: var(--alert-red);
+}

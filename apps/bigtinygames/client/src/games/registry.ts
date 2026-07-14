@@ -38,4 +38,11 @@ export const GAMES: GameMeta[] = [
     path: "/big-aster-tiny-oids",
     status: "ready",
   },
+  {
+    id: "big-space-tiny-invaders",
+    title: "BIG SPACE TINY INVADERS",
+    blurb: "Thousands of them. One tiny you.",
+    path: "/big-space-tiny-invaders",
+    status: "ready",
+  },
 ];
