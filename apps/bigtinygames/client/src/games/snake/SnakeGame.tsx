@@ -247,6 +247,7 @@ export default function SnakeGame() {
     setAlive(stateRef.current.snakes.length);
     setGhosts(0);
     setInitials("");
+    trackEvent("game_start", { game: "snake" });
     setPhase("playing");
   }, []);
 

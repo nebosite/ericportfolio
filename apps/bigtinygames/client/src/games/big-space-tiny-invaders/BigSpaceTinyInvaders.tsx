@@ -954,11 +954,22 @@ export default function BigSpaceTinyInvaders() {
             </p>
             <p>
               Bullets and missiles drain one shared CHARGE pool that scrap refills. Catch falling
-              powerups: Sprinkler and Lightning Burst unlock new shooting weapons (swap with Z /
-              right-click); a random bonus also drifts in from an edge every so often.
+              powerups: Sprinkler and Lightning Burst unlock new shooting weapons; a random bonus
+              also drifts in from an edge every so often.
             </p>
             <p>
-              MOVE ◀ A D ▶ · FIRE SPACE · SWAP WEAPON S · CLICK = MISSILE · E = AIR SUPPORT · Q = NUKE
+              <strong>MOVE</strong> ◀ ▶ arrows · A D · J L · Numpad 4 6
+              &nbsp;|&nbsp;
+              <strong>FIRE</strong> Space · W · I · ↑ · Numpad 7
+              &nbsp;|&nbsp;
+              <strong>SWAP WEAPON</strong> S · K · ↓ · Numpad 5 · right-click
+            </p>
+            <p>
+              <strong>MISSILE</strong> click/tap target
+              &nbsp;|&nbsp;
+              <strong>AIR SUPPORT</strong> E · C · O · . · Enter · Numpad 9 3 · LAlt
+              &nbsp;|&nbsp;
+              <strong>NUKE</strong> Q · U · N · LShift · RCtrl · Numpad 0
             </p>
 
             <div className={styles.legend}>

@@ -23,6 +23,11 @@ export default function HomePage() {
           {GAMES.map((game) => (
             <Link key={game.id} to={game.path} className={styles.cabinet}>
               <span className={styles.marquee}>{game.title}</span>
+              {game.screenshot && (
+                <span className={styles.preview}>
+                  <img src={game.screenshot} alt={`${game.title} in action`} className={styles.previewImg} />
+                </span>
+              )}
               <span className={styles.blurb}>{game.blurb}</span>
               <span className={styles.cabinetFooter}>
                 <span className={game.status === "ready" ? styles.badgeReady : styles.badgeWip}>

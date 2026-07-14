@@ -7,15 +7,26 @@ export interface GameMeta {
   blurb: string;
   path: string;
   status: "ready" | "construction";
+  /** Optional partial screenshot shown on the lobby card. */
+  screenshot?: string;
 }
 
 export const GAMES: GameMeta[] = [
+  {
+    id: "big-space-tiny-invaders",
+    title: "BIG SPACE TINY INVADERS",
+    blurb: "Thousands of them. One tiny you.",
+    path: "/big-space-tiny-invaders",
+    status: "ready",
+    screenshot: "/screenshots/big-space-tiny-invaders.png",
+  },
   {
     id: "big-pac-tiny-man",
     title: "BIG PAC TINY MAN",
     blurb: "Endless donut holes.",
     path: "/big-pac-tiny-man",
     status: "ready",
+    screenshot: "/screenshots/big-pac-tiny-man.png",
   },
   {
     id: "big-pipe-tiny-dream",
@@ -23,13 +34,7 @@ export const GAMES: GameMeta[] = [
     blurb: "So much pipe, so little time.",
     path: "/big-pipe-tiny-dream",
     status: "ready",
-  },
-  {
-    id: "snake",
-    title: "BIG TINY SNAKE",
-    blurb: "Snakes. Why did it have to be snakes?",
-    path: "/snake",
-    status: "ready",
+    screenshot: "/screenshots/big-pipe-tiny-dream.png",
   },
   {
     id: "big-aster-tiny-oids",
@@ -37,12 +42,14 @@ export const GAMES: GameMeta[] = [
     blurb: "That's no moon. It's 12,000 moons.",
     path: "/big-aster-tiny-oids",
     status: "ready",
+    screenshot: "/screenshots/big-aster-tiny-oids.png",
   },
   {
-    id: "big-space-tiny-invaders",
-    title: "BIG SPACE TINY INVADERS",
-    blurb: "Thousands of them. One tiny you.",
-    path: "/big-space-tiny-invaders",
+    id: "snake",
+    title: "BIG TINY SNAKE",
+    blurb: "Snakes. Why did it have to be snakes?",
+    path: "/snake",
     status: "ready",
+    screenshot: "/screenshots/snake.png",
   },
 ];

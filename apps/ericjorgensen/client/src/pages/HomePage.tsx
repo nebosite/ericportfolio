@@ -55,11 +55,6 @@ const RAW: RawCategory[] = [
     style: "sapling",
     items: [
       {
-        name: "clusterfun.tv",
-        desc: "A Jackbox-style framework, plus the games and apps grown on top of it.",
-        href: "https://clusterfun.tv",
-      },
-      {
         name: "hompag",
         desc: "A dynamic, editable homepage for desktop browsers.",
         href: "https://github.com/nebosite/hompag",
@@ -72,7 +67,13 @@ const RAW: RawCategory[] = [
     principle: "Grown by hand, grafted with machine",
     accent: "#2E6E6A",
     style: "grafted",
-    items: [],
+    items: [
+      {
+        name: "clusterfun.tv",
+        desc: "A Jackbox-style framework, plus the games and apps grown on top of it.",
+        href: "https://clusterfun.tv",
+      },
+    ],
   },
   {
     key: "ai",
