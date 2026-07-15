@@ -21,6 +21,13 @@ export const GAMES: GameMeta[] = [
     screenshot: "/screenshots/big-space-tiny-invaders.png",
   },
   {
+    id: "big-robo-tiny-tron",
+    title: "BIG ROBO TINY TRON",
+    blurb: "Robots. A maze. Nowhere to run.",
+    path: "/big-robo-tiny-tron",
+    status: "construction",
+  },
+  {
     id: "big-pac-tiny-man",
     title: "BIG PAC TINY MAN",
     blurb: "Endless donut holes.",
