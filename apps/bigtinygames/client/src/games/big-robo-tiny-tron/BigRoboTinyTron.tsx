@@ -4,11 +4,24 @@ import {
   step,
   mazeCellPassable,
   cellCenter,
+  facingFromVec,
   GameState,
   InputState,
-  CELL_SIZE,
+  Facing,
   POWERUP_TTL,
+  BULLET_LENGTH,
 } from "./roboTronLogic";
+import { getLevelConfig } from "./levels";
+import {
+  loadSpriteSheet,
+  playerRect,
+  enemyRect,
+  familyRect,
+  electrodeRect,
+  SPRITE,
+  SrcRect,
+} from "./sprites";
+import { Sfx } from "./sfx";
 import { trackEvent } from "../../lib/analytics";
 import { attachGameInput } from "../input";
 import FeedbackPanel from "../../components/FeedbackPanel";
@@ -19,6 +32,17 @@ import styles from "./BigRoboTinyTron.module.css";
 // Constants
 
 const ENTITY = "big-robo-tiny-tron";
+
+/**
+ * Maze-cell size in logical px (2.5× the original). The number of cells is
+ * chosen so the grid tiles the viewport, and the canvas backing store
+ * (cols·cellSize × rows·cellSize) is stretched to fill the stage exactly (the
+ * canvas CSS is width/height 100%), so the maze fills the screen on both axes.
+ */
+const CELL = 440;
+
+/** Teleport-pad visual diameter (px). */
+const PAD_DIAMETER = 30;
 
 const POWERUP_COLORS: Record<string, string> = {
   TripleBullets: "#ff00ff",
@@ -32,6 +56,14 @@ const POWERUP_LABELS: Record<string, string> = {
   AllDirections: "8D",
   SpeedBoost: "SPD",
   Decoy: "DEC",
+};
+
+/** Fallback colors for enemy kinds that don't have a sprite yet. */
+const FALLBACK_ENEMY_COLOR: Record<string, string> = {
+  enforcer: "#ff8800",
+  phantom: "#00ffff",
+  spheroid: "#66ccff",
+  tank: "#cccccc",
 };
 
 // ---------------------------------------------------------------------------
@@ -54,6 +86,14 @@ export default function BigRoboTinyTron() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<GameState | null>(null);
   const rafRef = useRef<number>(0);
+
+  // Sprite sheet + sound, loaded once.
+  const sheetRef = useRef<HTMLImageElement | null>(null);
+  const sfxRef = useRef<Sfx | null>(null);
+
+  // Player animation tracking (facing from aim, moving from position delta).
+  const playerFacingRef = useRef<Facing>("right");
+  const prevPlayerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Twin-stick input — held booleans stored in refs to avoid re-renders
   const moveKeys = useRef({ w: false, a: false, s: false, d: false });
@@ -79,51 +119,70 @@ export default function BigRoboTinyTron() {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Canvas / state initialisation on mount
+  // Sprite sheet + sound load on mount
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const w = canvas.clientWidth || 800;
-    const h = canvas.clientHeight || 600;
-    const cols = Math.max(5, Math.floor(w / CELL_SIZE));
-    const rows = Math.max(5, Math.floor(h / CELL_SIZE));
-    canvas.width = cols * CELL_SIZE;
-    canvas.height = rows * CELL_SIZE;
-    stateRef.current = initialState(cols, rows, 1);
+    let alive = true;
+    loadSpriteSheet()
+      .then((img) => {
+        if (alive) sheetRef.current = img;
+      })
+      .catch(() => {});
+    sfxRef.current = new Sfx();
+    return () => {
+      alive = false;
+      sfxRef.current?.destroy();
+    };
   }, []);
 
   // -------------------------------------------------------------------------
-  // Helpers
+  // Build a fresh GameState for a level, sizing the maze to the viewport.
 
-  /** Build a fresh GameState for level 1 at the current canvas size. */
-  const buildFreshState = useCallback(() => {
+  const buildLevel = useCallback((level: number): GameState | null => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const w = canvas.clientWidth || 800;
-    const h = canvas.clientHeight || 600;
-    const cols = Math.max(5, Math.floor(w / CELL_SIZE));
-    const rows = Math.max(5, Math.floor(h / CELL_SIZE));
-    canvas.width = cols * CELL_SIZE;
-    canvas.height = rows * CELL_SIZE;
-    stateRef.current = initialState(cols, rows, 1);
+    if (!canvas) return null;
+    const stage = stageRef.current;
+    const w = stage?.clientWidth || canvas.clientWidth || 900;
+    const h = stage?.clientHeight || canvas.clientHeight || 640;
+
+    const cols = Math.max(3, Math.round(w / CELL));
+    const rows = Math.max(3, Math.round(h / CELL));
+
+    const config = getLevelConfig(level);
+    const st = initialState(cols, rows, level, Math.random, CELL, config);
+    // Backing store = the actual display size (1 backing px = 1 CSS px), so game
+    // objects can be drawn at their native 1:1 pixel resolution. The draw layer
+    // maps the maze's logical space onto this canvas to fill both axes.
+    canvas.width = Math.max(1, Math.round(w));
+    canvas.height = Math.max(1, Math.round(h));
+    return st;
   }, []);
 
+  // Build an initial level-1 state on mount (drawn behind the title).
+  useEffect(() => {
+    stateRef.current = buildLevel(1);
+  }, [buildLevel]);
+
   const startNewGame = useCallback(() => {
-    buildFreshState();
+    const st = buildLevel(1);
+    if (st) {
+      stateRef.current = st;
+      prevPlayerRef.current = { x: st.player.x, y: st.player.y };
+    }
     setDisplayScore(0);
     setDisplayLives(3);
     setDisplayLevel(1);
     setInitials("");
     setSubmitError("");
+    sfxRef.current?.resume();
     trackEvent("game_start", { game: ENTITY });
     setPhase("playing");
-  }, [buildFreshState]);
+  }, [buildLevel]);
 
   // -------------------------------------------------------------------------
   // Draw
 
-  const draw = useCallback((state: GameState) => {
+  const draw = useCallback((state: GameState, t: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -131,15 +190,39 @@ export default function BigRoboTinyTron() {
 
     const { maze } = state;
     const { cols, rows, cellSize } = maze;
-    const t = performance.now() / 1000;
+    const sheet = sheetRef.current;
+
+    // Map the maze's logical space onto the display so it fills both axes; game
+    // objects are then drawn at FIXED native pixel sizes (1:1) regardless of the
+    // grid size — only their positions are scaled.
+    const scaleX = canvas.width / (cols * cellSize);
+    const scaleY = canvas.height / (rows * cellSize);
+    const SX = (x: number) => x * scaleX;
+    const SY = (y: number) => y * scaleY;
+    // Screen size of one cell (for exit openings that span a cell).
+    const cw = cellSize * scaleX;
+    const chh = cellSize * scaleY;
+    // 3-frame walk cycle, ~12fps, staggered per entity id.
+    const animPhase = Math.floor(t * 12);
+
+    ctx.imageSmoothingEnabled = false;
+
+    // Blit a sprite-sheet sub-rect centered on world (wx, wy) at a fixed screen size.
+    const blit = (rect: SrcRect, wx: number, wy: number, dw: number): boolean => {
+      if (!sheet) return false;
+      const px = SX(wx);
+      const py = SY(wy);
+      ctx.drawImage(sheet, rect.sx, rect.sy, rect.s, rect.s, px - dw / 2, py - dw / 2, dw, dw);
+      return true;
+    };
 
     // 1. Clear
     ctx.fillStyle = "#0a0a1a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Maze walls — neon green lines, one pass per cell
+    // 2. Maze walls — neon green lines, 8px thick
     ctx.strokeStyle = "#39ff14";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 8;
     ctx.lineCap = "square";
     ctx.beginPath();
     for (let row = 0; row < rows; row++) {
@@ -148,199 +231,149 @@ export default function BigRoboTinyTron() {
         const x = col * cellSize;
         const y = row * cellSize;
         if (w & 1) {
-          // N wall
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + cellSize, y);
+          ctx.moveTo(SX(x), SY(y));
+          ctx.lineTo(SX(x + cellSize), SY(y));
         }
         if (w & 2) {
-          // E wall
-          ctx.moveTo(x + cellSize, y);
-          ctx.lineTo(x + cellSize, y + cellSize);
+          ctx.moveTo(SX(x + cellSize), SY(y));
+          ctx.lineTo(SX(x + cellSize), SY(y + cellSize));
         }
         if (w & 4) {
-          // S wall
-          ctx.moveTo(x, y + cellSize);
-          ctx.lineTo(x + cellSize, y + cellSize);
+          ctx.moveTo(SX(x), SY(y + cellSize));
+          ctx.lineTo(SX(x + cellSize), SY(y + cellSize));
         }
         if (w & 8) {
-          // W wall
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y + cellSize);
+          ctx.moveTo(SX(x), SY(y));
+          ctx.lineTo(SX(x), SY(y + cellSize));
         }
       }
     }
     ctx.stroke();
 
-    // 3. Exit rects — bright yellow openings on border when exits are open
+    // 3. Exit openings
     if (state.exitsOpen) {
       ctx.fillStyle = "rgba(255, 238, 0, 0.85)";
       for (const ec of maze.exitCells) {
-        const x = ec.col * cellSize;
-        const y = ec.row * cellSize;
+        const x = SX(ec.col * cellSize);
+        const y = SY(ec.row * cellSize);
         if (ec.row === 0 && mazeCellPassable(maze, ec.col, ec.row, "N")) {
-          ctx.fillRect(x + 5, y - 4, cellSize - 10, 8);
+          ctx.fillRect(x + 5, y - 4, cw - 10, 8);
         } else if (ec.row === rows - 1 && mazeCellPassable(maze, ec.col, ec.row, "S")) {
-          ctx.fillRect(x + 5, y + cellSize - 4, cellSize - 10, 8);
+          ctx.fillRect(x + 5, y + chh - 4, cw - 10, 8);
         } else if (ec.col === 0 && mazeCellPassable(maze, ec.col, ec.row, "W")) {
-          ctx.fillRect(x - 4, y + 5, 8, cellSize - 10);
+          ctx.fillRect(x - 4, y + 5, 8, chh - 10);
         } else if (ec.col === cols - 1 && mazeCellPassable(maze, ec.col, ec.row, "E")) {
-          ctx.fillRect(x + cellSize - 4, y + 5, 8, cellSize - 10);
+          ctx.fillRect(x + cw - 4, y + 5, 8, chh - 10);
         }
       }
     }
 
-    // 4. Teleport pads — pulsing blue squares at corners
-    const padAlpha = 0.4 + 0.25 * Math.sin(t * 3.5);
-    ctx.fillStyle = `rgba(40, 80, 255, ${padAlpha})`;
+    // 4. Teleport pads — small 30px pulsing disks at the corner-cell centers
+    const padAlpha = 0.45 + 0.3 * Math.sin(t * 3.5);
     for (const pad of maze.teleportPads) {
-      const px = pad.col * cellSize + 4;
-      const py = pad.row * cellSize + 4;
-      ctx.fillRect(px, py, cellSize - 8, cellSize - 8);
-    }
-    // Teleport pad border glow
-    ctx.strokeStyle = `rgba(80, 140, 255, ${0.6 + 0.4 * Math.sin(t * 3.5)})`;
-    ctx.lineWidth = 1;
-    for (const pad of maze.teleportPads) {
-      const px = pad.col * cellSize + 4;
-      const py = pad.row * cellSize + 4;
-      ctx.strokeRect(px, py, cellSize - 8, cellSize - 8);
+      const c = cellCenter(maze, pad.col, pad.row);
+      ctx.beginPath();
+      ctx.arc(SX(c.x), SY(c.y), PAD_DIAMETER / 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(40, 80, 255, ${padAlpha})`;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(120, 170, 255, ${0.6 + 0.4 * Math.sin(t * 3.5)})`;
+      ctx.stroke();
     }
 
-    // 5. Humans — yellow 6×6 squares
-    ctx.fillStyle = "#ffee00";
+    // 5. Electrodes — native 16px
+    for (const el of state.electrodes) {
+      if (!blit(electrodeRect(el.type, el.shrink), el.x, el.y, SPRITE)) {
+        ctx.fillStyle = "#39ff14";
+        ctx.fillRect(SX(el.x) - 5, SY(el.y) - 5, 10, 10);
+      }
+    }
+
+    // 6. Family members — native 16px, 3-frame walk cycle
     for (const h of state.humans) {
-      const hc = cellCenter(maze, h.col, h.row);
-      ctx.fillRect(hc.x - 3, hc.y - 3, 6, 6);
+      const ph = animPhase + h.id;
+      if (!blit(familyRect(h.type, h.facing, h.moving, ph), h.x, h.y, SPRITE)) {
+        ctx.fillStyle = "#ffee00";
+        ctx.fillRect(SX(h.x) - 4, SY(h.y) - 4, 8, 8);
+      }
     }
 
-    // 6. Powerup pickups — 8×8 colored squares with label
+    // 7. Powerup pickups
     for (const p of state.powerupPickups) {
       const pc = cellCenter(maze, p.col, p.row);
-      const color = POWERUP_COLORS[p.kind] ?? "#ffffff";
-      ctx.fillStyle = color;
-      ctx.fillRect(pc.x - 4, pc.y - 4, 8, 8);
+      const px = SX(pc.x);
+      const py = SY(pc.y);
+      ctx.fillStyle = POWERUP_COLORS[p.kind] ?? "#ffffff";
+      ctx.fillRect(px - 6, py - 6, 12, 12);
       ctx.fillStyle = "#000000";
-      ctx.font = "5px monospace";
+      ctx.font = "8px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(POWERUP_LABELS[p.kind] ?? "?", pc.x, pc.y);
+      ctx.fillText(POWERUP_LABELS[p.kind] ?? "?", px, py);
     }
 
-    // 7. Active decoy — semi-transparent pulsing orange-magenta sprite
+    // 8. Enemies — native 16px sprite (or fallback shape)
+    for (const e of state.enemies) {
+      const ph = animPhase + e.id;
+      const rect = enemyRect(e.kind, e.facing, e.moving, ph);
+      if (rect && blit(rect, e.x, e.y, SPRITE)) continue;
+      ctx.fillStyle = FALLBACK_ENEMY_COLOR[e.kind] ?? "#ff3333";
+      const s = e.kind === "enforcer" || e.kind === "tank" ? 14 : 10;
+      ctx.fillRect(SX(e.x) - s / 2, SY(e.y) - s / 2, s, s);
+    }
+
+    // 9. Active decoy
     if (state.decoy) {
       const fade = Math.min(1, state.decoy.ttl / (POWERUP_TTL * 0.5));
       const pulse = 0.4 + 0.3 * Math.sin(t * 6);
       ctx.fillStyle = `rgba(255, 80, 200, ${fade * pulse})`;
-      ctx.fillRect(state.decoy.x - 4, state.decoy.y - 4, 8, 8);
-      ctx.strokeStyle = `rgba(255, 150, 50, ${fade * 0.9})`;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(state.decoy.x - 5, state.decoy.y - 5, 10, 10);
+      ctx.fillRect(SX(state.decoy.x) - 5, SY(state.decoy.y) - 5, 10, 10);
     }
 
-    // 8. Player — 8×8 bright green square, flicker during invuln
+    // 10. Player — native 16px
     if (state.player.respawnTimer <= 0) {
       const flickerOff = state.player.invuln > 0 && Math.floor(t * 10) % 2 === 0;
       if (!flickerOff) {
-        ctx.fillStyle = "#00ff88";
-        ctx.fillRect(state.player.x - 4, state.player.y - 4, 8, 8);
-        // Aim direction indicator — tiny bright triangle
-        const { aimDir } = state.player;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(
-          state.player.x + aimDir.x * 5 - 1,
-          state.player.y + aimDir.y * 5 - 1,
-          2,
-          2,
-        );
+        const facing =
+          facingFromVec(state.player.aimDir.x, state.player.aimDir.y) ?? playerFacingRef.current;
+        playerFacingRef.current = facing;
+        const prev = prevPlayerRef.current;
+        const moving = Math.abs(state.player.x - prev.x) + Math.abs(state.player.y - prev.y) > 0.3;
+        prevPlayerRef.current = { x: state.player.x, y: state.player.y };
+        if (!blit(playerRect(facing, moving, animPhase), state.player.x, state.player.y, SPRITE)) {
+          ctx.fillStyle = "#00ff88";
+          ctx.fillRect(SX(state.player.x) - 5, SY(state.player.y) - 5, 10, 10);
+        }
       }
     }
 
-    // 9. Grunts — 8×8 red
-    ctx.fillStyle = "#ff3333";
-    for (const e of state.enemies) {
-      if (e.kind !== "grunt") continue;
-      const ec = cellCenter(maze, e.col, e.row);
-      ctx.fillRect(ec.x - 4, ec.y - 4, 8, 8);
-      // HP dot (always 1 for grunt)
-    }
-
-    // 10. Enforcers — 12×8 orange, with HP pips
-    ctx.fillStyle = "#ff8800";
-    for (const e of state.enemies) {
-      if (e.kind !== "enforcer") continue;
-      const ec = cellCenter(maze, e.col, e.row);
-      ctx.fillRect(ec.x - 6, ec.y - 4, 12, 8);
-      // HP pips above enforcer
-      for (let h = 0; h < e.hp; h++) {
-        ctx.fillStyle = "#ffcc00";
-        ctx.fillRect(ec.x - 4 + h * 4, ec.y - 7, 3, 2);
-      }
-      ctx.fillStyle = "#ff8800";
-    }
-
-    // 11. Phantoms — 10×10 pulsing cyan
-    for (const e of state.enemies) {
-      if (e.kind !== "phantom") continue;
-      const ec = cellCenter(maze, e.col, e.row);
-      const pulse = 0.6 + 0.4 * Math.sin(t * 5);
-      ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
-      ctx.fillRect(ec.x - 5, ec.y - 5, 10, 10);
-      // Outer glow ring
-      ctx.strokeStyle = `rgba(0, 220, 255, ${pulse * 0.5})`;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(ec.x - 7, ec.y - 7, 14, 14);
-    }
-
-    // 12. Bullets
+    // 11. Bullets — fixed 6px line oriented along (screen-space) travel direction
+    ctx.lineCap = "round";
+    ctx.lineWidth = 2.5;
     for (const b of state.bullets) {
-      if (b.fromPlayer) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(b.x - 2, b.y - 2, 4, 4);
-      } else {
-        ctx.fillStyle = "#ff6666";
-        ctx.fillRect(b.x - 1.5, b.y - 1.5, 3, 3);
-      }
+      const vx = b.vx * scaleX;
+      const vy = b.vy * scaleY;
+      const spd = Math.hypot(vx, vy) || 1;
+      const ux = vx / spd;
+      const uy = vy / spd;
+      const half = BULLET_LENGTH / 2;
+      const bx = SX(b.x);
+      const by = SY(b.y);
+      ctx.strokeStyle = b.fromPlayer ? "#ffffff" : "#ff5555";
+      ctx.beginPath();
+      ctx.moveTo(bx - ux * half, by - uy * half);
+      ctx.lineTo(bx + ux * half, by + uy * half);
+      ctx.stroke();
     }
 
-    // 13. HUD
-    ctx.font = "bold 13px monospace";
-    ctx.textBaseline = "top";
-
-    // Score — top left
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#39ff14";
-    ctx.fillText(`SCORE: ${state.score.toLocaleString()}`, 8, 6);
-
-    // Level + lives — top right
-    ctx.textAlign = "right";
-    const heartsStr = "♥".repeat(Math.max(0, state.lives));
-    ctx.fillText(`LV${state.level}  ${heartsStr}`, canvas.width - 8, 6);
-
-    // Powerup timer bar — top centre
-    if (state.player.activePowerup && state.player.activePowerup !== "Decoy") {
-      const barW = 100;
-      const barX = canvas.width / 2 - barW / 2;
-      const barY = 4;
-      const frac = Math.max(0, state.player.powerupTimer / POWERUP_TTL);
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(barX - 1, barY - 1, barW + 2, 10);
-      ctx.fillStyle = POWERUP_COLORS[state.player.activePowerup] ?? "#ffffff";
-      ctx.fillRect(barX, barY, barW * frac, 8);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "7px monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(state.player.activePowerup.toUpperCase(), canvas.width / 2, barY);
+    // 12. Particles — horizontal debris lines (fixed screen size)
+    for (const p of state.particles) {
+      const a = Math.max(0, Math.min(1, p.ttl / p.life));
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(SX(p.x) - p.len, SY(p.y) - 1, p.len * 2, 2);
     }
-
-    // Decoy charge counter — bottom left
-    if (state.decoyCharges > 0) {
-      ctx.fillStyle = "#ff8800";
-      ctx.font = "11px monospace";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(`DECOY ×${state.decoyCharges}`, 8, canvas.height - 6);
-    }
+    ctx.globalAlpha = 1;
   }, []);
 
   // -------------------------------------------------------------------------
@@ -433,7 +466,6 @@ export default function BigRoboTinyTron() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      // Reset held keys so nothing bleeds into the next phase
       moveKeys.current = { w: false, a: false, s: false, d: false };
       aimKeys.current = { up: false, down: false, left: false, right: false };
     };
@@ -455,7 +487,6 @@ export default function BigRoboTinyTron() {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 
-      // Build input snapshot
       const mk = moveKeys.current;
       const ak = aimKeys.current;
       const input: InputState = {
@@ -470,37 +501,45 @@ export default function BigRoboTinyTron() {
 
       const next = step(stateRef.current!, input, dt);
 
-      draw(next);
+      // Play sound for every event this step.
+      const sfx = sfxRef.current;
+      if (sfx) for (const ev of next.events) sfx.play(ev);
+
+      draw(next, now / 1000);
       setDisplayScore(next.score);
       setDisplayLives(next.lives);
       setDisplayLevel(next.level);
 
       const evts = next.events;
 
-      // Game over takes priority
       if (evts.includes("gameover")) {
         trackEvent("game_over", { game: ENTITY, score: next.score });
         setPhase("gameover");
         return;
       }
 
-      // Player hit (life lost but still alive)
       if (evts.includes("playerHit")) {
         setPhase("dead");
         setTimeout(() => {
-          // Clear respawn timer so the player is in control immediately
           if (stateRef.current) stateRef.current.player.respawnTimer = 0;
           setPhase("playing");
         }, 1500);
         return;
       }
 
-      // Level advance — state is already reset by step() via Object.assign
+      // Level advance — the component owns building the next level (dynamic
+      // cell size + the CSV config for the new level).
       if (evts.includes("levelAdvance")) {
+        const cur = stateRef.current!;
+        const st = buildLevel(cur.level + 1);
+        if (st) {
+          st.score = cur.score;
+          st.lives = cur.lives;
+          stateRef.current = st;
+          prevPlayerRef.current = { x: st.player.x, y: st.player.y };
+        }
         setPhase("exiting");
-        setTimeout(() => {
-          setPhase("playing");
-        }, 2000);
+        setTimeout(() => setPhase("playing"), 2000);
         return;
       }
 
@@ -512,7 +551,7 @@ export default function BigRoboTinyTron() {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
     };
-  }, [phase, draw]);
+  }, [phase, draw, buildLevel]);
 
   // -------------------------------------------------------------------------
   // Idle screen: Enter/Space to start
@@ -559,6 +598,16 @@ export default function BigRoboTinyTron() {
     <div ref={stageRef} className={styles.stage}>
       <canvas ref={canvasRef} className={styles.canvas} />
 
+      {/* ---- HUD ---- */}
+      {(phase === "playing" || phase === "dead" || phase === "exiting") && (
+        <div className={styles.hud}>
+          <span>SCORE: {displayScore.toLocaleString()}</span>
+          <span>
+            LV{displayLevel} &nbsp; {"♥".repeat(Math.max(0, displayLives))}
+          </span>
+        </div>
+      )}
+
       {/* ---- Idle / title overlay ---- */}
       {phase === "idle" && (
         <div className={styles.overlay}>
@@ -566,7 +615,7 @@ export default function BigRoboTinyTron() {
             BIG ROBO TINY TRON
           </h1>
           <p style={{ color: "#00ccff", margin: "0.25rem 0 0.75rem" }}>
-            Twin-stick shooter · maze arena · rescue the humans
+            Twin-stick shooter · big neon maze · rescue the family
           </p>
 
           <div
@@ -598,13 +647,11 @@ export default function BigRoboTinyTron() {
             }}
           >
             <span style={{ color: "#ff3333" }}>■ Grunt</span>
-            <span>1 HP · BFS chaser · fires</span>
-            <span style={{ color: "#ff8800" }}>▬ Enforcer</span>
-            <span>3 HP · spread shot</span>
-            <span style={{ color: "#00ffff" }}>■ Phantom</span>
-            <span>passes through walls</span>
-            <span style={{ color: "#ffee00" }}>■ Human</span>
-            <span>rescue for +1000</span>
+            <span>swarms toward you by contact</span>
+            <span style={{ color: "#39ff14" }}>■ Electrode</span>
+            <span>shoot it — deadly to touch</span>
+            <span style={{ color: "#ff5cc8" }}>■ Family</span>
+            <span>rescue for +1000 · dies on any hazard</span>
           </div>
 
           <button className={styles.arcadeButton} onClick={startNewGame}>
@@ -647,28 +694,23 @@ export default function BigRoboTinyTron() {
             </strong>
           </p>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+              alignItems: "center",
+            }}
+          >
             <label style={{ color: "#aaa", fontSize: "0.85rem" }}>Enter your initials</label>
             <input
               type="text"
               maxLength={3}
               value={initials}
-              onChange={(e) =>
-                setInitials(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-              }
+              onChange={(e) => setInitials(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
               placeholder="AAA"
-              style={{
-                textAlign: "center",
-                fontFamily: "monospace",
-                fontSize: "1.8rem",
-                width: "4.5ch",
-                background: "#0a0a1a",
-                color: "#39ff14",
-                border: "2px solid #39ff14",
-                borderRadius: "4px",
-                padding: "0.2rem 0.4rem",
-                letterSpacing: "0.3em",
-              }}
+              className={styles.initials}
             />
             {submitError && (
               <p style={{ color: "#ff5555", margin: 0, fontSize: "0.8rem" }}>{submitError}</p>
@@ -727,7 +769,8 @@ export default function BigRoboTinyTron() {
                   fontSize: "0.85rem",
                   padding: "0.15rem 0",
                   color: row.initials === initials ? "#39ff14" : "#ccc",
-                  borderBottom: i < Math.min(leaderboard.length, 10) - 1 ? "1px solid #222" : "none",
+                  borderBottom:
+                    i < Math.min(leaderboard.length, 10) - 1 ? "1px solid #222" : "none",
                 }}
               >
                 <span style={{ color: "#555", width: "1.5rem" }}>{i + 1}.</span>

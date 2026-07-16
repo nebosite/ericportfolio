@@ -46,6 +46,20 @@
 /** A 2D vector / point in pixel space. */
 export type Vec2 = { x: number; y: number };
 
+/**
+ * A cardinal facing used to pick the walking-sprite row/column set.
+ * The sprite sheet gives each walking character 12 frames grouped by facing
+ * (left, right, down, up), so every moving entity tracks which way it faces.
+ */
+export type Facing = "left" | "right" | "down" | "up";
+
+/** Map a movement vector to the nearest cardinal facing (dominant axis wins). */
+export function facingFromVec(dx: number, dy: number): Facing | null {
+  if (dx === 0 && dy === 0) return null;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
+  return dy >= 0 ? "down" : "up";
+}
+
 /** An integer cell coordinate in the maze grid. */
 export interface CellPos {
   col: number;
@@ -154,10 +168,22 @@ interface EnemyBase {
    * spawn; never reused. Used as React key and for targeting logic.
    */
   id: number;
-  /** Current cell column (authoritative position in logic). */
+  /**
+   * Pixel-space center. Enemies now move smoothly one small step at a time
+   * (like the player) rather than teleporting cell-to-cell, so (x, y) is the
+   * authoritative position. `col`/`row` are the derived cell the enemy occupies
+   * (cellAt(x, y)), kept in sync each step for BFS pathing and line-of-sight.
+   */
+  x: number;
+  y: number;
+  /** Current cell column (derived from x/y; used for BFS + line-of-sight). */
   col: number;
-  /** Current cell row. */
+  /** Current cell row (derived from x/y). */
   row: number;
+  /** Facing for sprite selection: which way the enemy last moved. */
+  facing: Facing;
+  /** True on any step in which the enemy actually moved (drives walk animation). */
+  moving: boolean;
   /** Hit points remaining. Removed from enemies[] when hp reaches 0. */
   hp: number;
   /**
@@ -224,26 +250,155 @@ export interface Phantom extends EnemyBase {
   phasing: boolean;
 }
 
-export type Enemy = Grunt | Enforcer | Phantom;
+/**
+ * Hulk — big, tough marcher (green robot sprite, row 6).
+ * High HP; shrugs off bullets it doesn't get enough of. Slower cadence.
+ */
+export interface Hulk extends EnemyBase {
+  kind: "hulk";
+}
+
+/**
+ * Brain — the commander (purple sprite, row 7). Pathfinds toward the player;
+ * higher HP than a Grunt. (Reprogramming of family members is a future feature;
+ * for now it simply chases and is worth more points.)
+ */
+export interface Brain extends EnemyBase {
+  kind: "brain";
+}
+
+/**
+ * Spheroid — spawner drone. No sprite yet (rendered as a fallback shape until
+ * its art is added); included so the CSV population column has a home.
+ */
+export interface Spheroid extends EnemyBase {
+  kind: "spheroid";
+}
+
+/**
+ * Tank — heavy shooter. No sprite yet (fallback shape); present for the CSV
+ * population column.
+ */
+export interface Tank extends EnemyBase {
+  kind: "tank";
+}
+
+export type Enemy = Grunt | Enforcer | Phantom | Hulk | Brain | Spheroid | Tank;
 export type EnemyKind = Enemy["kind"];
 
 // ---------------------------------------------------------------------------
 // Humans (yellow dots)
 
+/** The four rescuable family-member types (sprite rows 1–4). */
+export type FamilyType = "mom" | "dad" | "mike" | "sally";
+
 /**
- * A human rescue target placed at a fixed cell at level start.
- * Contact with the player grants HUMAN_RESCUE_SCORE and removes the human.
- * A Grunt occupying the same cell kills the human: deduct HUMAN_KILL_PENALTY
- * and remove it. Dead humans are removed from the array immediately after
- * the penalty event is emitted.
+ * A family member (was "Human") — a rescue target that wanders the maze.
+ *
+ * Family members move smoothly in pixel space, one small step every other
+ * frame, drifting in a random direction (they don't chase anything). They
+ * CANNOT be hit by bullets. Touching the player rescues them (+score); touching
+ * any electrode or enemy kills them, emitting a "familyDie" wail.
  */
 export interface Human {
-  /**
-   * Unique stable id; assigned from GameState.nextHumanId at level init.
-   */
+  /** Unique stable id; assigned from GameState.nextHumanId at level init. */
   id: number;
+  /** Which family member (drives the sprite row). */
+  type: FamilyType;
+  /** Pixel-space center (authoritative). */
+  x: number;
+  y: number;
+  /** Derived cell (cellAt(x, y)); kept in sync for wall queries. */
   col: number;
   row: number;
+  /** Facing for sprite selection. */
+  facing: Facing;
+  /** True on frames the family member actually moved (drives walk animation). */
+  moving: boolean;
+  /** Current random wander direction (unit-ish vector); re-rolled periodically. */
+  wanderX: number;
+  wanderY: number;
+}
+
+// ---------------------------------------------------------------------------
+// Electrodes (static hazards)
+
+/**
+ * An electrode — a static maze hazard placed per grid square at level start.
+ *
+ * Electrodes are lethal on contact to the player and to family members, and
+ * enemies steer around them. A player bullet destroys an electrode: it plays a
+ * two-frame shrink animation (`shrink` 0 → 1 → 2) and is then removed. While
+ * `shrink > 0` the electrode is dying and no longer harms anything.
+ *
+ * `type` (0–7) selects the sprite group on the sheet (rows 13–14, four groups
+ * of three each). Level 1 uses type 0.
+ */
+export interface Electrode {
+  id: number;
+  /** Pixel-space center. */
+  x: number;
+  y: number;
+  /** Derived cell. */
+  col: number;
+  row: number;
+  /** Sprite group 0–7. */
+  type: number;
+  /** 0 = intact, 1/2 = shrink frames after being shot. */
+  shrink: number;
+  /** Seconds left in the current shrink frame (0 while intact). */
+  shrinkTimer: number;
+}
+
+// ---------------------------------------------------------------------------
+// Particles (destruction debris)
+
+/**
+ * A debris fragment from a destroyed character. On death a character breaks
+ * into horizontal line segments that fly apart perpendicular to the bullet that
+ * killed it, fading as they go. Purely cosmetic but simulated in step() so the
+ * renderer stays dumb.
+ */
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  /** Half-length of the horizontal line, pixels. */
+  len: number;
+  /** Seconds of life remaining. */
+  ttl: number;
+  /** Original ttl, for fade alpha. */
+  life: number;
+  /** CSS color string. */
+  color: string;
+}
+
+// ---------------------------------------------------------------------------
+// Level configuration (CSV-driven populations)
+
+/**
+ * Per-grid-square population counts and tuning for one level. Authored in the
+ * hand-editable `assets/levels.csv` spreadsheet and parsed by levels.ts; the
+ * component passes the row for the current level into initialState(). Each count
+ * is spawned in EVERY interior grid square (except the player's start cell).
+ */
+export interface LevelConfig {
+  moms: number;
+  dads: number;
+  mikeys: number;
+  sallys: number;
+  grunts: number;
+  hulks: number;
+  brains: number;
+  spheroids: number;
+  enforcers: number;
+  /** Electrode sprite group (0–7) used for this level. */
+  electrodeType: number;
+  electrodes: number;
+  tanks: number;
+  /** Per-frame probability (0–1) that an enemy takes its 2px step. */
+  enemyMoveChance: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +423,7 @@ export interface Human {
 export interface Bullet {
   /** Unique id from GameState.nextBulletId. */
   id: number;
-  x: number;  // pixel position
+  x: number; // pixel position
   y: number;
   vx: number; // pixels/second
   vy: number;
@@ -343,19 +498,21 @@ export interface DecoyEntity {
  * recently completed step.
  */
 export type SoundEvent =
-  | "playerShoot"     // player bullet fired
-  | "enemyShoot"      // enemy bullet fired
-  | "enemyDie"        // an enemy reduced to 0 HP
-  | "playerHit"       // player struck by an enemy bullet (life lost)
-  | "playerDie"       // lives reached 0 → game over transition
-  | "humanRescue"     // player contacted a human (+HUMAN_RESCUE_SCORE)
-  | "humanDie"        // a Grunt reached a human (−HUMAN_KILL_PENALTY)
-  | "powerupPickup"   // player collected a powerup
-  | "teleport"        // player used a corner teleport pad
-  | "exitsOpen"       // all enemies dead, exits opening (play a level-clear chime)
-  | "levelAdvance"    // player walked through an exit → next level loaded
-  | "phantomDebut"    // first Phantom appears (triggers 10-second telegraph animation)
-  | "gameover";       // game ended
+  | "playerShoot" // player bullet fired
+  | "enemyShoot" // enemy bullet fired
+  | "enemyDie" // an enemy reduced to 0 HP
+  | "playerHit" // player struck by an enemy bullet (life lost)
+  | "playerDie" // lives reached 0 → game over transition
+  | "humanRescue" // player contacted a family member (+HUMAN_RESCUE_SCORE)
+  | "humanDie" // a Grunt reached a family member (−HUMAN_KILL_PENALTY)
+  | "familyDie" // a family member touched an electrode/enemy (electronic wail)
+  | "electrodeHit" // a player bullet destroyed an electrode
+  | "powerupPickup" // player collected a powerup
+  | "teleport" // player used a corner teleport pad
+  | "exitsOpen" // all enemies dead, exits opening (play a level-clear chime)
+  | "levelAdvance" // player walked through an exit → next level loaded
+  | "phantomDebut" // first Phantom appears (triggers 10-second telegraph animation)
+  | "gameover"; // game ended
 
 // ---------------------------------------------------------------------------
 // Game phase
@@ -366,10 +523,10 @@ export type SoundEvent =
  * and game-over overlays. Logic runs only in "playing" phase.
  */
 export type GamePhase =
-  | "title"       // title screen; step() is a no-op
-  | "playing"     // active gameplay
-  | "levelclear"  // all enemies dead, exits open; player walks to exit
-  | "gameover";   // game over; step() is a no-op
+  | "title" // title screen; step() is a no-op
+  | "playing" // active gameplay
+  | "levelclear" // all enemies dead, exits open; player walks to exit
+  | "gameover"; // game over; step() is a no-op
 
 // ---------------------------------------------------------------------------
 // Root game state
@@ -393,7 +550,16 @@ export interface GameState {
   maze: Maze;
   player: Player;
   enemies: Enemy[];
+  /** Family members (rescue targets). */
   humans: Human[];
+  /** Static electrode hazards. */
+  electrodes: Electrode[];
+  /** Cosmetic destruction debris. */
+  particles: Particle[];
+  /** Per-frame probability an enemy takes its 2px step (from the level config). */
+  enemyMoveChance: number;
+  /** Monotonic frame counter; family members move on even frames (every other). */
+  frame: number;
   bullets: Bullet[];
   powerupPickups: PowerupPickup[];
   /** The currently active decoy, or null if none has been placed. */
@@ -483,26 +649,60 @@ export interface InputState {
 // All values exported so the renderer and tests can reference them without
 // hard-coding magic numbers. Adjust here; everything else follows.
 
-/** Pixel size of each maze cell. Keep a multiple of 8 for crisp pixel walls. */
-export const CELL_SIZE = 40;
+/**
+ * Default pixel size of each maze cell. Cells are now BIG (Robotron-style
+ * arena squares). The component computes an exact size in the 150–200px band
+ * that tiles the viewport cleanly and passes it into initialState(); this
+ * constant is the fallback used by tests and when no size is supplied.
+ */
+export const CELL_SIZE = 176;
 
 /** Player collision radius (pixel circle). */
-export const PLAYER_RADIUS = 7;
+export const PLAYER_RADIUS = 10;
 
 /** Base player movement speed in pixels/second. */
-export const PLAYER_SPEED = 180;
+export const PLAYER_SPEED = 200;
 
 /** Movement speed multiplier while SpeedBoost is active. */
 export const PLAYER_SPEED_BOOST = 1.6;
 
-/** Minimum seconds between player shots (base rate, no powerup). */
-export const PLAYER_SHOOT_COOLDOWN = 0.22;
+/** Minimum seconds between player shots. 0.1 ⇒ a 10-shots-per-second fire rate. */
+export const PLAYER_SHOOT_COOLDOWN = 0.1;
 
 /** Player bullet travel speed in pixels/second. */
-export const BULLET_SPEED = 340;
+export const BULLET_SPEED = 1500;
+
+/** Rendered length of a bullet's line segment, pixels. */
+export const BULLET_LENGTH = 6;
 
 /** Bullet collision radius in pixels (treated as a point hit on walls). */
 export const BULLET_RADIUS = 3;
+
+/** Pixels an enemy advances on a single move step. */
+export const ENEMY_STEP_PX = 4;
+
+/** Pixels a family member advances on a single wander step. */
+export const FAMILY_STEP_PX = 2;
+
+/** Collision radius for an electrode (kills player/family, stops bullets). */
+export const ELECTRODE_RADIUS = 12;
+
+/** Enemy collision radius (for family death + bullet hits). */
+export const ENEMY_RADIUS = 9;
+
+/** Seconds each electrode shrink frame is shown while it is being destroyed. */
+export const ELECTRODE_SHRINK_TIME = 0.06;
+
+/** HP by enemy kind (bullets needed to destroy). */
+export const ENEMY_HP: Record<EnemyKind, number> = {
+  grunt: 1,
+  enforcer: 3,
+  phantom: 2,
+  hulk: 6,
+  brain: 3,
+  spheroid: 1,
+  tank: 5,
+};
 
 /**
  * Player bullet spread angle in radians for the TripleBullets powerup.
@@ -517,10 +717,10 @@ export const TRIPLE_SPREAD = Math.PI / 12; // 15°
 export const GRUNT_MOVE_INTERVAL = 0.22;
 
 /** Seconds between Enforcer cell steps (slower than the Grunt). */
-export const ENFORCER_MOVE_INTERVAL = 0.30;
+export const ENFORCER_MOVE_INTERVAL = 0.3;
 
 /** Seconds between Phantom cell steps. */
-export const PHANTOM_MOVE_INTERVAL = 0.20;
+export const PHANTOM_MOVE_INTERVAL = 0.2;
 
 /** Seconds between Grunt shots. */
 export const GRUNT_SHOOT_COOLDOWN = 1.8;
@@ -578,10 +778,17 @@ export const DECOY_TTL = 6.0;
 export const DECOY_MAX_HELD = 3;
 
 /**
- * Pixel radius within which the player triggers a teleport pad.
- * The player's center must be within this distance of the pad cell's center.
+ * Pixel radius within which the player triggers a teleport pad. The pad is a
+ * small 30px-diameter target, so the trigger radius is 15px.
  */
-export const TELEPORT_PAD_RADIUS = 10;
+export const TELEPORT_PAD_RADIUS = 15;
+
+/**
+ * On teleport, the player is placed this many pixels from the destination pad's
+ * center (offset toward the maze interior), so they land at least 50px away and
+ * don't immediately re-trigger the pad.
+ */
+export const TELEPORT_EXIT_OFFSET = 55;
 
 /**
  * Pixel radius within which the player collects a powerup pickup.
@@ -599,6 +806,27 @@ export const HUMAN_CONTACT_RADIUS = 12;
  */
 export const ENEMIES_BASE = 3;
 export const ENEMIES_PER_LEVEL = 2;
+
+/**
+ * Level 1 population per grid square — the fallback used by tests and when the
+ * CSV can't be loaded. Mirrors the first row of assets/levels.csv:
+ * 10 grunts, 4 type-0 electrodes, 1 mom, 1 dad, 5% enemy move chance.
+ */
+export const DEFAULT_LEVEL_CONFIG: LevelConfig = {
+  moms: 1,
+  dads: 1,
+  mikeys: 0,
+  sallys: 0,
+  grunts: 10,
+  hulks: 0,
+  brains: 0,
+  spheroids: 0,
+  enforcers: 0,
+  electrodeType: 0,
+  electrodes: 4,
+  tanks: 0,
+  enemyMoveChance: 0.05,
+};
 
 // ---------------------------------------------------------------------------
 // Internal wall-bit constants (N=1, E=2, S=4, W=8)
@@ -638,9 +866,7 @@ export function cellAt(maze: Maze, x: number, y: number): CellPos {
   };
 }
 
-export function teleportPadPositions(
-  maze: Maze,
-): readonly [CellPos, CellPos, CellPos, CellPos] {
+export function teleportPadPositions(maze: Maze): readonly [CellPos, CellPos, CellPos, CellPos] {
   return maze.teleportPads;
 }
 
@@ -648,12 +874,7 @@ export function exitPositions(maze: Maze): CellPos[] {
   return maze.exitCells;
 }
 
-export function bfsPath(
-  maze: Maze,
-  start: CellPos,
-  goal: CellPos,
-  ignoreWalls = false,
-): CellPos[] {
+export function bfsPath(maze: Maze, start: CellPos, goal: CellPos, ignoreWalls = false): CellPos[] {
   const { cols, rows } = maze;
   const total = cols * rows;
   const visited = new Uint8Array(total);
@@ -788,11 +1009,15 @@ function buildMaze(cols: number, rows: number, rng: () => number): Uint8Array {
 // ---------------------------------------------------------------------------
 // initialState
 
+const FACINGS: Facing[] = ["left", "right", "down", "up"];
+
 export function initialState(
   cols: number,
   rows: number,
   level: number,
   rng: () => number = Math.random,
+  cellSize: number = CELL_SIZE,
+  config: LevelConfig = DEFAULT_LEVEL_CONFIG,
 ): GameState {
   if (cols % 2 === 0) cols++;
   if (rows % 2 === 0) rows++;
@@ -816,7 +1041,7 @@ export function initialState(
     { col: 0, row: midRow },
   ];
 
-  const maze: Maze = { cols, rows, walls, cellSize: CELL_SIZE, teleportPads, exitCells };
+  const maze: Maze = { cols, rows, walls, cellSize, teleportPads, exitCells };
 
   const playerCenter = cellCenter(maze, midCol, midRow);
   const player: Player = {
@@ -830,57 +1055,95 @@ export function initialState(
     powerupTimer: 0,
   };
 
-  const totalEnemies = ENEMIES_BASE + (level - 1) * ENEMIES_PER_LEVEL;
-  const enforcerCount = level >= 3 ? Math.round(totalEnemies / 4) : 0;
+  // Jittered pixel position inside a cell, always clear of the walls.
+  const spread = cellSize * 0.32;
+  const placeInCell = (col: number, row: number): Vec2 => {
+    const c = cellCenter(maze, col, row);
+    return { x: c.x + (rng() * 2 - 1) * spread, y: c.y + (rng() * 2 - 1) * spread };
+  };
+  const randFacing = (): Facing => FACINGS[Math.floor(rng() * 4)] ?? "down";
+
   const enemies: Enemy[] = [];
-  let nextEnemyId = 1;
-  const occupied = new Set<string>([`${midCol},${midRow}`]);
-
-  for (let i = 0; i < totalEnemies; i++) {
-    let eCol = 0;
-    let eRow = 0;
-    let attempts = 0;
-    do {
-      eCol = Math.floor(rng() * cols);
-      eRow = Math.floor(rng() * rows);
-      attempts++;
-    } while (
-      attempts < 2000 &&
-      (occupied.has(`${eCol},${eRow}`) ||
-        Math.abs(eCol - midCol) + Math.abs(eRow - midRow) < MIN_ENEMY_SPAWN_DIST)
-    );
-    occupied.add(`${eCol},${eRow}`);
-
-    const isEnforcer = i < enforcerCount;
-    const base = {
-      id: nextEnemyId++,
-      col: eCol,
-      row: eRow,
-      hp: isEnforcer ? 3 : 1,
-      moveTimer: isEnforcer ? ENFORCER_MOVE_INTERVAL : GRUNT_MOVE_INTERVAL,
-      path: [] as CellPos[],
-      pathAge: 0,
-      shootCooldown: isEnforcer ? ENFORCER_SHOOT_COOLDOWN : GRUNT_SHOOT_COOLDOWN,
-    };
-    enemies.push(
-      isEnforcer ? { ...base, kind: "enforcer" as const } : { ...base, kind: "grunt" as const },
-    );
-  }
-
   const humans: Human[] = [];
+  const electrodes: Electrode[] = [];
+  let nextEnemyId = 1;
   let nextHumanId = 1;
+  let nextElectrodeId = 1;
 
-  for (let i = 0; i < HUMAN_COUNT; i++) {
-    let hCol = 0;
-    let hRow = 0;
-    let attempts = 0;
-    do {
-      hCol = Math.floor(rng() * cols);
-      hRow = Math.floor(rng() * rows);
-      attempts++;
-    } while (attempts < 2000 && occupied.has(`${hCol},${hRow}`));
-    occupied.add(`${hCol},${hRow}`);
-    humans.push({ id: nextHumanId++, col: hCol, row: hRow });
+  const makeEnemy = (kind: EnemyKind, col: number, row: number): Enemy => {
+    const p = placeInCell(col, row);
+    const base: EnemyBase = {
+      id: nextEnemyId++,
+      x: p.x,
+      y: p.y,
+      col,
+      row,
+      facing: randFacing(),
+      moving: false,
+      hp: ENEMY_HP[kind],
+      moveTimer: 0,
+      path: [],
+      pathAge: 0,
+      shootCooldown: kind === "enforcer" ? ENFORCER_SHOOT_COOLDOWN : GRUNT_SHOOT_COOLDOWN,
+    };
+    switch (kind) {
+      case "phantom":
+        return { ...base, kind: "phantom", phasing: false };
+      default:
+        return { ...base, kind } as Enemy;
+    }
+  };
+
+  const makeFamily = (type: FamilyType, col: number, row: number): Human => {
+    const p = placeInCell(col, row);
+    return {
+      id: nextHumanId++,
+      type,
+      x: p.x,
+      y: p.y,
+      col,
+      row,
+      facing: randFacing(),
+      moving: false,
+      wanderX: 0,
+      wanderY: 0,
+    };
+  };
+
+  const makeElectrode = (col: number, row: number): Electrode => {
+    const p = placeInCell(col, row);
+    return {
+      id: nextElectrodeId++,
+      x: p.x,
+      y: p.y,
+      col,
+      row,
+      type: config.electrodeType,
+      shrink: 0,
+      shrinkTimer: 0,
+    };
+  };
+
+  // Populate every interior grid square (skip the player's start cell) with the
+  // per-square counts from the level config.
+  const spawnN = (n: number, fn: () => void) => {
+    for (let i = 0; i < n; i++) fn();
+  };
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (col === midCol && row === midRow) continue;
+      spawnN(config.grunts, () => enemies.push(makeEnemy("grunt", col, row)));
+      spawnN(config.hulks, () => enemies.push(makeEnemy("hulk", col, row)));
+      spawnN(config.brains, () => enemies.push(makeEnemy("brain", col, row)));
+      spawnN(config.spheroids, () => enemies.push(makeEnemy("spheroid", col, row)));
+      spawnN(config.enforcers, () => enemies.push(makeEnemy("enforcer", col, row)));
+      spawnN(config.tanks, () => enemies.push(makeEnemy("tank", col, row)));
+      spawnN(config.moms, () => humans.push(makeFamily("mom", col, row)));
+      spawnN(config.dads, () => humans.push(makeFamily("dad", col, row)));
+      spawnN(config.mikeys, () => humans.push(makeFamily("mike", col, row)));
+      spawnN(config.sallys, () => humans.push(makeFamily("sally", col, row)));
+      spawnN(config.electrodes, () => electrodes.push(makeElectrode(col, row)));
+    }
   }
 
   return {
@@ -892,6 +1155,10 @@ export function initialState(
     player,
     enemies,
     humans,
+    electrodes,
+    particles: [],
+    enemyMoveChance: config.enemyMoveChance,
+    frame: 0,
     bullets: [],
     powerupPickups: [],
     decoy: null,
@@ -957,16 +1224,236 @@ function playerCollidesWall(maze: Maze, nx: number, ny: number): boolean {
   return false;
 }
 
+/**
+ * Generic wall test for a moving entity of the given radius (enemies, family).
+ * Same face-clearance logic as playerCollidesWall but with a caller radius.
+ */
+function entityCollidesWall(maze: Maze, nx: number, ny: number, r: number): boolean {
+  const { cols, rows, cellSize } = maze;
+  if (nx < r || ny < r || nx > cols * cellSize - r || ny > rows * cellSize - r) return true;
+  const col = Math.floor(nx / cellSize);
+  const row = Math.floor(ny / cellSize);
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return true;
+  const lx = nx - col * cellSize;
+  const ly = ny - row * cellSize;
+  const w = maze.walls[row * cols + col];
+  if (lx < r && w & W_BIT) return true;
+  if (lx > cellSize - r && w & E_BIT) return true;
+  if (ly < r && w & N_BIT) return true;
+  if (ly > cellSize - r && w & S_BIT) return true;
+  return false;
+}
+
+/** Squared distance between two points. */
+function dist2(ax: number, ay: number, bx: number, by: number): number {
+  const dx = ax - bx;
+  const dy = ay - by;
+  return dx * dx + dy * dy;
+}
+
+/**
+ * Squared distance from point (px, py) to the segment (ax, ay)-(bx, by).
+ * Used for swept bullet collisions so fast bullets (1500px/s ⇒ ~24px/frame)
+ * can't tunnel through a target between two frames.
+ */
+function segDist2(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return dist2(px, py, ax, ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return dist2(px, py, ax + t * dx, ay + t * dy);
+}
+
+/**
+ * Spawn horizontal-line debris for a destroyed character. Fragments split into
+ * two streams flying perpendicular to the killing bullet's velocity (vx, vy),
+ * spread across the sprite's height, and fade over ~0.5s.
+ */
+function spawnDebris(
+  state: GameState,
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  color: string,
+): void {
+  const speed = Math.hypot(vx, vy) || 1;
+  // Unit vector perpendicular to the bullet path.
+  const px = -vy / speed;
+  const py = vx / speed;
+  // Explosions are 3× as big: fragments are longer, spread wider, and fly ~3×
+  // farther in the same lifetime.
+  const FRAGMENTS = 6;
+  for (let i = 0; i < FRAGMENTS; i++) {
+    // Spread fragments along the bullet axis (the "slices" of the body).
+    const t = (i / (FRAGMENTS - 1) - 0.5) * 42;
+    const along = { x: (vx / speed) * t, y: (vy / speed) * t };
+    const dir = i % 2 === 0 ? 1 : -1;
+    const spd = (60 + Math.random() * 90) * 3;
+    state.particles.push({
+      x: x + along.x,
+      y: y + along.y,
+      vx: px * spd * dir,
+      vy: py * spd * dir,
+      len: 15,
+      ttl: 0.45 + Math.random() * 0.25,
+      life: 0.7,
+      color,
+    });
+  }
+}
+
+/** Debris color per character kind. */
+const DEBRIS_COLOR: Record<string, string> = {
+  grunt: "#ff3b3b",
+  enforcer: "#ff8800",
+  phantom: "#00ffff",
+  hulk: "#39ff14",
+  brain: "#b25cff",
+  spheroid: "#66ccff",
+  tank: "#cccccc",
+  mom: "#ff5cc8",
+  dad: "#3b6bff",
+  mike: "#ff5c5c",
+  sally: "#ff8c3b",
+};
+
 // ---------------------------------------------------------------------------
 // step
+
+/** True if (x, y) with the given radius overlaps any intact electrode. */
+function hitsElectrode(state: GameState, x: number, y: number, r: number): boolean {
+  const rr = (ELECTRODE_RADIUS + r) * (ELECTRODE_RADIUS + r);
+  for (const el of state.electrodes) {
+    if (el.shrink > 0) continue; // dying electrodes are harmless / pass-through
+    if (dist2(x, y, el.x, el.y) < rr) return true;
+  }
+  return false;
+}
+
+/**
+ * Advance one enemy by a single ENEMY_STEP_PX step toward its target, following
+ * its BFS waypoint path through the maze and steering around electrodes. Sets
+ * facing + moving for animation. Phantoms ignore walls.
+ */
+function moveEnemy(state: GameState, e: Enemy): void {
+  const { maze, player } = state;
+  const ignoreWalls = e.kind === "phantom";
+
+  // Target point: the next path waypoint's center, or the player/decoy directly.
+  let tx: number;
+  let ty: number;
+  if (e.path.length > 0) {
+    const c = cellCenter(maze, e.path[0].col, e.path[0].row);
+    tx = c.x;
+    ty = c.y;
+  } else if (state.decoy) {
+    tx = state.decoy.x;
+    ty = state.decoy.y;
+  } else {
+    tx = player.x;
+    ty = player.y;
+  }
+
+  const dx = tx - e.x;
+  const dy = ty - e.y;
+  const d = Math.hypot(dx, dy) || 1;
+  let sx = (dx / d) * ENEMY_STEP_PX;
+  let sy = (dy / d) * ENEMY_STEP_PX;
+
+  const tryMove = (mx: number, my: number): boolean => {
+    const nx = e.x + mx;
+    const ny = e.y + my;
+    if (!ignoreWalls && entityCollidesWall(maze, nx, ny, ENEMY_RADIUS)) return false;
+    if (!ignoreWalls && hitsElectrode(state, nx, ny, ENEMY_RADIUS)) return false;
+    e.x = nx;
+    e.y = ny;
+    return true;
+  };
+
+  let moved = tryMove(sx, sy);
+  if (!moved) {
+    // Slide around the obstacle by rotating the step vector.
+    for (const ang of [Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2]) {
+      const cs = Math.cos(ang);
+      const sn = Math.sin(ang);
+      const rx = sx * cs - sy * sn;
+      const ry = sx * sn + sy * cs;
+      if (tryMove(rx, ry)) {
+        sx = rx;
+        sy = ry;
+        moved = true;
+        break;
+      }
+    }
+  }
+
+  e.moving = moved;
+  if (moved) {
+    e.facing = facingFromVec(sx, sy) ?? e.facing;
+    e.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(e.x / maze.cellSize)));
+    e.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(e.y / maze.cellSize)));
+    // Pop the waypoint once we're basically on it.
+    if (e.path.length > 0) {
+      const c = cellCenter(maze, e.path[0].col, e.path[0].row);
+      if (dist2(e.x, e.y, c.x, c.y) < ENEMY_STEP_PX * 3 * (ENEMY_STEP_PX * 3)) {
+        e.path.shift();
+      }
+    }
+  }
+}
+
+/** Advance one family member by a random wander step (avoiding walls). */
+function moveFamily(state: GameState, h: Human): void {
+  const { maze } = state;
+  if ((h.wanderX === 0 && h.wanderY === 0) || Math.random() < 0.04) {
+    const ang = Math.random() * Math.PI * 2;
+    h.wanderX = Math.cos(ang);
+    h.wanderY = Math.sin(ang);
+  }
+  const sx = h.wanderX * FAMILY_STEP_PX;
+  const sy = h.wanderY * FAMILY_STEP_PX;
+  const nx = h.x + sx;
+  const ny = h.y + sy;
+  if (!entityCollidesWall(maze, nx, ny, PLAYER_RADIUS)) {
+    h.x = nx;
+    h.y = ny;
+    h.moving = true;
+    h.facing = facingFromVec(sx, sy) ?? h.facing;
+    h.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(h.x / maze.cellSize)));
+    h.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(h.y / maze.cellSize)));
+  } else {
+    // Bounced off a wall — pick a fresh heading next time.
+    h.wanderX = 0;
+    h.wanderY = 0;
+    h.moving = false;
+  }
+}
+
+/** Apply one point of damage to the player (shared by bullet/enemy/electrode hits). */
+function damagePlayer(state: GameState): void {
+  const { player } = state;
+  state.lives--;
+  player.invuln = INVULN_DURATION;
+  player.respawnTimer = RESPAWN_DELAY;
+  state.events.push("playerHit");
+  if (state.lives <= 0) {
+    state.phase = "gameover";
+    state.events.push("playerDie");
+    state.events.push("gameover");
+  }
+}
 
 export function step(state: GameState, input: InputState, dt: number): GameState {
   if (state.phase === "title" || state.phase === "gameover") return state;
 
   dt = Math.min(dt, 0.05);
 
-  // 1. Clear events
+  // 1. Clear events, advance frame counter
   state.events = [];
+  state.frame++;
 
   const { maze, player } = state;
   const { cols, rows, cellSize } = maze;
@@ -980,13 +1467,16 @@ export function step(state: GameState, input: InputState, dt: number): GameState
   }
   if (state.decoy) state.decoy.ttl -= dt;
   for (const e of state.enemies) {
-    e.moveTimer -= dt;
     e.shootCooldown -= dt;
     e.pathAge += dt;
   }
 
   // 3. Expire powerups
-  if (player.activePowerup !== null && player.activePowerup !== "Decoy" && player.powerupTimer <= 0) {
+  if (
+    player.activePowerup !== null &&
+    player.activePowerup !== "Decoy" &&
+    player.powerupTimer <= 0
+  ) {
     player.activePowerup = null;
     player.powerupTimer = 0;
   }
@@ -1021,27 +1511,29 @@ export function step(state: GameState, input: InputState, dt: number): GameState
       if (dx * dx + dy * dy < TELEPORT_PAD_RADIUS * TELEPORT_PAD_RADIUS) {
         const opp = maze.teleportPads[(i + 2) % 4];
         const oc = cellCenter(maze, opp.col, opp.row);
-        player.x = oc.x;
-        player.y = oc.y;
+        // Land TELEPORT_EXIT_OFFSET px from the destination pad's center,
+        // offset toward the maze interior, so we don't re-trigger it.
+        const mcx = (cols * cellSize) / 2;
+        const mcy = (rows * cellSize) / 2;
+        const vx = mcx - oc.x;
+        const vy = mcy - oc.y;
+        const vlen = Math.hypot(vx, vy) || 1;
+        player.x = oc.x + (vx / vlen) * TELEPORT_EXIT_OFFSET;
+        player.y = oc.y + (vy / vlen) * TELEPORT_EXIT_OFFSET;
         state.events.push("teleport");
         break;
       }
     }
 
-    // 8. Exit walk-through
+    // 8. Exit walk-through — signal the component to build the next level
+    // (it owns the dynamic cell size + per-level CSV config).
     if (state.exitsOpen) {
       for (const ec of maze.exitCells) {
         const pc = cellCenter(maze, ec.col, ec.row);
         const dx = player.x - pc.x;
         const dy = player.y - pc.y;
         if (dx * dx + dy * dy < POWERUP_PICKUP_RADIUS * POWERUP_PICKUP_RADIUS) {
-          const nextLevel = state.level + 1;
-          const { score, lives } = state;
-          const next = initialState(cols % 2 === 0 ? cols : cols, rows % 2 === 0 ? rows : rows, nextLevel);
-          next.score = score;
-          next.lives = lives;
-          next.events = ["levelAdvance"];
-          Object.assign(state, next);
+          state.events.push("levelAdvance");
           return state;
         }
       }
@@ -1052,7 +1544,7 @@ export function step(state: GameState, input: InputState, dt: number): GameState
       player.aimDir = { x: input.aimX, y: input.aimY };
     }
 
-    // 10. Player shoot
+    // 10. Player shoot — one bullet per frame while firing (cooldown is 0).
     if (input.fire && player.shootCooldown <= 0) {
       const angle = Math.atan2(player.aimDir.y, player.aimDir.x);
 
@@ -1090,13 +1582,10 @@ export function step(state: GameState, input: InputState, dt: number): GameState
       state.decoyCharges--;
     }
 
-    // 18. Player-human contact
+    // 18. Player-family contact → rescue
     for (let i = state.humans.length - 1; i >= 0; i--) {
       const h = state.humans[i];
-      const hc = cellCenter(maze, h.col, h.row);
-      const dx = player.x - hc.x;
-      const dy = player.y - hc.y;
-      if (dx * dx + dy * dy < HUMAN_CONTACT_RADIUS * HUMAN_CONTACT_RADIUS) {
+      if (dist2(player.x, player.y, h.x, h.y) < HUMAN_CONTACT_RADIUS * HUMAN_CONTACT_RADIUS) {
         state.humans.splice(i, 1);
         state.score += HUMAN_RESCUE_SCORE;
         state.events.push("humanRescue");
@@ -1131,32 +1620,29 @@ export function step(state: GameState, input: InputState, dt: number): GameState
   state.bfsRefreshIndex =
     state.enemies.length > 0 ? (state.bfsRefreshIndex + 1) % state.enemies.length : 0;
 
-  // 13. Enemy movement
+  // 13. Enemy movement — smooth, one small step at a time, EnemyMoveChance% per frame
   for (const e of state.enemies) {
-    if (e.moveTimer <= 0 && e.path.length > 0) {
-      const next = e.path.shift()!;
-      e.col = next.col;
-      e.row = next.row;
-      const interval =
-        e.kind === "enforcer"
-          ? ENFORCER_MOVE_INTERVAL
-          : e.kind === "phantom"
-            ? PHANTOM_MOVE_INTERVAL
-            : GRUNT_MOVE_INTERVAL;
-      e.moveTimer = interval * (0.9 + Math.random() * 0.2);
-    }
+    if (Math.random() < state.enemyMoveChance) moveEnemy(state, e);
+    else e.moving = false;
   }
 
-  // 14. Enemy shooting
+  // 13b. Family movement — every other frame, random wander
+  if (state.frame % 2 === 0) {
+    for (const h of state.humans) moveFamily(state, h);
+  } else {
+    for (const h of state.humans) h.moving = false;
+  }
+
+  // 14. Enemy shooting — only the ranged types fire (enforcer/tank). The swarm
+  // types (grunt/hulk/brain/spheroid/phantom) threaten by contact instead.
   const playerCell = cellAt(maze, player.x, player.y);
   for (const e of state.enemies) {
+    if (e.kind !== "enforcer" && e.kind !== "tank") continue;
     if (e.shootCooldown > 0) continue;
     if (!lineOfSight(maze, e.col, e.row, playerCell.col, playerCell.row)) continue;
 
-    const ec = cellCenter(maze, e.col, e.row);
-    const tc = cellCenter(maze, playerCell.col, playerCell.row);
-    const dx = tc.x - ec.x;
-    const dy = tc.y - ec.y;
+    const dx = player.x - e.x;
+    const dy = player.y - e.y;
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len === 0) continue;
     const angle = Math.atan2(dy, dx);
@@ -1164,8 +1650,8 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     const spawnEnemyBullet = (a: number) => {
       state.bullets.push({
         id: state.nextBulletId++,
-        x: ec.x,
-        y: ec.y,
+        x: e.x,
+        y: e.y,
         vx: Math.cos(a) * BULLET_SPEED,
         vy: Math.sin(a) * BULLET_SPEED,
         fromPlayer: false,
@@ -1173,14 +1659,15 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     };
 
     if (e.kind === "enforcer") {
-      const fanStep = ENFORCER_SPREAD_COUNT > 1 ? ENFORCER_SPREAD_ANGLE / (ENFORCER_SPREAD_COUNT - 1) : 0;
+      const fanStep =
+        ENFORCER_SPREAD_COUNT > 1 ? ENFORCER_SPREAD_ANGLE / (ENFORCER_SPREAD_COUNT - 1) : 0;
       for (let i = 0; i < ENFORCER_SPREAD_COUNT; i++) {
         spawnEnemyBullet(angle - ENFORCER_SPREAD_ANGLE / 2 + i * fanStep);
       }
       e.shootCooldown = ENFORCER_SHOOT_COOLDOWN;
     } else {
       spawnEnemyBullet(angle);
-      e.shootCooldown = e.kind === "phantom" ? GRUNT_SHOOT_COOLDOWN : GRUNT_SHOOT_COOLDOWN;
+      e.shootCooldown = ENFORCER_SHOOT_COOLDOWN;
     }
     state.events.push("enemyShoot");
   }
@@ -1199,67 +1686,124 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     }
   }
 
-  // 16. Player-enemy bullet collision
-  if (player.invuln <= 0 && player.respawnTimer <= 0) {
-    for (let i = state.bullets.length - 1; i >= 0; i--) {
-      const b = state.bullets[i];
-      if (b.fromPlayer) continue;
-      const dx = b.x - player.x;
-      const dy = b.y - player.y;
-      if (dx * dx + dy * dy < PLAYER_RADIUS * PLAYER_RADIUS) {
+  // 15b. Player-bullet vs electrode — destroy it (shrink animation), stop bullet
+  for (let i = state.bullets.length - 1; i >= 0; i--) {
+    const b = state.bullets[i];
+    if (!b.fromPlayer) continue;
+    const bpx = b.x - b.vx * dt;
+    const bpy = b.y - b.vy * dt;
+    for (const el of state.electrodes) {
+      if (el.shrink > 0) continue;
+      const rr = (ELECTRODE_RADIUS + BULLET_RADIUS) * (ELECTRODE_RADIUS + BULLET_RADIUS);
+      if (segDist2(el.x, el.y, bpx, bpy, b.x, b.y) < rr) {
         state.bullets.splice(i, 1);
-        state.lives--;
-        player.invuln = INVULN_DURATION;
-        player.respawnTimer = RESPAWN_DELAY;
-        state.events.push("playerHit");
-        if (state.lives <= 0) {
-          state.phase = "gameover";
-          state.events.push("playerDie");
-          state.events.push("gameover");
-        }
+        el.shrink = 1;
+        el.shrinkTimer = ELECTRODE_SHRINK_TIME;
+        state.events.push("electrodeHit");
         break;
       }
     }
+  }
+
+  // 15c. Advance electrode shrink animation; remove when fully shrunk
+  for (let i = state.electrodes.length - 1; i >= 0; i--) {
+    const el = state.electrodes[i];
+    if (el.shrink === 0) continue;
+    el.shrinkTimer -= dt;
+    if (el.shrinkTimer <= 0) {
+      el.shrink++;
+      el.shrinkTimer = ELECTRODE_SHRINK_TIME;
+      if (el.shrink > 2) state.electrodes.splice(i, 1);
+    }
+  }
+
+  // 16. Player damage — enemy bullets, enemy contact, electrode contact
+  if (player.invuln <= 0 && player.respawnTimer <= 0) {
+    let hit = false;
+    for (let i = state.bullets.length - 1; i >= 0 && !hit; i--) {
+      const b = state.bullets[i];
+      if (b.fromPlayer) continue;
+      const bpx = b.x - b.vx * dt;
+      const bpy = b.y - b.vy * dt;
+      if (segDist2(player.x, player.y, bpx, bpy, b.x, b.y) < PLAYER_RADIUS * PLAYER_RADIUS) {
+        state.bullets.splice(i, 1);
+        hit = true;
+      }
+    }
+    if (!hit) {
+      const rr = (ENEMY_RADIUS + PLAYER_RADIUS) * (ENEMY_RADIUS + PLAYER_RADIUS);
+      for (const e of state.enemies) {
+        if (e.kind === "phantom" && (e as Phantom).phasing) continue;
+        if (dist2(e.x, e.y, player.x, player.y) < rr) {
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (!hit && hitsElectrode(state, player.x, player.y, PLAYER_RADIUS)) hit = true;
+    if (hit) damagePlayer(state);
   }
 
   // 17. Enemy-player bullet collision
   for (let i = state.bullets.length - 1; i >= 0; i--) {
     const b = state.bullets[i];
     if (!b.fromPlayer) continue;
+    const bpx = b.x - b.vx * dt;
+    const bpy = b.y - b.vy * dt;
     for (let j = state.enemies.length - 1; j >= 0; j--) {
       const e = state.enemies[j];
       if (e.kind === "phantom" && (e as Phantom).phasing) continue;
-      const ec = cellCenter(maze, e.col, e.row);
-      const dx = b.x - ec.x;
-      const dy = b.y - ec.y;
-      if (Math.sqrt(dx * dx + dy * dy) < PLAYER_RADIUS + 4) {
-        state.bullets.splice(i, 1);
+      if (
+        segDist2(e.x, e.y, bpx, bpy, b.x, b.y) <
+        (ENEMY_RADIUS + BULLET_RADIUS) * (ENEMY_RADIUS + BULLET_RADIUS)
+      ) {
         e.hp--;
         if (e.hp <= 0) {
+          spawnDebris(state, e.x, e.y, b.vx, b.vy, DEBRIS_COLOR[e.kind] ?? "#ffffff");
           state.enemies.splice(j, 1);
           state.score += ENEMY_KILL_SCORE;
           state.events.push("enemyDie");
         }
+        state.bullets.splice(i, 1);
         break;
       }
     }
   }
 
-  // 19. Enemy-human contact
+  // 19. Family death — touching any enemy or intact electrode kills them
   for (let i = state.humans.length - 1; i >= 0; i--) {
     const h = state.humans[i];
+    let killed = false;
+    const rrE = (ENEMY_RADIUS + PLAYER_RADIUS) * (ENEMY_RADIUS + PLAYER_RADIUS);
     for (const e of state.enemies) {
-      if (e.kind === "grunt" && e.col === h.col && e.row === h.row) {
-        state.humans.splice(i, 1);
-        state.score = Math.max(0, state.score - HUMAN_KILL_PENALTY);
-        state.events.push("humanDie");
+      if (dist2(e.x, e.y, h.x, h.y) < rrE) {
+        killed = true;
         break;
       }
     }
+    if (!killed && hitsElectrode(state, h.x, h.y, PLAYER_RADIUS)) killed = true;
+    if (killed) {
+      spawnDebris(state, h.x, h.y, 1, 0, DEBRIS_COLOR[h.type] ?? "#ffffff");
+      state.humans.splice(i, 1);
+      state.score = Math.max(0, state.score - HUMAN_KILL_PENALTY);
+      state.events.push("familyDie");
+    }
   }
 
-  // 21. Level-clear check (never overwrite a gameover that was just set in rule 16)
-  if (state.enemies.length === 0 && !state.exitsOpen && state.phase !== "gameover") {
+  // 22. Particle simulation (cosmetic debris)
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+    p.ttl -= dt;
+    if (p.ttl <= 0) state.particles.splice(i, 1);
+  }
+
+  // 21. Level-clear check (never overwrite a gameover that was just set in rule 16;
+  // lives > 0 is equivalent and avoids a TS control-flow narrowing snag)
+  if (state.enemies.length === 0 && !state.exitsOpen && state.lives > 0) {
     state.exitsOpen = true;
     state.phase = "levelclear";
     for (const ec of maze.exitCells) {

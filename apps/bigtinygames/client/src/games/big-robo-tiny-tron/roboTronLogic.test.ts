@@ -32,6 +32,9 @@ import {
   ENEMY_KILL_SCORE,
   INVULN_DURATION,
   RESPAWN_DELAY,
+  HUMAN_RESCUE_SCORE,
+  HUMAN_KILL_PENALTY,
+  ENEMY_STEP_PX,
 } from "./roboTronLogic";
 import type {
   GameState,
@@ -43,6 +46,7 @@ import type {
   Enforcer,
   Phantom,
   CellPos,
+  LevelConfig,
 } from "./roboTronLogic";
 
 // ---------------------------------------------------------------------------
@@ -109,14 +113,22 @@ function basePlayer(x: number, y: number): Player {
   };
 }
 
+/** Pixel center of a cell at the default CELL_SIZE (for placing test entities). */
+const pcx = (col: number) => col * CELL_SIZE + CELL_SIZE / 2;
+const pcy = (row: number) => row * CELL_SIZE + CELL_SIZE / 2;
+
 function makeGrunt(id: number, col: number, row: number, overrides: Partial<Grunt> = {}): Grunt {
   return {
     kind: "grunt",
     id,
+    x: pcx(col),
+    y: pcy(row),
     col,
     row,
+    facing: "down",
+    moving: false,
     hp: 1,
-    moveTimer: GRUNT_MOVE_INTERVAL,
+    moveTimer: 0,
     path: [],
     pathAge: 0,
     shootCooldown: GRUNT_SHOOT_COOLDOWN,
@@ -124,14 +136,23 @@ function makeGrunt(id: number, col: number, row: number, overrides: Partial<Grun
   };
 }
 
-function makeEnforcer(id: number, col: number, row: number, overrides: Partial<Enforcer> = {}): Enforcer {
+function makeEnforcer(
+  id: number,
+  col: number,
+  row: number,
+  overrides: Partial<Enforcer> = {},
+): Enforcer {
   return {
     kind: "enforcer",
     id,
+    x: pcx(col),
+    y: pcy(row),
     col,
     row,
+    facing: "down",
+    moving: false,
     hp: 3,
-    moveTimer: GRUNT_MOVE_INTERVAL,
+    moveTimer: 0,
     path: [],
     pathAge: 0,
     shootCooldown: ENFORCER_SHOOT_COOLDOWN,
@@ -152,6 +173,10 @@ function minimalState(overrides: Partial<GameState> = {}): GameState {
     player: basePlayer(cx, cy),
     enemies: [],
     humans: [],
+    electrodes: [],
+    particles: [],
+    enemyMoveChance: 0,
+    frame: 0,
     bullets: [],
     powerupPickups: [],
     decoy: null,
@@ -262,60 +287,93 @@ describe("TC-04 player spawns at maze center", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TC-05: Enemy count scales with level
-describe("TC-05 enemy count scales with level", () => {
-  const rng = () => seqRng([0.1, 0.9, 0.2, 0.8, 0.3, 0.7]);
+// Per-grid-square population spawning (CSV-driven config)
+
+const ZERO_CONFIG: LevelConfig = {
+  moms: 0,
+  dads: 0,
+  mikeys: 0,
+  sallys: 0,
+  grunts: 0,
+  hulks: 0,
+  brains: 0,
+  spheroids: 0,
+  enforcers: 0,
+  electrodeType: 0,
+  electrodes: 0,
+  tanks: 0,
+  enemyMoveChance: 0,
+};
+const cfg = (partial: Partial<LevelConfig>): LevelConfig => ({ ...ZERO_CONFIG, ...partial });
+
+// A 5x5 maze has 25 cells; the player's start cell is left empty, so every
+// population is spawned in 24 interior squares.
+const INTERIOR_5x5 = 24;
+
+// TC-05: enemy population = per-square count × interior squares
+describe("TC-05 per-square enemy population", () => {
   it.each([
-    [1, ENEMIES_BASE],
-    [3, ENEMIES_BASE + 2 * ENEMIES_PER_LEVEL],
-    [5, ENEMIES_BASE + 4 * ENEMIES_PER_LEVEL],
-  ])("level %i → %i enemies", (level, expected) => {
-    const state = initialState(11, 11, level, rng());
-    expect(state.enemies).toHaveLength(expected);
+    [1, INTERIOR_5x5],
+    [2, INTERIOR_5x5 * 2],
+    [3, INTERIOR_5x5 * 3],
+  ])("grunts=%i per square → %i grunts total", (perSquare, expected) => {
+    const state = initialState(5, 5, 1, seqRng([0.5]), 40, cfg({ grunts: perSquare }));
+    expect(state.enemies.filter((e) => e.kind === "grunt")).toHaveLength(expected);
   });
 });
 
-// ---------------------------------------------------------------------------
-// TC-06: Enemy minimum spawn distance from player
-describe("TC-06 enemy min spawn distance", () => {
-  it("all enemies are at least MIN_ENEMY_SPAWN_DIST Manhattan cells from player", () => {
-    const state = initialState(15, 15, 1, seqRng([0.1, 0.9, 0.2, 0.8]));
-    const { player, maze } = state;
-    const spawnCell = cellAt(maze, player.x, player.y);
+// TC-06: no enemy spawns in the player's start cell
+describe("TC-06 player start cell stays clear", () => {
+  it("no enemy shares the player's start cell", () => {
+    const state = initialState(5, 5, 1, Math.random, 40, cfg({ grunts: 3, hulks: 1 }));
+    const start = cellAt(state.maze, state.player.x, state.player.y);
     for (const e of state.enemies) {
-      const dist = Math.abs(e.col - spawnCell.col) + Math.abs(e.row - spawnCell.row);
-      expect(dist).toBeGreaterThanOrEqual(MIN_ENEMY_SPAWN_DIST);
+      expect(`${e.col},${e.row}`).not.toBe(`${start.col},${start.row}`);
     }
   });
 });
 
-// ---------------------------------------------------------------------------
-// TC-07: Human count and no overlap with player or enemies
-describe("TC-07 human count and placement", () => {
-  it("exactly HUMAN_COUNT humans, none sharing a cell with player or enemies", () => {
-    const state = initialState(11, 11, 1, seqRng([0.1, 0.3, 0.5, 0.7, 0.9]));
-    expect(state.humans).toHaveLength(HUMAN_COUNT);
-    const { player, maze } = state;
-    const spawnCell = cellAt(maze, player.x, player.y);
-    const enemyCells = new Set(state.enemies.map((e) => `${e.col},${e.row}`));
+// TC-07: family population = per-square count × interior squares, none in start cell
+describe("TC-07 family population and placement", () => {
+  it("moms+dads per square × interior squares, none in the start cell", () => {
+    const state = initialState(5, 5, 1, seqRng([0.5]), 40, cfg({ moms: 1, dads: 1 }));
+    expect(state.humans).toHaveLength(INTERIOR_5x5 * 2);
+    const start = cellAt(state.maze, state.player.x, state.player.y);
     for (const h of state.humans) {
-      expect(`${h.col},${h.row}`).not.toBe(`${spawnCell.col},${spawnCell.row}`);
-      expect(enemyCells.has(`${h.col},${h.row}`)).toBe(false);
+      expect(`${h.col},${h.row}`).not.toBe(`${start.col},${start.row}`);
     }
+    expect(state.humans.filter((h) => h.type === "mom")).toHaveLength(INTERIOR_5x5);
+    expect(state.humans.filter((h) => h.type === "dad")).toHaveLength(INTERIOR_5x5);
   });
 });
 
-// ---------------------------------------------------------------------------
-// TC-08: No Enforcers at level 1, at least one at level 3
-describe("TC-08 Enforcer introduction at level 3", () => {
-  it("level 1 has zero Enforcers", () => {
-    const state = initialState(11, 11, 1, seqRng([0.5]));
+// TC-08: enforcers spawn only when the config asks for them
+describe("TC-08 enforcers are config-driven", () => {
+  it("spawns enforcers per square when config enforcers > 0", () => {
+    const state = initialState(5, 5, 3, seqRng([0.5]), 40, cfg({ enforcers: 1 }));
+    expect(state.enemies.filter((e) => e.kind === "enforcer")).toHaveLength(INTERIOR_5x5);
+  });
+
+  it("spawns zero enforcers when config enforcers = 0", () => {
+    const state = initialState(5, 5, 1, seqRng([0.5]), 40, cfg({ grunts: 1 }));
     expect(state.enemies.filter((e) => e.kind === "enforcer")).toHaveLength(0);
   });
+});
 
-  it("level 3 has at least one Enforcer", () => {
-    const state = initialState(11, 11, 3, seqRng([0.5]));
-    expect(state.enemies.filter((e) => e.kind === "enforcer").length).toBeGreaterThanOrEqual(1);
+// TC-08b: electrodes spawn per square with the configured type; move chance propagates
+describe("TC-08b electrodes and move chance", () => {
+  it("spawns Electrodes per square with ElectrodeType and stores EnemyMoveChance", () => {
+    const state = initialState(
+      5,
+      5,
+      1,
+      seqRng([0.5]),
+      40,
+      cfg({ electrodes: 4, electrodeType: 2, enemyMoveChance: 0.05 }),
+    );
+    expect(state.electrodes).toHaveLength(INTERIOR_5x5 * 4);
+    expect(state.electrodes.every((el) => el.type === 2)).toBe(true);
+    expect(state.enemyMoveChance).toBeCloseTo(0.05);
   });
 });
 
@@ -458,11 +516,13 @@ describe("TC-17 AllDirections fires 8 bullets", () => {
     expect(pb).toHaveLength(8);
 
     const expectedAngles = [0, 45, 90, 135, 180, 225, 270, 315].map((d) => (d * Math.PI) / 180);
-    const actualAngles = pb.map((b) => {
-      let a = Math.atan2(b.vy, b.vx);
-      if (a < 0) a += 2 * Math.PI;
-      return a;
-    }).sort((a, z) => a - z);
+    const actualAngles = pb
+      .map((b) => {
+        let a = Math.atan2(b.vy, b.vx);
+        if (a < 0) a += 2 * Math.PI;
+        return a;
+      })
+      .sort((a, z) => a - z);
 
     for (let i = 0; i < 8; i++) {
       expect(actualAngles[i]).toBeCloseTo(expectedAngles[i], 3);
@@ -569,8 +629,12 @@ describe("TC-23 Phantom immune while phasing", () => {
     const phantom: Phantom = {
       kind: "phantom",
       id: 1,
+      x: 5 * CELL_SIZE + CELL_SIZE / 2,
+      y: 5 * CELL_SIZE + CELL_SIZE / 2,
       col: 5,
       row: 5,
+      facing: "down",
+      moving: false,
       hp: 2,
       moveTimer: 1,
       path: [],
@@ -598,8 +662,12 @@ describe("TC-24 Phantom vulnerable when not phasing", () => {
     const phantom: Phantom = {
       kind: "phantom",
       id: 1,
+      x: 5 * CELL_SIZE + CELL_SIZE / 2,
+      y: 5 * CELL_SIZE + CELL_SIZE / 2,
       col: 5,
       row: 5,
+      facing: "down",
+      moving: false,
       hp: 2,
       moveTimer: 1,
       path: [],
@@ -629,7 +697,14 @@ describe("TC-25 enemy bullet kills player on last life", () => {
     state.player.invuln = 0;
     state.player.respawnTimer = 0;
     // Place enemy bullet exactly at player position
-    state.bullets.push({ id: 1, x: state.player.x, y: state.player.y, vx: 0, vy: 0, fromPlayer: false });
+    state.bullets.push({
+      id: 1,
+      x: state.player.x,
+      y: state.player.y,
+      vx: 0,
+      vy: 0,
+      fromPlayer: false,
+    });
     state.nextBulletId = 2;
     step(state, IDLE, 0.016);
     expect(state.phase).toBe("gameover");
@@ -644,7 +719,14 @@ describe("TC-26 enemy bullet ignored while invulnerable", () => {
   it("lives unchanged and no playerHit event while invuln > 0", () => {
     const state = minimalState({ lives: 3 });
     state.player.invuln = 1.5;
-    state.bullets.push({ id: 1, x: state.player.x, y: state.player.y, vx: 0, vy: 0, fromPlayer: false });
+    state.bullets.push({
+      id: 1,
+      x: state.player.x,
+      y: state.player.y,
+      vx: 0,
+      vy: 0,
+      fromPlayer: false,
+    });
     state.nextBulletId = 2;
     step(state, IDLE, 0.016);
     expect(state.lives).toBe(3);
@@ -800,5 +882,186 @@ describe("cellCenter / cellAt", () => {
       expect(back.col).toBe(c);
       expect(back.row).toBe(r);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New-mechanic helpers
+
+function makeFamily(id: number, type: "mom" | "dad" | "mike" | "sally", col: number, row: number) {
+  return {
+    id,
+    type,
+    x: pcx(col),
+    y: pcy(row),
+    col,
+    row,
+    facing: "down" as const,
+    moving: false,
+    wanderX: 0,
+    wanderY: 0,
+  };
+}
+
+function makeElectrode(id: number, col: number, row: number, type = 0) {
+  return { id, x: pcx(col), y: pcy(row), col, row, type, shrink: 0, shrinkTimer: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// TC-40: Enemies move smoothly (a small step toward the player), not cell-jumps
+describe("TC-40 smooth enemy movement toward the player", () => {
+  it("a grunt steps ~ENEMY_STEP_PX toward the player and sets moving/facing", () => {
+    // Player at cell (5,5); grunt two cells west at (3,5). Move chance 100%.
+    const grunt = makeGrunt(1, 3, 5);
+    const startX = grunt.x;
+    const state = minimalState({ enemies: [grunt], enemyMoveChance: 1 });
+    step(state, IDLE, 0.016);
+    const g = state.enemies[0];
+    expect(g.x).toBeGreaterThan(startX); // moved east toward the player
+    expect(g.x - startX).toBeLessThanOrEqual(ENEMY_STEP_PX + 0.001);
+    expect(g.moving).toBe(true);
+    expect(g.facing).toBe("right");
+  });
+
+  it("does not move when the per-frame move chance is 0", () => {
+    const grunt = makeGrunt(1, 3, 5);
+    const startX = grunt.x;
+    const state = minimalState({ enemies: [grunt], enemyMoveChance: 0 });
+    step(state, IDLE, 0.016);
+    expect(state.enemies[0].x).toBe(startX);
+    expect(state.enemies[0].moving).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-41: Family members die on contact with an electrode or an enemy
+describe("TC-41 family death on hazard contact", () => {
+  it("dies (with a familyDie wail) when overlapping an electrode", () => {
+    const state = minimalState({
+      humans: [makeFamily(1, "mom", 2, 2)],
+      electrodes: [makeElectrode(1, 2, 2)],
+    });
+    step(state, IDLE, 0.016);
+    expect(state.humans).toHaveLength(0);
+    expect(state.events).toContain("familyDie");
+    expect(state.particles.length).toBeGreaterThan(0);
+    expect(state.score).toBe(Math.max(0, 0 - HUMAN_KILL_PENALTY));
+  });
+
+  it("dies when overlapping an enemy", () => {
+    const state = minimalState({
+      humans: [makeFamily(1, "dad", 2, 2)],
+      enemies: [makeGrunt(1, 2, 2)],
+    });
+    step(state, IDLE, 0.016);
+    expect(state.humans).toHaveLength(0);
+    expect(state.events).toContain("familyDie");
+  });
+
+  it("cannot be hit by player bullets (bullet passes through family)", () => {
+    const family = makeFamily(1, "sally", 2, 2);
+    const state = minimalState({
+      humans: [family],
+      bullets: [{ id: 1, x: family.x, y: family.y, vx: BULLET_SPEED, vy: 0, fromPlayer: true }],
+    });
+    step(state, IDLE, 0.016);
+    expect(state.humans).toHaveLength(1); // still alive — bullets don't hit family
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-42: Family rescued by player contact
+describe("TC-42 family rescue by player contact", () => {
+  it("player touching a family member rescues it for HUMAN_RESCUE_SCORE", () => {
+    // Family sits on the player's cell center (player is at cell (5,5)).
+    const state = minimalState({ humans: [makeFamily(1, "mom", 5, 5)] });
+    step(state, IDLE, 0.016);
+    expect(state.humans).toHaveLength(0);
+    expect(state.events).toContain("humanRescue");
+    expect(state.score).toBe(HUMAN_RESCUE_SCORE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-43: Electrodes are destroyed by player bullets (shrink animation)
+describe("TC-43 electrode destroyed by a player bullet", () => {
+  it("starts shrinking and consumes the bullet, emitting electrodeHit", () => {
+    const el = makeElectrode(1, 2, 2);
+    const state = minimalState({
+      electrodes: [el],
+      bullets: [{ id: 1, x: el.x, y: el.y, vx: BULLET_SPEED, vy: 0, fromPlayer: true }],
+    });
+    step(state, IDLE, 0.016);
+    expect(state.electrodes[0].shrink).toBe(1);
+    expect(state.bullets).toHaveLength(0);
+    expect(state.events).toContain("electrodeHit");
+  });
+
+  it("an intact electrode is lethal to the player on contact", () => {
+    // Electrode on the player's cell center → player takes a hit.
+    const state = minimalState({ electrodes: [makeElectrode(1, 5, 5)] });
+    const livesBefore = state.lives;
+    step(state, IDLE, 0.016);
+    expect(state.lives).toBe(livesBefore - 1);
+    expect(state.events).toContain("playerHit");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-44: Bullet tuning — 1500 px/s and a ~10-shots/second fire cooldown
+describe("TC-44 bullet speed and fire rate", () => {
+  it("player bullets travel at BULLET_SPEED = 1500 px/s", () => {
+    expect(BULLET_SPEED).toBe(1500);
+    const state = minimalState();
+    step(state, { ...IDLE, aimX: 1, fire: true }, 0.016);
+    const b = state.bullets[0];
+    expect(Math.hypot(b.vx, b.vy)).toBeCloseTo(1500, 5);
+  });
+
+  it("fires at ~10/s (PLAYER_SHOOT_COOLDOWN gates the next frame)", () => {
+    expect(PLAYER_SHOOT_COOLDOWN).toBeCloseTo(0.1);
+    const state = minimalState();
+    step(state, { ...IDLE, aimX: 1, fire: true }, 0.016);
+    expect(state.bullets.length).toBe(1);
+    // The very next frame is still within the cooldown → no second shot.
+    step(state, { ...IDLE, aimX: 1, fire: true }, 0.016);
+    expect(state.bullets.length).toBe(1);
+    // After ~0.1s more, the cooldown clears and another shot fires.
+    step(state, { ...IDLE, aimX: 1, fire: true }, 0.05);
+    step(state, { ...IDLE, aimX: 1, fire: true }, 0.05);
+    expect(state.bullets.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-46: Teleport pads move the player to the opposite pad, offset ≥50px
+describe("TC-46 teleport pad exit offset", () => {
+  it("teleports to the opposite pad, landing at least 50px from its center", () => {
+    const maze = openMaze(11, 11);
+    const nw = cellCenter(maze, 0, 0);
+    const state = minimalState({ maze, player: basePlayer(nw.x, nw.y) });
+    step(state, IDLE, 0.016);
+    expect(state.events).toContain("teleport");
+    // Opposite of pad index 0 (NW) is index 2 (SE) = (10,10).
+    const se = cellCenter(maze, 10, 10);
+    const dist = Math.hypot(state.player.x - se.x, state.player.y - se.y);
+    expect(dist).toBeGreaterThanOrEqual(50);
+    // ...but still near the destination pad (not off in the maze).
+    expect(dist).toBeLessThan(80);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-45: Destroyed enemies spawn debris particles
+describe("TC-45 destruction debris", () => {
+  it("spawns particles when a bullet destroys an enemy", () => {
+    const grunt = makeGrunt(1, 5, 5);
+    const state = minimalState({
+      enemies: [grunt],
+      bullets: [{ id: 1, x: grunt.x, y: grunt.y, vx: BULLET_SPEED, vy: 0, fromPlayer: true }],
+    });
+    step(state, IDLE, 0.016);
+    expect(state.enemies).toHaveLength(0);
+    expect(state.particles.length).toBeGreaterThan(0);
   });
 });
