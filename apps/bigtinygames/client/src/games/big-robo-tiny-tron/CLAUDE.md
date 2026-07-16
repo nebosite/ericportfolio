@@ -22,8 +22,10 @@ cellSize, config)` spawns a `LevelConfig`'s **per-grid-square** populations into
   Brain), 12 frames each grouped by facing (left/right/down/up × still/step1/
   step2). Rows 13–14 are electrodes: 4 groups of 3 per row (types 0–7), each
   group `{normal, shrink1, shrink2}`. Reskin by editing the PNG.
-- `sfx.ts` — Web Audio **synthesized** cues keyed off logic `SoundEvent`s
-  (including the family "electronic wail"). No binary sound assets.
+- `sfx.ts` + `assets/sounds/*.wav` — one editable audio file per cue, keyed off
+  logic `SoundEvent`s (fetched + decoded once, fired as one-shots). Every clip is
+  < 2s so per the repo asset rule they're WAV (author longer cues as MP3). They
+  were rendered from a script but are now plain files — reskin by replacing them.
 - `BigRoboTinyTron.tsx` — canvas render + rAF loop + twin-stick input. Owns the
   dynamic cell-size fit, sprite animation, level progression, HUD, overlays,
   leaderboard, and the standard `FeedbackPanel`.
@@ -51,6 +53,13 @@ pixel sizes** — only their positions are scaled — so they stay at their orig
 - **Teleport pads:** 30px targets; teleporting drops the player
   `TELEPORT_EXIT_OFFSET` (55px) toward the maze interior so it can't re-trigger.
 - **Explosions:** destroyed characters burst into horizontal debris (3× size).
+- **Electrodes vs enemies:** enemies don't avoid electrodes — walking into one
+  blows up both the enemy and the electrode (no score). Family die on contact too.
+- **Spawns:** populations are placed maximally inside each cell (up to the walls).
+- **Reconstitute:** after a death, `respawnPlayer()` spawns particles that fly in
+  from the arena edges (mostly diagonal) and congeal onto the player, who flashes
+  (invuln) while the `reconstitute` cue plays. Timing is owned by the component;
+  the converging particles animate through the step() particle sim.
 - **Family (Mom/Dad/Mike/Sally):** cannot be shot; rescued by player contact
   (+score); die on contact with any electrode or enemy (`familyDie` wail).
 - **Electrodes:** static hazards, lethal to player + family on contact; a player

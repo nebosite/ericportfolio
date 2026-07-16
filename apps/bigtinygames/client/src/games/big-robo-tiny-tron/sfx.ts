@@ -1,19 +1,87 @@
+import shootUrl from "./assets/sounds/shoot.wav";
+import enemyShootUrl from "./assets/sounds/enemyShoot.wav";
+import explosionUrl from "./assets/sounds/explosion.wav";
+import electrodeUrl from "./assets/sounds/electrode.wav";
+import playerHitUrl from "./assets/sounds/playerHit.wav";
+import gameoverUrl from "./assets/sounds/gameover.wav";
+import rescueUrl from "./assets/sounds/rescue.wav";
+import wailUrl from "./assets/sounds/wail.wav";
+import teleportUrl from "./assets/sounds/teleport.wav";
+import powerupUrl from "./assets/sounds/powerup.wav";
+import exitsOpenUrl from "./assets/sounds/exitsOpen.wav";
+import levelAdvanceUrl from "./assets/sounds/levelAdvance.wav";
+import reconstituteUrl from "./assets/sounds/reconstitute.wav";
 import { getVolume } from "../../lib/volume";
 import type { SoundEvent } from "./roboTronLogic";
 
-// Sound for Big Robo Tiny Tron. Rather than ship binary clips, these are
-// synthesized on the fly with the Web Audio API — short arcade blips built from
-// oscillators + gain envelopes. Every cue is keyed off a logic SoundEvent so the
-// component can just forward state.events here each frame. Master volume comes
-// from the shared VolumeControl (src/lib/volume.ts).
+// Sound for Big Robo Tiny Tron. Every cue is an editable audio file in
+// assets/sounds/ (all clips are < 2s, so per the repo asset rule they are WAV;
+// author longer cues as MP3). They're fetched + decoded once and fired as cheap
+// one-shots through the Web Audio API. Master volume comes from the shared
+// VolumeControl (src/lib/volume.ts). Each logic SoundEvent maps to one clip.
+
+const EVENT_FILES: Partial<Record<SoundEvent, string>> = {
+  playerShoot: shootUrl,
+  enemyShoot: enemyShootUrl,
+  enemyDie: explosionUrl,
+  electrodeHit: electrodeUrl,
+  playerHit: playerHitUrl,
+  playerDie: gameoverUrl,
+  gameover: gameoverUrl,
+  humanRescue: rescueUrl,
+  familyDie: wailUrl,
+  teleport: teleportUrl,
+  powerupPickup: powerupUrl,
+  exitsOpen: exitsOpenUrl,
+  levelAdvance: levelAdvanceUrl,
+  reconstitute: reconstituteUrl,
+};
+
+/** Per-cue gain trims so nothing is jarring relative to the others. */
+const EVENT_GAIN: Partial<Record<SoundEvent, number>> = {
+  playerShoot: 0.28,
+  enemyShoot: 0.3,
+  enemyDie: 0.6,
+  electrodeHit: 0.4,
+  playerHit: 0.6,
+  playerDie: 0.6,
+  gameover: 0.6,
+  humanRescue: 0.5,
+  familyDie: 0.5,
+  teleport: 0.5,
+  powerupPickup: 0.5,
+  exitsOpen: 0.55,
+  levelAdvance: 0.6,
+  reconstitute: 0.6,
+};
 
 export class Sfx {
   private ctx: AudioContext | null = null;
+  private buffers = new Map<SoundEvent, AudioBuffer>();
 
   private ensure(): AudioContext | null {
     if (typeof AudioContext === "undefined") return null;
     if (!this.ctx) this.ctx = new AudioContext();
     return this.ctx;
+  }
+
+  /** Fetch + decode every clip. Safe to call without awaiting. */
+  async load(): Promise<void> {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    await Promise.all(
+      (Object.keys(EVENT_FILES) as SoundEvent[]).map(async (event) => {
+        const url = EVENT_FILES[event];
+        if (!url) return;
+        try {
+          const res = await fetch(url);
+          const buf = await res.arrayBuffer();
+          this.buffers.set(event, await ctx.decodeAudioData(buf));
+        } catch {
+          // A missing/blocked clip just means that cue stays silent.
+        }
+      }),
+    );
   }
 
   /** AudioContext starts suspended until a user gesture; call on first input. */
@@ -22,126 +90,20 @@ export class Sfx {
     if (ctx && ctx.state === "suspended") void ctx.resume();
   }
 
-  /** A single oscillator tone with a linear gain envelope. */
-  private tone(
-    ctx: AudioContext,
-    type: OscillatorType,
-    fromHz: number,
-    toHz: number,
-    dur: number,
-    gain: number,
-  ): void {
-    const master = getVolume();
-    if (master <= 0) return;
-    const t0 = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(fromHz, t0);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, toHz), t0 + dur);
-    env.gain.setValueAtTime(0.0001, t0);
-    env.gain.exponentialRampToValueAtTime(gain * master, t0 + 0.008);
-    env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(env).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.02);
-  }
-
-  /** A short burst of filtered noise (explosions / hits). */
-  private noise(ctx: AudioContext, dur: number, gain: number, hz = 1200): void {
-    const master = getVolume();
-    if (master <= 0) return;
-    const t0 = ctx.currentTime;
-    const frames = Math.floor(ctx.sampleRate * dur);
-    const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = hz;
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(gain * master, t0);
-    env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(lp).connect(env).connect(ctx.destination);
-    src.start(t0);
-    src.stop(t0 + dur + 0.02);
-  }
-
-  /** The family "electronic wail" — a warbling, downward-bending tone. */
-  private wail(ctx: AudioContext): void {
-    const master = getVolume();
-    if (master <= 0) return;
-    const t0 = ctx.currentTime;
-    const dur = 0.5;
-    const osc = ctx.createOscillator();
-    const lfo = ctx.createOscillator();
-    const lfoGain = ctx.createGain();
-    const env = ctx.createGain();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(900, t0);
-    osc.frequency.exponentialRampToValueAtTime(180, t0 + dur);
-    lfo.type = "sine";
-    lfo.frequency.value = 22;
-    lfoGain.gain.value = 120;
-    lfo.connect(lfoGain).connect(osc.frequency);
-    env.gain.setValueAtTime(0.0001, t0);
-    env.gain.exponentialRampToValueAtTime(0.35 * master, t0 + 0.02);
-    env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(env).connect(ctx.destination);
-    osc.start(t0);
-    lfo.start(t0);
-    osc.stop(t0 + dur + 0.02);
-    lfo.stop(t0 + dur + 0.02);
-  }
-
-  /** Play the cue for a single logic event (unhandled events are silent). */
+  /** Play the cue for a single logic event (unmapped events are silent). */
   play(event: SoundEvent): void {
-    const ctx = this.ensure();
+    const master = getVolume();
+    if (master <= 0) return;
+    const ctx = this.ctx;
     if (!ctx) return;
-    switch (event) {
-      case "playerShoot":
-        this.tone(ctx, "square", 720, 480, 0.05, 0.12);
-        break;
-      case "enemyShoot":
-        this.tone(ctx, "square", 300, 200, 0.08, 0.1);
-        break;
-      case "enemyDie":
-        this.noise(ctx, 0.18, 0.35, 1600);
-        break;
-      case "electrodeHit":
-        this.tone(ctx, "triangle", 1200, 300, 0.12, 0.16);
-        break;
-      case "playerHit":
-        this.noise(ctx, 0.35, 0.5, 800);
-        this.tone(ctx, "sawtooth", 400, 80, 0.35, 0.25);
-        break;
-      case "playerDie":
-      case "gameover":
-        this.tone(ctx, "sawtooth", 300, 40, 0.9, 0.3);
-        break;
-      case "humanRescue":
-        this.tone(ctx, "square", 520, 1040, 0.18, 0.2);
-        break;
-      case "familyDie":
-        this.wail(ctx);
-        break;
-      case "teleport":
-        this.tone(ctx, "sine", 300, 1400, 0.2, 0.18);
-        break;
-      case "powerupPickup":
-        this.tone(ctx, "square", 660, 1320, 0.16, 0.2);
-        break;
-      case "exitsOpen":
-        this.tone(ctx, "square", 440, 880, 0.3, 0.22);
-        break;
-      case "levelAdvance":
-        this.tone(ctx, "square", 523, 1046, 0.35, 0.24);
-        break;
-      default:
-        break;
-    }
+    const buffer = this.buffers.get(event);
+    if (!buffer) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = (EVENT_GAIN[event] ?? 0.5) * master;
+    src.connect(gain).connect(ctx.destination);
+    src.start();
   }
 
   destroy(): void {

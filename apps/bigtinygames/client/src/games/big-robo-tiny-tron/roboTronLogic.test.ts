@@ -35,6 +35,8 @@ import {
   HUMAN_RESCUE_SCORE,
   HUMAN_KILL_PENALTY,
   ENEMY_STEP_PX,
+  respawnPlayer,
+  RECON_PARTICLES,
 } from "./roboTronLogic";
 import type {
   GameState,
@@ -1048,6 +1050,58 @@ describe("TC-46 teleport pad exit offset", () => {
     expect(dist).toBeGreaterThanOrEqual(50);
     // ...but still near the destination pad (not off in the maze).
     expect(dist).toBeLessThan(80);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-47: An enemy that walks into an electrode blows up and destroys it
+describe("TC-47 enemy vs electrode mutual destruction", () => {
+  it("removes the enemy, starts the electrode shrinking, spawns debris, no score", () => {
+    const grunt = makeGrunt(1, 2, 2);
+    const state = minimalState({
+      enemies: [grunt],
+      electrodes: [makeElectrode(1, 2, 2)], // same spot as the grunt
+      enemyMoveChance: 0,
+    });
+    step(state, IDLE, 0.016);
+    expect(state.enemies).toHaveLength(0);
+    expect(state.electrodes[0].shrink).toBe(1);
+    expect(state.particles.length).toBeGreaterThan(0);
+    expect(state.events).toContain("enemyDie");
+    expect(state.events).toContain("electrodeHit");
+    expect(state.score).toBe(0); // electrode kills award no points
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-48: Reconstitute respawn animation
+describe("TC-48 reconstitute respawn", () => {
+  it("clears the respawn delay, grants invuln, and spawns converging particles", () => {
+    const state = minimalState();
+    state.player.respawnTimer = RESPAWN_DELAY;
+    state.player.invuln = 0;
+    respawnPlayer(state, seqRng([0.9, 0.1, 0.2, 0.3, 0.5, 0.7]));
+    expect(state.player.respawnTimer).toBe(0);
+    expect(state.player.invuln).toBeCloseTo(INVULN_DURATION);
+    expect(state.particles).toHaveLength(RECON_PARTICLES);
+    // Every reconstitute particle targets the player's position.
+    expect(state.particles.every((p) => p.tx === state.player.x && p.ty === state.player.y)).toBe(
+      true,
+    );
+    expect(state.events).toContain("reconstitute");
+  });
+
+  it("particles move closer to the player as the animation runs", () => {
+    const state = minimalState();
+    respawnPlayer(state, seqRng([0.9, 0.05, 0.15, 0.25, 0.35, 0.45]));
+    const p = state.particles[0];
+    const before = Math.hypot(p.x - state.player.x, p.y - state.player.y);
+    for (let i = 0; i < 8; i++) step(state, IDLE, 0.03);
+    const same = state.particles.find((q) => q === p);
+    // Still mid-flight (life ≥ 0.75s), and now nearer the player.
+    expect(same).toBeDefined();
+    const after = Math.hypot(same!.x - state.player.x, same!.y - state.player.y);
+    expect(after).toBeLessThan(before);
   });
 });
 

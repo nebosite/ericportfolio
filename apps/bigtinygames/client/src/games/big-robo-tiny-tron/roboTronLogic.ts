@@ -372,6 +372,15 @@ export interface Particle {
   life: number;
   /** CSS color string. */
   color: string;
+  /**
+   * Convergence target. When set, the particle is a "reconstitute" fragment: it
+   * lerps from (sx0, sy0) toward (tx, ty) over its lifetime (accelerating in)
+   * instead of integrating velocity, congealing onto the reforming player.
+   */
+  tx?: number;
+  ty?: number;
+  sx0?: number;
+  sy0?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -506,7 +515,8 @@ export type SoundEvent =
   | "humanRescue" // player contacted a family member (+HUMAN_RESCUE_SCORE)
   | "humanDie" // a Grunt reached a family member (−HUMAN_KILL_PENALTY)
   | "familyDie" // a family member touched an electrode/enemy (electronic wail)
-  | "electrodeHit" // a player bullet destroyed an electrode
+  | "electrodeHit" // an electrode was destroyed (player bullet or enemy collision)
+  | "reconstitute" // the player is reforming after a death (respawn animation)
   | "powerupPickup" // player collected a powerup
   | "teleport" // player used a corner teleport pad
   | "exitsOpen" // all enemies dead, exits opening (play a level-clear chime)
@@ -752,6 +762,12 @@ export const INVULN_DURATION = 2.0;
 
 /** Seconds of delay before the player re-enters the maze after losing a life. */
 export const RESPAWN_DELAY = 1.5;
+
+/** Seconds the reconstitute (respawn) particle convergence lasts. */
+export const RECON_DURATION = 1.0;
+
+/** Number of particles that fly in and congeal into the reforming player. */
+export const RECON_PARTICLES = 30;
 
 /** Starting lives. */
 export const LIVES_START = 3;
@@ -1055,8 +1071,10 @@ export function initialState(
     powerupTimer: 0,
   };
 
-  // Jittered pixel position inside a cell, always clear of the walls.
-  const spread = cellSize * 0.32;
+  // Jittered pixel position placed MAXIMALLY inside a cell — anywhere from the
+  // center right up to (nearly) the wall on every side. A tiny margin keeps a
+  // 16px sprite from poking through the wall line.
+  const spread = cellSize / 2 - 10;
   const placeInCell = (col: number, row: number): Vec2 => {
     const c = cellCenter(maze, col, row);
     return { x: c.x + (rng() * 2 - 1) * spread, y: c.y + (rng() * 2 - 1) * spread };
@@ -1363,11 +1381,12 @@ function moveEnemy(state: GameState, e: Enemy): void {
   let sx = (dx / d) * ENEMY_STEP_PX;
   let sy = (dy / d) * ENEMY_STEP_PX;
 
+  // Enemies steer around walls but NOT electrodes — walking into an electrode
+  // makes them (and the electrode) blow up, handled after movement.
   const tryMove = (mx: number, my: number): boolean => {
     const nx = e.x + mx;
     const ny = e.y + my;
     if (!ignoreWalls && entityCollidesWall(maze, nx, ny, ENEMY_RADIUS)) return false;
-    if (!ignoreWalls && hitsElectrode(state, nx, ny, ENEMY_RADIUS)) return false;
     e.x = nx;
     e.y = ny;
     return true;
@@ -1444,6 +1463,65 @@ function damagePlayer(state: GameState): void {
     state.events.push("playerDie");
     state.events.push("gameover");
   }
+}
+
+/**
+ * Bring the player back after a death: clear the respawn delay, grant a flashing
+ * invuln window, and spawn a burst of particles that fly in from the edges of
+ * the arena (biased toward the corners, so the streaks are mostly diagonal) and
+ * congeal onto the player's position — a "reconstitute" animation that also
+ * tells the player where they are. Emits the "reconstitute" cue.
+ *
+ * Called by the render layer when the post-death pause ends (it owns the
+ * timing); the converging particles then animate through step()'s particle sim.
+ */
+export function respawnPlayer(state: GameState, rng: () => number = Math.random): void {
+  const { player, maze } = state;
+  player.respawnTimer = 0;
+  player.invuln = INVULN_DURATION;
+
+  const W = maze.cols * maze.cellSize;
+  const H = maze.rows * maze.cellSize;
+  const corners: [number, number][] = [
+    [0, 0],
+    [W, 0],
+    [W, H],
+    [0, H],
+  ];
+
+  for (let i = 0; i < RECON_PARTICLES; i++) {
+    let sx: number;
+    let sy: number;
+    if (rng() < 0.78) {
+      // From near a corner → a mostly-diagonal approach.
+      const [cxp, cyp] = corners[Math.floor(rng() * 4) % 4];
+      sx = cxp === 0 ? rng() * W * 0.3 : W - rng() * W * 0.3;
+      sy = cyp === 0 ? rng() * H * 0.3 : H - rng() * H * 0.3;
+    } else {
+      // From a random point on a random edge → some come straight in.
+      const edge = Math.floor(rng() * 4) % 4;
+      if (edge === 0) [sx, sy] = [rng() * W, 0];
+      else if (edge === 1) [sx, sy] = [W, rng() * H];
+      else if (edge === 2) [sx, sy] = [rng() * W, H];
+      else [sx, sy] = [0, rng() * H];
+    }
+    const life = RECON_DURATION * (0.75 + rng() * 0.45); // stagger the arrivals
+    state.particles.push({
+      x: sx,
+      y: sy,
+      vx: 0,
+      vy: 0,
+      len: 3,
+      ttl: life,
+      life,
+      color: "#7dffb0",
+      tx: player.x,
+      ty: player.y,
+      sx0: sx,
+      sy0: sy,
+    });
+  }
+  state.events.push("reconstitute");
 }
 
 export function step(state: GameState, input: InputState, dt: number): GameState {
@@ -1626,6 +1704,27 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     else e.moving = false;
   }
 
+  // 13a. Enemy ↔ electrode collision — an enemy that walks into an intact
+  // electrode blows up and destroys the electrode (no score awarded).
+  {
+    const rr = (ENEMY_RADIUS + ELECTRODE_RADIUS) * (ENEMY_RADIUS + ELECTRODE_RADIUS);
+    for (let i = state.enemies.length - 1; i >= 0; i--) {
+      const e = state.enemies[i];
+      for (const el of state.electrodes) {
+        if (el.shrink > 0) continue;
+        if (dist2(e.x, e.y, el.x, el.y) < rr) {
+          spawnDebris(state, e.x, e.y, e.x - el.x || 1, e.y - el.y, DEBRIS_COLOR[e.kind] ?? "#fff");
+          state.enemies.splice(i, 1);
+          el.shrink = 1;
+          el.shrinkTimer = ELECTRODE_SHRINK_TIME;
+          state.events.push("enemyDie");
+          state.events.push("electrodeHit");
+          break;
+        }
+      }
+    }
+  }
+
   // 13b. Family movement — every other frame, random wander
   if (state.frame % 2 === 0) {
     for (const h of state.humans) moveFamily(state, h);
@@ -1790,14 +1889,22 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     }
   }
 
-  // 22. Particle simulation (cosmetic debris)
+  // 22. Particle simulation — debris integrate velocity; reconstitute particles
+  // (with a target) lerp from their start toward the player, accelerating in.
   for (let i = state.particles.length - 1; i >= 0; i--) {
     const p = state.particles[i];
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vx *= 0.92;
-    p.vy *= 0.92;
     p.ttl -= dt;
+    if (p.tx !== undefined && p.ty !== undefined && p.sx0 !== undefined && p.sy0 !== undefined) {
+      const prog = 1 - Math.max(0, p.ttl / p.life); // 0 → 1
+      const eased = prog * prog; // ease-in: accelerate toward the player
+      p.x = p.sx0 + (p.tx - p.sx0) * eased;
+      p.y = p.sy0 + (p.ty - p.sy0) * eased;
+    } else {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.92;
+      p.vy *= 0.92;
+    }
     if (p.ttl <= 0) state.particles.splice(i, 1);
   }
 

@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState, FormEvent } from "react";
 import {
   initialState,
   step,
+  respawnPlayer,
   mazeCellPassable,
   cellCenter,
   facingFromVec,
@@ -129,6 +130,7 @@ export default function BigRoboTinyTron() {
       })
       .catch(() => {});
     sfxRef.current = new Sfx();
+    void sfxRef.current.load();
     return () => {
       alive = false;
       sfxRef.current?.destroy();
@@ -366,12 +368,30 @@ export default function BigRoboTinyTron() {
       ctx.stroke();
     }
 
-    // 12. Particles — horizontal debris lines (fixed screen size)
+    // 12. Particles — reconstitute streaks (converging) or debris lines
+    ctx.lineWidth = 2;
     for (const p of state.particles) {
       const a = Math.max(0, Math.min(1, p.ttl / p.life));
-      ctx.globalAlpha = a;
-      ctx.fillStyle = p.color;
-      ctx.fillRect(SX(p.x) - p.len, SY(p.y) - 1, p.len * 2, 2);
+      if (p.tx !== undefined && p.ty !== undefined) {
+        // Bright green streak trailing behind its inward motion.
+        const dx = p.tx - p.x;
+        const dy = p.ty - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const ux = dx / d;
+        const uy = dy / d;
+        const bx = SX(p.x);
+        const by = SY(p.y);
+        ctx.globalAlpha = 1 - a * 0.4; // brighter as it nears the player
+        ctx.strokeStyle = p.color;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx - ux * 10, by - uy * 10);
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(SX(p.x) - p.len, SY(p.y) - 1, p.len * 2, 2);
+      }
     }
     ctx.globalAlpha = 1;
   }, []);
@@ -521,7 +541,10 @@ export default function BigRoboTinyTron() {
       if (evts.includes("playerHit")) {
         setPhase("dead");
         setTimeout(() => {
-          if (stateRef.current) stateRef.current.player.respawnTimer = 0;
+          // Reconstitute: particles fly in and congeal into the player, who
+          // flashes while a cue plays so you can find yourself again.
+          if (stateRef.current) respawnPlayer(stateRef.current);
+          sfxRef.current?.play("reconstitute");
           setPhase("playing");
         }, 1500);
         return;
