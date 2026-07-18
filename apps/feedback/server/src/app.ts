@@ -12,7 +12,10 @@ import type { Database } from "better-sqlite3";
 const APP = "feedback";
 const ENTITY_RE = /^[a-z0-9-]{1,64}$/;
 const MAX_TEXT = 1000;
-export const STATUSES = ["Suggested", "Implemented"] as const;
+// Lifecycle: every request lands as "Submitted" (an untriaged queue, hidden
+// from public voting); an admin promotes it to "Suggested" to put it up for
+// votes, then "Implemented" once it ships.
+export const STATUSES = ["Submitted", "Suggested", "Implemented"] as const;
 type Status = (typeof STATUSES)[number];
 
 const MAX_NOTES = 2000;
@@ -36,7 +39,7 @@ export function initDb(db: Database): void {
       entity TEXT NOT NULL,
       text TEXT NOT NULL,
       votes INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'Suggested',
+      status TEXT NOT NULL DEFAULT 'Submitted',
       notes TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -91,13 +94,18 @@ export function createApp(
     if (!text || text.length > MAX_TEXT) {
       return res.status(400).json({ error: `feedback must be 1-${MAX_TEXT} characters` });
     }
-    const info = db.prepare("INSERT INTO feedback (entity, text) VALUES (?, ?)").run(entity, text);
+    // New feedback enters the "Submitted" queue; an admin triages it from there.
+    // Set it explicitly (not just via the column default) so existing databases
+    // created with the old 'Suggested' default behave the same.
+    const info = db
+      .prepare("INSERT INTO feedback (entity, text, status) VALUES (?, ?, 'Submitted')")
+      .run(entity, text);
     res.status(201).json({
       id: Number(info.lastInsertRowid),
       entity,
       text,
       votes: 0,
-      status: "Suggested",
+      status: "Submitted",
     });
   });
 
@@ -106,7 +114,8 @@ export function createApp(
     if (!ENTITY_RE.test(entity)) {
       return res.status(400).json({ error: "invalid entity" });
     }
-    // Only suggestions are up for voting — implemented requests are hidden.
+    // Only "Suggested" items are up for voting — untriaged "Submitted" requests
+    // and already-"Implemented" ones are both hidden.
     const rows = db
       .prepare(
         "SELECT id, text, votes FROM feedback WHERE entity = ? AND active = 1 AND status = 'Suggested' ORDER BY RANDOM() LIMIT 3",

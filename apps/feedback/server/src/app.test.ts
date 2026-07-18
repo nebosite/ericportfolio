@@ -14,14 +14,21 @@ function fresh() {
 const auth = (req: request.Test) => req.set("Authorization", `Bearer ${TOKEN}`);
 
 describe("public feedback API", () => {
-  it("submits, lists, and upvotes feedback", async () => {
-    const { app } = fresh();
+  it("submits as Submitted (hidden from voting), then can be voted once Suggested", async () => {
+    const { db, app } = fresh();
     const created = await request(app)
       .post("/api/feedback")
       .send({ entity: "snake", text: "add a pause button" });
     expect(created.status).toBe(201);
-    expect(created.body).toMatchObject({ entity: "snake", votes: 0, status: "Suggested" });
+    // New feedback lands in the untriaged "Submitted" queue.
+    expect(created.body).toMatchObject({ entity: "snake", votes: 0, status: "Submitted" });
 
+    // ...and is NOT offered for voting while it's still Submitted.
+    const before = await request(app).get("/api/feedback/random?entity=snake");
+    expect(before.body).toHaveLength(0);
+
+    // Once an admin promotes it to Suggested, it shows up for voting.
+    db.prepare("UPDATE feedback SET status = 'Suggested' WHERE id = ?").run(created.body.id);
     const list = await request(app).get("/api/feedback/random?entity=snake");
     expect(list.body).toHaveLength(1);
 
@@ -54,6 +61,8 @@ describe("public feedback API", () => {
     const done = await request(app)
       .post("/api/feedback")
       .send({ entity: "snake", text: "already done" });
+    // Promote one to Suggested (votable) and mark the other Implemented (hidden).
+    db.prepare("UPDATE feedback SET status = 'Suggested' WHERE id = ?").run(keep.body.id);
     db.prepare("UPDATE feedback SET status = 'Implemented' WHERE id = ?").run(done.body.id);
 
     const res = await request(app).get("/api/feedback/random?entity=snake");
@@ -121,12 +130,18 @@ describe("admin list", () => {
 });
 
 describe("admin mutations", () => {
-  it("changes status between the two allowed values", async () => {
+  it("changes status among the allowed values (Submitted → Suggested → Implemented)", async () => {
     const { app } = fresh();
     const created = await request(app)
       .post("/api/feedback")
       .send({ entity: "snake", text: "do it" });
     const id = created.body.id;
+
+    const suggested = await auth(
+      request(app).patch(`/api/admin/feedback/${id}`).send({ status: "Suggested" }),
+    );
+    expect(suggested.body).toMatchObject({ id, status: "Suggested" });
+
     const ok = await auth(
       request(app).patch(`/api/admin/feedback/${id}`).send({ status: "Implemented" }),
     );

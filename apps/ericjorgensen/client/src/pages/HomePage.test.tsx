@@ -84,20 +84,24 @@ describe("HomePage — categories (machine → hand)", () => {
 describe("HomePage — layout switching & persistence", () => {
   it("swaps between spectrum, guide, and plates", () => {
     renderHome();
-    // Spectrum is the default.
+    // Spectrum is the default — its end-labels are unique to that layout.
     expect(screen.getByText("The Machine")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spectrum" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Field Guide" }));
-    expect(
-      screen.getByText("No specimens collected yet — this drawer is waiting."),
-    ).toBeInTheDocument();
+    // Left the spectrum layout (end-labels gone); Field Guide is now active.
     expect(screen.queryByText("The Machine")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Field Guide" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Plates" }));
-    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(0);
-    expect(
-      screen.queryByText("No specimens collected yet — this drawer is waiting."),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plates" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Field Guide" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("persists the chosen layout to localStorage", () => {
@@ -110,6 +114,7 @@ describe("HomePage — layout switching & persistence", () => {
     localStorage.setItem("ej_home_layout", "plates");
     renderHome();
     expect(screen.getByRole("button", { name: "Plates" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getAllByText("Awaiting specimens.").length).toBeGreaterThan(0);
+    // Not the spectrum layout, so its end-labels are absent.
+    expect(screen.queryByText("The Machine")).not.toBeInTheDocument();
   });
 });

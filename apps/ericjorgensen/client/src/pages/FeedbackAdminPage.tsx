@@ -6,7 +6,7 @@ import styles from "./FeedbackAdminPage.module.css";
 // sessionStorage (cleared when the browser closes).
 
 const TOKEN_KEY = "feedback_admin_token";
-const STATUSES = ["Suggested", "Implemented"] as const;
+const STATUSES = ["Submitted", "Suggested", "Implemented"] as const;
 type Status = (typeof STATUSES)[number];
 
 export interface AdminItem {
