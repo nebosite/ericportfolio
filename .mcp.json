@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "portfolio-db": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/mcp/db-server.mjs"]
+    },
+    "portfolio-ops": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/mcp/ops-server.mjs"]
+    }
+  }
+}
