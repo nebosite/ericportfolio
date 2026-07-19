@@ -25,7 +25,11 @@ export default function HomePage() {
               <span className={styles.marquee}>{game.title}</span>
               {game.screenshot && (
                 <span className={styles.preview}>
-                  <img src={game.screenshot} alt={`${game.title} in action`} className={styles.previewImg} />
+                  <img
+                    src={game.screenshot}
+                    alt={`${game.title} in action`}
+                    className={styles.previewImg}
+                  />
                 </span>
               )}
               <span className={styles.blurb}>{game.blurb}</span>

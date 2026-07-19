@@ -715,13 +715,35 @@ export default function BigSpaceTinyInvaders() {
       const keys = keysRef.current;
       const shots = oneShotRef.current;
       // Move left: A, J, Left arrow, Numpad4.
-      if (key === "ArrowLeft" || key === "a" || key === "A" || key === "j" || key === "J" || code === "Numpad4")
+      if (
+        key === "ArrowLeft" ||
+        key === "a" ||
+        key === "A" ||
+        key === "j" ||
+        key === "J" ||
+        code === "Numpad4"
+      )
         keys.left = down;
       // Move right: D, L, Right arrow, Numpad6.
-      else if (key === "ArrowRight" || key === "d" || key === "D" || key === "l" || key === "L" || code === "Numpad6")
+      else if (
+        key === "ArrowRight" ||
+        key === "d" ||
+        key === "D" ||
+        key === "l" ||
+        key === "L" ||
+        code === "Numpad6"
+      )
         keys.right = down;
       // Fire: W, I, Spacebar, Up arrow, Numpad7.
-      else if (key === " " || key === "ArrowUp" || key === "w" || key === "W" || key === "i" || key === "I" || code === "Numpad7")
+      else if (
+        key === " " ||
+        key === "ArrowUp" ||
+        key === "w" ||
+        key === "W" ||
+        key === "i" ||
+        key === "I" ||
+        code === "Numpad7"
+      )
         keys.fire = down;
       // Air support: E, Left Alt, C, period, O, Enter, Numpad9, Numpad3.
       else if (
@@ -755,7 +777,15 @@ export default function BigSpaceTinyInvaders() {
       )
         shots.nuke = true;
       // Swap weapon: S, K, Down arrow, Numpad5.
-      else if (down && (key === "s" || key === "S" || key === "k" || key === "K" || key === "ArrowDown" || code === "Numpad5"))
+      else if (
+        down &&
+        (key === "s" ||
+          key === "S" ||
+          key === "k" ||
+          key === "K" ||
+          key === "ArrowDown" ||
+          code === "Numpad5")
+      )
         shots.selectWeapon = true;
       else return;
       e.preventDefault();
@@ -958,17 +988,13 @@ export default function BigSpaceTinyInvaders() {
               also drifts in from an edge every so often.
             </p>
             <p>
-              <strong>MOVE</strong> ◀ ▶ arrows · A D · J L · Numpad 4 6
-              &nbsp;|&nbsp;
-              <strong>FIRE</strong> Space · W · I · ↑ · Numpad 7
-              &nbsp;|&nbsp;
+              <strong>MOVE</strong> ◀ ▶ arrows · A D · J L · Numpad 4 6 &nbsp;|&nbsp;
+              <strong>FIRE</strong> Space · W · I · ↑ · Numpad 7 &nbsp;|&nbsp;
               <strong>SWAP WEAPON</strong> S · K · ↓ · Numpad 5 · right-click
             </p>
             <p>
-              <strong>MISSILE</strong> click/tap target
-              &nbsp;|&nbsp;
-              <strong>AIR SUPPORT</strong> E · C · O · . · Enter · Numpad 9 3 · LAlt
-              &nbsp;|&nbsp;
+              <strong>MISSILE</strong> click/tap target &nbsp;|&nbsp;
+              <strong>AIR SUPPORT</strong> E · C · O · . · Enter · Numpad 9 3 · LAlt &nbsp;|&nbsp;
               <strong>NUKE</strong> Q · U · N · LShift · RCtrl · Numpad 0
             </p>
 

@@ -3,7 +3,7 @@
     "allow": [
       "Bash(git *)",
       "Bash(npm *)",
-      "PowerShell($dir = \"$env:LOCALAPPDATA\\\\node-portable*",
+      "PowerShell($dir = \"$env:LOCALAPPDATA\\\\node-portable*)",
       "PowerShell($env:Path = \"$env:LOCALAPPDATA\\\\node-portable*)",
       "PowerShell(Get-ChildItem *)",
       "PowerShell(Get-Command *)",

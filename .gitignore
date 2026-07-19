@@ -11,3 +11,5 @@ dist/
 .env
 
 .DS_Store
+
+.playwright-mcp/
