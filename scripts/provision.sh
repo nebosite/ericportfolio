@@ -106,6 +106,15 @@ if [[ -z "${ADMIN_TOKEN:-}" ]]; then
 fi
 export ADMIN_TOKEN
 
+# Ensure the insights MCP endpoint (ericjorgensen.com/mcp) has a bearer token.
+# Same persistence pattern as ADMIN_TOKEN; if unset the /mcp endpoint is closed.
+if [[ -z "${INSIGHTS_TOKEN:-}" ]]; then
+  INSIGHTS_TOKEN="$(openssl rand -hex 24)"
+  echo "INSIGHTS_TOKEN=${INSIGHTS_TOKEN}" >> "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+fi
+export INSIGHTS_TOKEN
+
 echo "==> [10/11] Starting PM2 apps"
 pm2 startOrReload "${REPO_DIR}/ecosystem.config.js" --update-env
 pm2 save

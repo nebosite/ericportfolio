@@ -34,5 +34,20 @@ module.exports = {
       script: "dist/index.js",
       env: { NODE_ENV: "production", PORT: 3005, ADMIN_TOKEN: process.env.ADMIN_TOKEN },
     },
+    {
+      // Remote MCP endpoint for ericjorgensen.com (feature-request insights).
+      // Reads the shared feedback DB read-only. INSIGHTS_TOKEN gates the /mcp
+      // endpoint; if unset the endpoint is closed. Provisioned into the deploy
+      // env like ADMIN_TOKEN (see provision.sh / /root/portfolio.env).
+      name: "insights-api",
+      cwd: "/var/www/portfolio/apps/insights/server",
+      script: "dist/index.js",
+      env: {
+        NODE_ENV: "production",
+        PORT: 3006,
+        INSIGHTS_TOKEN: process.env.INSIGHTS_TOKEN,
+        FEEDBACK_DB_PATH: "/var/www/portfolio/apps/feedback/server/data.db",
+      },
+    },
   ],
 };
