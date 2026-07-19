@@ -32,10 +32,13 @@ check "thejcrew health"      "http://localhost:3003/api/health"
 check "bigtinygames health"  "http://localhost:3004/api/health"
 check "feedback health"      "http://localhost:3005/api/health"
 check "insights health"      "http://localhost:3006/api/health"
+check "mentor health"        "http://localhost:3007/api/health"
 # The feedback admin API must reject an unauthenticated request.
 check "feedback admin gated" "http://localhost:3005/api/admin/feedback" 401
 # The insights MCP endpoint must reject an unauthenticated request.
 check "insights mcp gated"   "http://localhost:3006/mcp" 401
+# The public mentor MCP endpoint is mounted (a GET with no session → 400).
+check "mentor coach mounted" "http://localhost:3007/coach" 400
 
 if [[ "${fail}" != 0 ]]; then
   echo "==> Smoke test FAILED — services are not all healthy." >&2

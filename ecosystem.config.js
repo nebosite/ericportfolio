@@ -49,5 +49,13 @@ module.exports = {
         FEEDBACK_DB_PATH: "/var/www/portfolio/apps/feedback/server/data.db",
       },
     },
+    {
+      // Public, read-only Coding Mentor MCP (ericjorgensen.com/coach) — serves a
+      // coaching prompt + portfolio examples. No auth, no database, no secrets.
+      name: "mentor-api",
+      cwd: "/var/www/portfolio/apps/mentor/server",
+      script: "dist/index.js",
+      env: { NODE_ENV: "production", PORT: 3007 },
+    },
   ],
 };
