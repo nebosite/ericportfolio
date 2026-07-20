@@ -18,7 +18,11 @@
 
     [ ] Add the ability to use controllers
 
- FUTURE GAMES           
+NEW
+    [ ] Game Idea: Crowdeas:  crowdsourced decisions in classic games. Say it's a game of chess. All players are split into two teams. They each submit a move (or possibly several). The most commonly submitted move is executed. Or, all submitted moves are presented, and players vote on which one they want to do.
+            Gambling games like poker would probably be easier since you only get two options, raise or fold.
+
+FUTURE GAMES           
     [ ] Big space, tiny invaders (+ missile command?)
         - mouse aiming
         - Galaga flight patterns
