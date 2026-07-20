@@ -3,14 +3,14 @@ import enemyShootUrl from "./assets/sounds/enemyShoot.wav";
 import explosionUrl from "./assets/sounds/explosion.wav";
 import electrodeUrl from "./assets/sounds/electrode.wav";
 import playerHitUrl from "./assets/sounds/playerHit.wav";
-import gameoverUrl from "./assets/sounds/gameover.wav";
+import gameoverUrl from "./assets/sounds/gameover.mp3";
 import rescueUrl from "./assets/sounds/rescue.wav";
 import wailUrl from "./assets/sounds/wail.wav";
 import teleportUrl from "./assets/sounds/teleport.wav";
 import powerupUrl from "./assets/sounds/powerup.wav";
 import exitsOpenUrl from "./assets/sounds/exitsOpen.wav";
 import levelAdvanceUrl from "./assets/sounds/levelAdvance.wav";
-import reconstituteUrl from "./assets/sounds/reconstitute.wav";
+import reconstituteUrl from "./assets/sounds/materialize.wav";
 import { getVolume } from "../../lib/volume";
 import type { SoundEvent } from "./roboTronLogic";
 

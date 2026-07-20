@@ -11,6 +11,7 @@ import {
   Facing,
   POWERUP_TTL,
   BULLET_LENGTH,
+  MATERIALIZE_DURATION,
 } from "./roboTronLogic";
 import { getLevelConfig } from "./levels";
 import {
@@ -36,12 +37,13 @@ import styles from "./BigRoboTinyTron.module.css";
 const ENTITY = "big-robo-tiny-tron";
 
 /**
- * Maze-cell size in logical px (2.5× the original). The number of cells is
- * chosen so the grid tiles the viewport, and the canvas backing store
- * (cols·cellSize × rows·cellSize) is stretched to fill the stage exactly (the
- * canvas CSS is width/height 100%), so the maze fills the screen on both axes.
+ * Default (target) maze-cell size in px. The column/row COUNT is `floor(playable
+ * dimension / CELL)`; each cell's actual pixel size is then `floor(playable
+ * dimension / count)` so the grid fills the screen exactly. Cells are therefore
+ * rectangular (e.g. a 2100×1030 area → 10×5 cells of 210×206). The canvas backing
+ * store IS the grid (cols·cellW × rows·cellH) and is drawn 1:1 (never stretched).
  */
-const CELL = 440;
+const CELL = 200;
 
 /** Teleport-pad visual diameter (px). */
 const PAD_DIAMETER = 30;
@@ -82,6 +84,86 @@ interface ScoreRow {
 
 // ---------------------------------------------------------------------------
 // Component
+
+// ---------------------------------------------------------------------------
+// Materialize animation — draw a sprite as 16 horizontal lines (one per sprite
+// pixel row) converging to their final position. Rows further from the sprite's
+// vertical middle start further away (up to `dist`, a full screen) along the
+// (spreadDx, spreadDy) axis; at eased=1 they all arrive together.
+
+const matEased = (p: number) => {
+  const c = Math.max(0, Math.min(1, p));
+  return c * c * (3 - 2 * c); // smoothstep — decelerate into place
+};
+
+function drawMatStrips(
+  ctx: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  rect: SrcRect,
+  cx: number,
+  cy: number,
+  size: number,
+  eased: number,
+  spreadDx: number,
+  spreadDy: number,
+  dist: number,
+): void {
+  const half = size / 2;
+  const px = size / 16;
+  for (let i = 0; i < 16; i++) {
+    const finalX = cx - half;
+    const finalY = cy - half + i * px;
+    const off = ((i - 7.5) / 7.5) * dist * (1 - eased); // rows above mid go up, below go down
+    ctx.drawImage(
+      sheet,
+      rect.sx,
+      rect.sy + i,
+      rect.s,
+      1,
+      finalX + spreadDx * off,
+      finalY + spreadDy * off,
+      size,
+      px,
+    );
+  }
+}
+
+/** Draw the whole scene's materialize convergence (enemies + family vertical, player + diagonals). */
+function drawMaterialize(
+  ctx: CanvasRenderingContext2D,
+  sheet: HTMLImageElement,
+  state: GameState,
+  screenH: number,
+): void {
+  const eased = matEased(1 - state.materializeTimer / MATERIALIZE_DURATION);
+  const size = SPRITE;
+  const d = Math.SQRT1_2;
+
+  for (const e of state.enemies) {
+    const rect = enemyRect(e.kind, "down", false, 0);
+    if (rect) drawMatStrips(ctx, sheet, rect, e.x, e.y, size, eased, 0, 1, screenH);
+  }
+  for (const h of state.humans) {
+    drawMatStrips(
+      ctx,
+      sheet,
+      familyRect(h.type, "down", false, 0),
+      h.x,
+      h.y,
+      size,
+      eased,
+      0,
+      1,
+      screenH,
+    );
+  }
+  // The player assembles from three line-families: vertical + both diagonals.
+  const p = state.player;
+  const prect = playerRect("down", false, 0);
+  drawMatStrips(ctx, sheet, prect, p.x, p.y, size, eased, 0, 1, screenH);
+  drawMatStrips(ctx, sheet, prect, p.x, p.y, size, eased, d, d, screenH);
+  drawMatStrips(ctx, sheet, prect, p.x, p.y, size, eased, -d, d, screenH);
+}
 
 export default function BigRoboTinyTron() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -148,16 +230,19 @@ export default function BigRoboTinyTron() {
     const w = stage?.clientWidth || canvas.clientWidth || 900;
     const h = stage?.clientHeight || canvas.clientHeight || 640;
 
-    const cols = Math.max(3, Math.round(w / CELL));
-    const rows = Math.max(3, Math.round(h / CELL));
+    // Column/row COUNT from the playable size at the default cell size, then the
+    // actual (rectangular) cell pixel size trimmed so the grid fills the screen
+    // exactly. e.g. 2100×1030 @ 200 ⇒ 10×5 cells of 210×206.
+    const cols = Math.max(3, Math.floor(w / CELL));
+    const rows = Math.max(3, Math.floor(h / CELL));
+    const cellW = Math.floor(w / cols);
+    const cellH = Math.floor(h / rows);
 
     const config = getLevelConfig(level);
-    const st = initialState(cols, rows, level, Math.random, CELL, config);
-    // Backing store = the actual display size (1 backing px = 1 CSS px), so game
-    // objects can be drawn at their native 1:1 pixel resolution. The draw layer
-    // maps the maze's logical space onto this canvas to fill both axes.
-    canvas.width = Math.max(1, Math.round(w));
-    canvas.height = Math.max(1, Math.round(h));
+    const st = initialState(cols, rows, level, Math.random, cellW, config, cellH);
+    // Backing store IS the grid; drawn 1:1 (never stretched — see the CSS).
+    canvas.width = st.maze.cols * cellW;
+    canvas.height = st.maze.rows * cellH;
     return st;
   }, []);
 
@@ -178,6 +263,7 @@ export default function BigRoboTinyTron() {
     setInitials("");
     setSubmitError("");
     sfxRef.current?.resume();
+    sfxRef.current?.play("reconstitute"); // materialize come-together cue
     trackEvent("game_start", { game: ENTITY });
     recordPlay(ENTITY);
     setPhase("playing");
@@ -193,19 +279,18 @@ export default function BigRoboTinyTron() {
     if (!ctx) return;
 
     const { maze } = state;
-    const { cols, rows, cellSize } = maze;
+    const { cols, rows, cellW, cellH } = maze;
     const sheet = sheetRef.current;
 
-    // Map the maze's logical space onto the display so it fills both axes; game
-    // objects are then drawn at FIXED native pixel sizes (1:1) regardless of the
-    // grid size — only their positions are scaled.
-    const scaleX = canvas.width / (cols * cellSize);
-    const scaleY = canvas.height / (rows * cellSize);
+    // The canvas backing store IS the grid (cols·cellW × rows·cellH), so the
+    // logical→display scale is 1:1 on both axes and objects draw at native size.
+    const scaleX = canvas.width / (cols * cellW);
+    const scaleY = canvas.height / (rows * cellH);
     const SX = (x: number) => x * scaleX;
     const SY = (y: number) => y * scaleY;
     // Screen size of one cell (for exit openings that span a cell).
-    const cw = cellSize * scaleX;
-    const chh = cellSize * scaleY;
+    const cw = cellW * scaleX;
+    const chh = cellH * scaleY;
     // 3-frame walk cycle, ~12fps, staggered per entity id.
     const animPhase = Math.floor(t * 12);
 
@@ -232,23 +317,23 @@ export default function BigRoboTinyTron() {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const w = maze.walls[row * cols + col];
-        const x = col * cellSize;
-        const y = row * cellSize;
+        const x = col * cellW;
+        const y = row * cellH;
         if (w & 1) {
           ctx.moveTo(SX(x), SY(y));
-          ctx.lineTo(SX(x + cellSize), SY(y));
+          ctx.lineTo(SX(x + cellW), SY(y));
         }
         if (w & 2) {
-          ctx.moveTo(SX(x + cellSize), SY(y));
-          ctx.lineTo(SX(x + cellSize), SY(y + cellSize));
+          ctx.moveTo(SX(x + cellW), SY(y));
+          ctx.lineTo(SX(x + cellW), SY(y + cellH));
         }
         if (w & 4) {
-          ctx.moveTo(SX(x), SY(y + cellSize));
-          ctx.lineTo(SX(x + cellSize), SY(y + cellSize));
+          ctx.moveTo(SX(x), SY(y + cellH));
+          ctx.lineTo(SX(x + cellW), SY(y + cellH));
         }
         if (w & 8) {
           ctx.moveTo(SX(x), SY(y));
-          ctx.lineTo(SX(x), SY(y + cellSize));
+          ctx.lineTo(SX(x), SY(y + cellH));
         }
       }
     }
@@ -258,8 +343,8 @@ export default function BigRoboTinyTron() {
     if (state.exitsOpen) {
       ctx.fillStyle = "rgba(255, 238, 0, 0.85)";
       for (const ec of maze.exitCells) {
-        const x = SX(ec.col * cellSize);
-        const y = SY(ec.row * cellSize);
+        const x = SX(ec.col * cellW);
+        const y = SY(ec.row * cellH);
         if (ec.row === 0 && mazeCellPassable(maze, ec.col, ec.row, "N")) {
           ctx.fillRect(x + 5, y - 4, cw - 10, 8);
         } else if (ec.row === rows - 1 && mazeCellPassable(maze, ec.col, ec.row, "S")) {
@@ -272,16 +357,19 @@ export default function BigRoboTinyTron() {
       }
     }
 
-    // 4. Teleport pads — small 30px pulsing disks at the corner-cell centers
+    // 4. Teleport pads — pulsing disks; each linked pair shares a color, so the
+    // two ends of a wormhole read as a matched set.
     const padAlpha = 0.45 + 0.3 * Math.sin(t * 3.5);
     for (const pad of maze.teleportPads) {
       const c = cellCenter(maze, pad.col, pad.row);
+      ctx.globalAlpha = padAlpha;
       ctx.beginPath();
       ctx.arc(SX(c.x), SY(c.y), PAD_DIAMETER / 2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(40, 80, 255, ${padAlpha})`;
+      ctx.fillStyle = pad.color;
       ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.lineWidth = 2;
-      ctx.strokeStyle = `rgba(120, 170, 255, ${0.6 + 0.4 * Math.sin(t * 3.5)})`;
+      ctx.strokeStyle = pad.color;
       ctx.stroke();
     }
 
@@ -291,6 +379,13 @@ export default function BigRoboTinyTron() {
         ctx.fillStyle = "#39ff14";
         ctx.fillRect(SX(el.x) - 5, SY(el.y) - 5, 10, 10);
       }
+    }
+
+    // 5b. Materialize: enemies + player assemble from sprite lines flying in
+    // from off-screen. Gameplay is frozen; skip the normal entity/bullet layers.
+    if (state.materializeTimer > 0) {
+      if (sheet) drawMaterialize(ctx, sheet, state, canvas.height);
+      return;
     }
 
     // 6. Family members — native 16px, 3-frame walk cycle
@@ -564,7 +659,10 @@ export default function BigRoboTinyTron() {
           prevPlayerRef.current = { x: st.player.x, y: st.player.y };
         }
         setPhase("exiting");
-        setTimeout(() => setPhase("playing"), 2000);
+        setTimeout(() => {
+          sfxRef.current?.play("reconstitute"); // materialize cue as the new level assembles
+          setPhase("playing");
+        }, 2000);
         return;
       }
 
@@ -677,7 +775,7 @@ export default function BigRoboTinyTron() {
             <span style={{ color: "#39ff14" }}>■ Electrode</span>
             <span>shoot it — deadly to touch</span>
             <span style={{ color: "#ff5cc8" }}>■ Family</span>
-            <span>rescue for +1000 · dies on any hazard</span>
+            <span>rescue for +1000 · safe from robots, avoids electrodes</span>
           </div>
 
           <button className={styles.arcadeButton} onClick={startNewGame}>

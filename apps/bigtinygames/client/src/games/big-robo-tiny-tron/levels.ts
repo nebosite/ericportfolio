@@ -9,7 +9,7 @@ import levelsCsv from "./assets/levels.csv?raw";
 //
 // Columns (header row, order-independent — parsed by name):
 //   Level, Moms, Dads, Mikeys, Sallys, Grunts, Hulks, Brains, Spheroids,
-//   Enforcers, ElectrodeType, Electrodes, Tanks, EnemyMoveChance
+//   Enforcers, ElectrodeType, Electrodes, Tanks, EnemyMoveChance, Smartness
 
 /** Parse the CSV text into an ordered list of per-level configs (index 0 = level 1). */
 export function parseLevels(csv: string): LevelConfig[] {
@@ -35,6 +35,7 @@ export function parseLevels(csv: string): LevelConfig[] {
     electrodes: idx("Electrodes"),
     tanks: idx("Tanks"),
     enemyMoveChance: idx("EnemyMoveChance"),
+    smartness: idx("Smartness"),
   };
 
   const num = (fields: string[], i: number): number => {
@@ -60,6 +61,8 @@ export function parseLevels(csv: string): LevelConfig[] {
       electrodes: num(f, cols.electrodes),
       tanks: num(f, cols.tanks),
       enemyMoveChance: num(f, cols.enemyMoveChance),
+      // Missing/blank Smartness defaults to 1 (never uses teleports).
+      smartness: num(f, cols.smartness) || 1,
     });
   }
   return rows;

@@ -28,7 +28,19 @@ describe("parseLevels", () => {
       electrodes: 4,
       tanks: 0,
       enemyMoveChance: 0.05,
+      smartness: 1, // absent Smartness column defaults to 1
     });
+  });
+
+  it("parses the Smartness column when present", () => {
+    const withSmarts = [
+      "Level,Grunts,EnemyMoveChance,Smartness",
+      "1,10,0.05,1",
+      "2,12,0.07,3",
+    ].join("\n");
+    const rows = parseLevels(withSmarts);
+    expect(rows[0].smartness).toBe(1);
+    expect(rows[1].smartness).toBe(3);
   });
 
   it("maps columns by header name, not position", () => {

@@ -4,16 +4,26 @@
 
 .stage {
   position: relative;
-  width: 100%;
-  height: 100%;
+  /* Fill the flex parent (.main) on BOTH axes. `height: 100%` does not resolve
+   * against a flex-sized parent here, so grow via flex + stretch instead — that
+   * gives the maze the full viewport height to size its cells against. */
+  flex: 1;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
   background: #0a0a1a;
   overflow: hidden;
+  /* Center the fixed-size grid canvas; the small trim margin is the game bg. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* The canvas is drawn at 1:1 native pixels (its backing store == the grid), so
+   it is NOT stretched to fill — that keeps graphics crisp and unscaled, and a
+   window resize during play just changes the trim margin, never the scale. */
 .canvas {
   display: block;
-  width: 100%;
-  height: 100%;
   image-rendering: pixelated;
   touch-action: none;
   user-select: none;

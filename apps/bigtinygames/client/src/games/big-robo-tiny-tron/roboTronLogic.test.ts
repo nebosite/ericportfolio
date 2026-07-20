@@ -36,7 +36,7 @@ import {
   HUMAN_KILL_PENALTY,
   ENEMY_STEP_PX,
   respawnPlayer,
-  RECON_PARTICLES,
+  MATERIALIZE_DURATION,
 } from "./roboTronLogic";
 import type {
   GameState,
@@ -77,12 +77,12 @@ function openMaze(cols: number, rows: number): Maze {
     cols,
     rows,
     walls,
-    cellSize: CELL_SIZE,
+    cellW: CELL_SIZE,
+    cellH: CELL_SIZE,
+    // One linked pair: NW corner ↔ SE corner (shared color).
     teleportPads: [
-      { col: 0, row: 0 },
-      { col: cols - 1, row: 0 },
-      { col: cols - 1, row: rows - 1 },
-      { col: 0, row: rows - 1 },
+      { col: 0, row: 0, pair: 0, color: "#ff3b3b" },
+      { col: cols - 1, row: rows - 1, pair: 0, color: "#ff3b3b" },
     ],
     exitCells: [
       { col: Math.floor(cols / 2), row: 0 },
@@ -134,6 +134,7 @@ function makeGrunt(id: number, col: number, row: number, overrides: Partial<Grun
     path: [],
     pathAge: 0,
     shootCooldown: GRUNT_SHOOT_COOLDOWN,
+    smartness: 1,
     ...overrides,
   };
 }
@@ -158,6 +159,7 @@ function makeEnforcer(
     path: [],
     pathAge: 0,
     shootCooldown: ENFORCER_SHOOT_COOLDOWN,
+    smartness: 1,
     ...overrides,
   };
 }
@@ -179,6 +181,7 @@ function minimalState(overrides: Partial<GameState> = {}): GameState {
     particles: [],
     enemyMoveChance: 0,
     frame: 0,
+    materializeTimer: 0,
     bullets: [],
     powerupPickups: [],
     decoy: null,
@@ -305,6 +308,7 @@ const ZERO_CONFIG: LevelConfig = {
   electrodes: 0,
   tanks: 0,
   enemyMoveChance: 0,
+  smartness: 1,
 };
 const cfg = (partial: Partial<LevelConfig>): LevelConfig => ({ ...ZERO_CONFIG, ...partial });
 
@@ -558,13 +562,9 @@ describe("TC-21 bfsPath shortest path in hand-crafted maze", () => {
       cols,
       rows,
       walls,
-      cellSize: CELL_SIZE,
-      teleportPads: [
-        { col: 0, row: 0 },
-        { col: 4, row: 0 },
-        { col: 4, row: 4 },
-        { col: 0, row: 4 },
-      ],
+      cellW: CELL_SIZE,
+      cellH: CELL_SIZE,
+      teleportPads: [],
       exitCells: [],
     };
 
@@ -589,13 +589,9 @@ describe("TC-22 bfsPath ignoreWalls", () => {
       cols,
       rows,
       walls,
-      cellSize: CELL_SIZE,
-      teleportPads: [
-        { col: 0, row: 0 },
-        { col: 2, row: 0 },
-        { col: 2, row: 2 },
-        { col: 0, row: 2 },
-      ],
+      cellW: CELL_SIZE,
+      cellH: CELL_SIZE,
+      teleportPads: [],
       exitCells: [],
     };
     const path = bfsPath(maze, { col: 0, row: 0 }, { col: 2, row: 2 }, true);
@@ -611,13 +607,9 @@ describe("TC-22 bfsPath ignoreWalls", () => {
       cols,
       rows,
       walls,
-      cellSize: CELL_SIZE,
-      teleportPads: [
-        { col: 0, row: 0 },
-        { col: 2, row: 0 },
-        { col: 2, row: 2 },
-        { col: 0, row: 2 },
-      ],
+      cellW: CELL_SIZE,
+      cellH: CELL_SIZE,
+      teleportPads: [],
       exitCells: [],
     };
     expect(bfsPath(maze, { col: 0, row: 0 }, { col: 2, row: 2 })).toHaveLength(0);
@@ -936,7 +928,7 @@ describe("TC-40 smooth enemy movement toward the player", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TC-41: Family members die on contact with an electrode or an enemy
+// TC-41: Only electrodes kill family members; enemies never harm them.
 describe("TC-41 family death on hazard contact", () => {
   it("dies (with a familyDie wail) when overlapping an electrode", () => {
     const state = minimalState({
@@ -950,14 +942,15 @@ describe("TC-41 family death on hazard contact", () => {
     expect(state.score).toBe(Math.max(0, 0 - HUMAN_KILL_PENALTY));
   });
 
-  it("dies when overlapping an enemy", () => {
+  it("is NOT killed by touching an enemy (enemies no longer harm family)", () => {
     const state = minimalState({
       humans: [makeFamily(1, "dad", 2, 2)],
       enemies: [makeGrunt(1, 2, 2)],
+      enemyMoveChance: 0,
     });
     step(state, IDLE, 0.016);
-    expect(state.humans).toHaveLength(0);
-    expect(state.events).toContain("familyDie");
+    expect(state.humans).toHaveLength(1); // survives — enemy contact is harmless
+    expect(state.events).not.toContain("familyDie");
   });
 
   it("cannot be hit by player bullets (bullet passes through family)", () => {
@@ -1036,20 +1029,84 @@ describe("TC-44 bullet speed and fire rate", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TC-46: Teleport pads move the player to the opposite pad, offset ≥50px
-describe("TC-46 teleport pad exit offset", () => {
-  it("teleports to the opposite pad, landing at least 50px from its center", () => {
+// TC-46: Teleport pads emerge you out the FAR side of the linked pair.
+describe("TC-46 teleport pad — opposite-side emergence", () => {
+  it("teleports to the paired pad, landing past its center in the entry direction", () => {
+    const maze = openMaze(11, 11); // pair 0: NW (0,0) ↔ SE (10,10)
+    const nw = cellCenter(maze, 0, 0);
+    // Enter moving EAST → should emerge on the east (far) side of the partner.
+    const state = minimalState({ maze, player: basePlayer(nw.x, nw.y) });
+    step(state, { ...IDLE, moveX: 1 }, 0.016);
+    expect(state.events).toContain("teleport");
+    const se = cellCenter(maze, 10, 10);
+    expect(state.player.x).toBeGreaterThan(se.x); // emerged on the far side
+    const dist = Math.hypot(state.player.x - se.x, state.player.y - se.y);
+    expect(dist).toBeGreaterThanOrEqual(50); // ≥ exit offset, won't re-trigger
+    expect(dist).toBeLessThan(80); // ...but still by the destination pad
+  });
+
+  it("a bullet crossing a pad emerges from the pair keeping its velocity", () => {
     const maze = openMaze(11, 11);
     const nw = cellCenter(maze, 0, 0);
-    const state = minimalState({ maze, player: basePlayer(nw.x, nw.y) });
+    const bullet = { id: 1, x: nw.x, y: nw.y, vx: BULLET_SPEED, vy: 0, fromPlayer: true };
+    const state = minimalState({ maze, bullets: [bullet], player: basePlayer(nw.x, nw.y) });
+    // Move the player off its own pad first so it doesn't also teleport.
+    state.player.x = cellCenter(maze, 5, 5).x;
+    state.player.y = cellCenter(maze, 5, 5).y;
     step(state, IDLE, 0.016);
-    expect(state.events).toContain("teleport");
-    // Opposite of pad index 0 (NW) is index 2 (SE) = (10,10).
+    const b = state.bullets[0];
+    expect(b).toBeDefined();
     const se = cellCenter(maze, 10, 10);
-    const dist = Math.hypot(state.player.x - se.x, state.player.y - se.y);
-    expect(dist).toBeGreaterThanOrEqual(50);
-    // ...but still near the destination pad (not off in the maze).
-    expect(dist).toBeLessThan(80);
+    // Jumped across the map to the partner pad, still travelling east.
+    expect(b.x).toBeGreaterThan(se.x);
+    expect(Math.abs(b.y - se.y)).toBeLessThan(2);
+    expect(b.vx).toBe(BULLET_SPEED);
+  });
+});
+
+// TC-46b: smartness > 1 enemies use a same-cell teleport to close on the player.
+describe("TC-46b smart-enemy teleport", () => {
+  it("a smart enemy on a pad jumps to the pair when it lands closer to the player", () => {
+    const maze = openMaze(11, 11); // pair 0: NW (0,0) ↔ SE (10,10)
+    const nw = cellCenter(maze, 0, 0);
+    // Player near the SE pad; a smart grunt sits on the NW pad, far away.
+    const player = basePlayer(cellCenter(maze, 9, 9).x, cellCenter(maze, 9, 9).y);
+    const grunt = makeGrunt(1, 0, 0, { x: nw.x, y: nw.y, smartness: 3 });
+    const state = minimalState({ maze, player, enemies: [grunt], enemyMoveChance: 0 });
+    const before = Math.hypot(grunt.x - player.x, grunt.y - player.y);
+    step(state, IDLE, 0.016);
+    const g = state.enemies[0];
+    const after = Math.hypot(g.x - player.x, g.y - player.y);
+    expect(after).toBeLessThan(before); // teleported across, much closer now
+    expect(g.col).toBeGreaterThan(5);
+  });
+
+  it("a dumb enemy (smartness 1) never uses the teleport", () => {
+    const maze = openMaze(11, 11);
+    const nw = cellCenter(maze, 0, 0);
+    const player = basePlayer(cellCenter(maze, 9, 9).x, cellCenter(maze, 9, 9).y);
+    const grunt = makeGrunt(1, 0, 0, { x: nw.x, y: nw.y, smartness: 1 });
+    const state = minimalState({ maze, player, enemies: [grunt], enemyMoveChance: 0 });
+    step(state, IDLE, 0.016);
+    const g = state.enemies[0];
+    expect(g.col).toBe(0); // stayed on the NW pad — no teleport
+    expect(g.row).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-46c: Rectangular cells — cellW and cellH are honored independently.
+describe("TC-46c rectangular cells", () => {
+  it("cellCenter/cellAt use separate cellW and cellH", () => {
+    // 7th arg is cellH; 5th is cellW. 210×206 mirrors the 2100×1030 @ 200 case.
+    const state = initialState(3, 3, 1, seqRng([0.5]), 210, cfg({}), 206);
+    const maze = state.maze;
+    expect(maze.cellW).toBe(210);
+    expect(maze.cellH).toBe(206);
+    const c = cellCenter(maze, 2, 1);
+    expect(c.x).toBeCloseTo(2 * 210 + 105);
+    expect(c.y).toBeCloseTo(1 * 206 + 103);
+    expect(cellAt(maze, c.x, c.y)).toEqual({ col: 2, row: 1 });
   });
 });
 
@@ -1074,34 +1131,72 @@ describe("TC-47 enemy vs electrode mutual destruction", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TC-48: Reconstitute respawn animation
-describe("TC-48 reconstitute respawn", () => {
-  it("clears the respawn delay, grants invuln, and spawns converging particles", () => {
+// TC-48: Respawn triggers the materialize animation
+describe("TC-48 respawn materialize", () => {
+  it("clears the respawn delay, grants invuln, and arms the materialize timer", () => {
     const state = minimalState();
     state.player.respawnTimer = RESPAWN_DELAY;
     state.player.invuln = 0;
-    respawnPlayer(state, seqRng([0.9, 0.1, 0.2, 0.3, 0.5, 0.7]));
+    respawnPlayer(state);
     expect(state.player.respawnTimer).toBe(0);
     expect(state.player.invuln).toBeCloseTo(INVULN_DURATION);
-    expect(state.particles).toHaveLength(RECON_PARTICLES);
-    // Every reconstitute particle targets the player's position.
-    expect(state.particles.every((p) => p.tx === state.player.x && p.ty === state.player.y)).toBe(
-      true,
-    );
+    expect(state.materializeTimer).toBeCloseTo(MATERIALIZE_DURATION);
     expect(state.events).toContain("reconstitute");
   });
 
-  it("particles move closer to the player as the animation runs", () => {
-    const state = minimalState();
-    respawnPlayer(state, seqRng([0.9, 0.05, 0.15, 0.25, 0.35, 0.45]));
-    const p = state.particles[0];
-    const before = Math.hypot(p.x - state.player.x, p.y - state.player.y);
-    for (let i = 0; i < 8; i++) step(state, IDLE, 0.03);
-    const same = state.particles.find((q) => q === p);
-    // Still mid-flight (life ≥ 0.75s), and now nearer the player.
-    expect(same).toBeDefined();
-    const after = Math.hypot(same!.x - state.player.x, same!.y - state.player.y);
-    expect(after).toBeLessThan(before);
+  it("freezes gameplay while materializing, then resumes", () => {
+    // A grunt that would move toward the player, but the scene is materializing.
+    const grunt = makeGrunt(1, 3, 5);
+    const startX = grunt.x;
+    const state = minimalState({
+      enemies: [grunt],
+      enemyMoveChance: 1,
+      materializeTimer: MATERIALIZE_DURATION,
+    });
+    step(state, IDLE, 0.05);
+    expect(state.enemies[0].x).toBe(startX); // frozen — no movement
+    expect(state.materializeTimer).toBeCloseTo(MATERIALIZE_DURATION - 0.05);
+    // Run out the clock; then movement resumes.
+    for (let i = 0; i < 60; i++) step(state, IDLE, 0.05);
+    expect(state.materializeTimer).toBe(0);
+    step(state, IDLE, 0.05);
+    expect(state.enemies[0].x).toBeGreaterThan(startX); // moving again
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TC-49: entities are placed without overlapping each other or electrodes
+describe("TC-49 non-overlapping placement", () => {
+  it("no two co-cell entities (incl. electrodes) sit on top of each other", () => {
+    const state = initialState(
+      5,
+      5,
+      1,
+      Math.random,
+      400,
+      cfg({ grunts: 8, electrodes: 4, moms: 1 }),
+    );
+    const byCell = new Map<string, Array<{ x: number; y: number }>>();
+    const add = (col: number, row: number, x: number, y: number) => {
+      const k = `${col},${row}`;
+      if (!byCell.has(k)) byCell.set(k, []);
+      byCell.get(k)!.push({ x, y });
+    };
+    for (const e of state.enemies) add(e.col, e.row, e.x, e.y);
+    for (const h of state.humans) add(h.col, h.row, h.x, h.y);
+    for (const el of state.electrodes) add(el.col, el.row, el.x, el.y);
+
+    let minDist = Infinity;
+    for (const list of byCell.values()) {
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          minDist = Math.min(minDist, Math.hypot(list[i].x - list[j].x, list[i].y - list[j].y));
+        }
+      }
+    }
+    // ≥ 24 clears both sprite overlap and ENEMY_RADIUS + ELECTRODE_RADIUS (21),
+    // so nothing overlaps and no enemy spawns already touching an electrode.
+    expect(minDist).toBeGreaterThanOrEqual(24);
   });
 });
 

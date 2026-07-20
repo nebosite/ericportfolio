@@ -66,6 +66,34 @@ export interface CellPos {
   row: number;
 }
 
+/**
+ * One teleport pad. Pads come in pairs: the two pads that share a `pair` index
+ * (and therefore a `color`) are linked — entering one emerges you out the far
+ * side of the other. There is roughly one pair per 10 grid squares.
+ */
+export interface TeleportPad {
+  col: number;
+  row: number;
+  /** Pair index; the two pads of a linked pair share this value. */
+  pair: number;
+  /** CSS color shared by both pads of the pair (the visual pairing cue). */
+  color: string;
+}
+
+/** Distinct neon colors cycled across teleport pairs so each pair reads apart. */
+export const TELEPORT_PAIR_COLORS: readonly string[] = [
+  "#ff3b3b",
+  "#39ff14",
+  "#00aaff",
+  "#ffee00",
+  "#ff00ff",
+  "#00ffff",
+  "#ff8800",
+  "#b25cff",
+  "#ff5cc8",
+  "#7cff5c",
+];
+
 // ---------------------------------------------------------------------------
 // Maze
 
@@ -80,15 +108,19 @@ export interface Maze {
    * Set bit ⟹ the named face has a wall.
    */
   walls: Uint8Array;
-  /** Pixel size of one cell (square). All cells are the same size. */
-  cellSize: number;
   /**
-   * The four corner teleport pad cells in order [NW, NE, SE, SW].
-   * Each pad occupies the corner cell of the maze. Walking onto a pad
-   * teleports the player to the diagonally opposite pad (NW ↔ SE, NE ↔ SW).
-   * Enemies are NOT teleported.
+   * Pixel size of one cell. Cells are rectangular: `cellW` is trimmed from the
+   * playable width / cols and `cellH` from the playable height / rows, so the
+   * grid fills the screen almost exactly (they are usually close but not equal).
    */
-  teleportPads: readonly [CellPos, CellPos, CellPos, CellPos];
+  cellW: number;
+  cellH: number;
+  /**
+   * Teleport pads, ~one linked pair per 10 grid squares. The two pads sharing a
+   * `pair` index are linked: entering one emerges you out the far side of the
+   * other (same for bullets). Only "smart" enemies (smartness > 1) use them.
+   */
+  teleportPads: readonly TeleportPad[];
   /**
    * Cells on the outer border that serve as exits to the next level.
    * These cells have their outward-facing wall bit cleared in the walls array
@@ -208,6 +240,8 @@ interface EnemyBase {
   pathAge: number;
   /** Seconds until this enemy may fire again. */
   shootCooldown: number;
+  /** Cleverness (from the level config). > 1 ⇒ willing to use teleport pads. */
+  smartness: number;
 }
 
 /**
@@ -408,6 +442,12 @@ export interface LevelConfig {
   tanks: number;
   /** Per-frame probability (0–1) that an enemy takes its 2px step. */
   enemyMoveChance: number;
+  /**
+   * Enemy cleverness for this level. Enemies with smartness > 1 are clever
+   * enough to use a teleport pad in their current grid square when the paired
+   * pad lands them closer to the player. 1 (or less) = never use teleports.
+   */
+  smartness: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -570,6 +610,12 @@ export interface GameState {
   enemyMoveChance: number;
   /** Monotonic frame counter; family members move on even frames (every other). */
   frame: number;
+  /**
+   * Seconds remaining in the "materialize" animation (enemies + player assembling
+   * from sprite lines). While > 0, step() freezes all gameplay; the renderer
+   * draws the convergence. 0 during normal play.
+   */
+  materializeTimer: number;
   bullets: Bullet[];
   powerupPickups: PowerupPickup[];
   /** The currently active decoy, or null if none has been placed. */
@@ -694,6 +740,12 @@ export const ENEMY_STEP_PX = 4;
 /** Pixels a family member advances on a single wander step. */
 export const FAMILY_STEP_PX = 2;
 
+/**
+ * Extra clearance a family member keeps from an electrode when wandering, so
+ * they visibly shy away rather than brushing right up against a lethal hazard.
+ */
+export const FAMILY_ELECTRODE_MARGIN = 8;
+
 /** Collision radius for an electrode (kills player/family, stops bullets). */
 export const ELECTRODE_RADIUS = 12;
 
@@ -769,6 +821,13 @@ export const RECON_DURATION = 1.0;
 /** Number of particles that fly in and congeal into the reforming player. */
 export const RECON_PARTICLES = 30;
 
+/**
+ * Seconds the "materialize" intro/respawn animation lasts. At the start of a
+ * level and after a death, every enemy (and the player) assembles from sprite
+ * lines flying in from off-screen. Gameplay is frozen for this whole window.
+ */
+export const MATERIALIZE_DURATION = 2.0;
+
 /** Starting lives. */
 export const LIVES_START = 3;
 
@@ -842,6 +901,7 @@ export const DEFAULT_LEVEL_CONFIG: LevelConfig = {
   electrodes: 4,
   tanks: 0,
   enemyMoveChance: 0.05,
+  smartness: 1,
 };
 
 // ---------------------------------------------------------------------------
@@ -870,20 +930,28 @@ export function mazeCellPassable(
 
 export function cellCenter(maze: Maze, col: number, row: number): Vec2 {
   return {
-    x: col * maze.cellSize + maze.cellSize / 2,
-    y: row * maze.cellSize + maze.cellSize / 2,
+    x: col * maze.cellW + maze.cellW / 2,
+    y: row * maze.cellH + maze.cellH / 2,
   };
 }
 
 export function cellAt(maze: Maze, x: number, y: number): CellPos {
   return {
-    col: Math.floor(x / maze.cellSize),
-    row: Math.floor(y / maze.cellSize),
+    col: Math.floor(x / maze.cellW),
+    row: Math.floor(y / maze.cellH),
   };
 }
 
-export function teleportPadPositions(maze: Maze): readonly [CellPos, CellPos, CellPos, CellPos] {
+export function teleportPadPositions(maze: Maze): readonly TeleportPad[] {
   return maze.teleportPads;
+}
+
+/** The other pad linked to `pad` (same pair index), or null if it has no partner. */
+export function teleportPartner(maze: Maze, pad: TeleportPad): TeleportPad | null {
+  for (const p of maze.teleportPads) {
+    if (p !== pad && p.pair === pad.pair) return p;
+  }
+  return null;
 }
 
 export function exitPositions(maze: Maze): CellPos[] {
@@ -959,14 +1027,14 @@ export function bulletHitsWall(
 ): boolean {
   const nx = bx + vx * dt;
   const ny = by + vy * dt;
-  const { cols, rows, cellSize } = maze;
+  const { cols, rows, cellW, cellH } = maze;
 
-  if (nx < 0 || ny < 0 || nx >= cols * cellSize || ny >= rows * cellSize) return true;
+  if (nx < 0 || ny < 0 || nx >= cols * cellW || ny >= rows * cellH) return true;
 
-  const oldCol = Math.floor(bx / cellSize);
-  const oldRow = Math.floor(by / cellSize);
-  const newCol = Math.floor(nx / cellSize);
-  const newRow = Math.floor(ny / cellSize);
+  const oldCol = Math.floor(bx / cellW);
+  const oldRow = Math.floor(by / cellH);
+  const newCol = Math.floor(nx / cellW);
+  const newRow = Math.floor(ny / cellH);
 
   if (newCol < 0 || newCol >= cols || newRow < 0 || newRow >= rows) return true;
   if (newCol === oldCol && newRow === oldRow) return false;
@@ -1032,22 +1100,44 @@ export function initialState(
   rows: number,
   level: number,
   rng: () => number = Math.random,
-  cellSize: number = CELL_SIZE,
+  cellW: number = CELL_SIZE,
   config: LevelConfig = DEFAULT_LEVEL_CONFIG,
+  cellH: number = cellW,
 ): GameState {
-  if (cols % 2 === 0) cols++;
-  if (rows % 2 === 0) rows++;
-
+  // Any cols/rows work (the maze is a per-cell recursive backtracker); the
+  // caller sizes the grid to fill the viewport, so we keep the counts as given.
   const walls = buildMaze(cols, rows, rng);
   const midCol = Math.floor(cols / 2);
   const midRow = Math.floor(rows / 2);
 
-  const teleportPads: [CellPos, CellPos, CellPos, CellPos] = [
-    { col: 0, row: 0 },
-    { col: cols - 1, row: 0 },
-    { col: cols - 1, row: rows - 1 },
-    { col: 0, row: rows - 1 },
-  ];
+  // One linked teleport PAIR per ~10 grid squares, on distinct random interior
+  // cells (never the player's start cell). Each pair shares a color so the link
+  // is visible.
+  const numPairs = Math.floor((cols * rows) / 10);
+  const teleportPads: TeleportPad[] = [];
+  {
+    const used = new Set<number>([midRow * cols + midCol]);
+    const pickCell = (): CellPos | null => {
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const col = Math.floor(rng() * cols);
+        const row = Math.floor(rng() * rows);
+        const idx = row * cols + col;
+        if (!used.has(idx)) {
+          used.add(idx);
+          return { col, row };
+        }
+      }
+      return null;
+    };
+    for (let pair = 0; pair < numPairs; pair++) {
+      const a = pickCell();
+      const b = pickCell();
+      if (!a || !b) break;
+      const color = TELEPORT_PAIR_COLORS[pair % TELEPORT_PAIR_COLORS.length];
+      teleportPads.push({ ...a, pair, color });
+      teleportPads.push({ ...b, pair, color });
+    }
+  }
 
   // One exit per edge, mid-point of each edge. Outward wall bits remain SET (sealed).
   const exitCells: CellPos[] = [
@@ -1057,7 +1147,7 @@ export function initialState(
     { col: 0, row: midRow },
   ];
 
-  const maze: Maze = { cols, rows, walls, cellSize, teleportPads, exitCells };
+  const maze: Maze = { cols, rows, walls, cellW, cellH, teleportPads, exitCells };
 
   const playerCenter = cellCenter(maze, midCol, midRow);
   const player: Player = {
@@ -1071,13 +1161,23 @@ export function initialState(
     powerupTimer: 0,
   };
 
-  // Jittered pixel position placed MAXIMALLY inside a cell — anywhere from the
-  // center right up to (nearly) the wall on every side. A tiny margin keeps a
-  // 16px sprite from poking through the wall line.
-  const spread = cellSize / 2 - 10;
-  const placeInCell = (col: number, row: number): Vec2 => {
+  // Jittered pixel position placed MAXIMALLY inside a cell (center → nearly the
+  // wall) BUT not overlapping anything already placed in the cell — so enemies,
+  // people and electrodes never sit on top of each other. PLACE_GAP also exceeds
+  // ENEMY_RADIUS + ELECTRODE_RADIUS, so no enemy spawns already touching an
+  // electrode (which would blow it up on frame one).
+  const spreadX = cellW / 2 - 12;
+  const spreadY = cellH / 2 - 12;
+  const PLACE_GAP = 26;
+  const placeInCell = (col: number, row: number, placed: Vec2[]): Vec2 => {
     const c = cellCenter(maze, col, row);
-    return { x: c.x + (rng() * 2 - 1) * spread, y: c.y + (rng() * 2 - 1) * spread };
+    let chosen: Vec2 = { x: c.x, y: c.y };
+    for (let attempt = 0; attempt < 40; attempt++) {
+      chosen = { x: c.x + (rng() * 2 - 1) * spreadX, y: c.y + (rng() * 2 - 1) * spreadY };
+      if (placed.every((q) => dist2(chosen.x, chosen.y, q.x, q.y) >= PLACE_GAP * PLACE_GAP)) break;
+    }
+    placed.push(chosen);
+    return chosen;
   };
   const randFacing = (): Facing => FACINGS[Math.floor(rng() * 4)] ?? "down";
 
@@ -1088,8 +1188,8 @@ export function initialState(
   let nextHumanId = 1;
   let nextElectrodeId = 1;
 
-  const makeEnemy = (kind: EnemyKind, col: number, row: number): Enemy => {
-    const p = placeInCell(col, row);
+  const makeEnemy = (kind: EnemyKind, col: number, row: number, placed: Vec2[]): Enemy => {
+    const p = placeInCell(col, row, placed);
     const base: EnemyBase = {
       id: nextEnemyId++,
       x: p.x,
@@ -1103,6 +1203,7 @@ export function initialState(
       path: [],
       pathAge: 0,
       shootCooldown: kind === "enforcer" ? ENFORCER_SHOOT_COOLDOWN : GRUNT_SHOOT_COOLDOWN,
+      smartness: config.smartness ?? 1,
     };
     switch (kind) {
       case "phantom":
@@ -1112,8 +1213,8 @@ export function initialState(
     }
   };
 
-  const makeFamily = (type: FamilyType, col: number, row: number): Human => {
-    const p = placeInCell(col, row);
+  const makeFamily = (type: FamilyType, col: number, row: number, placed: Vec2[]): Human => {
+    const p = placeInCell(col, row, placed);
     return {
       id: nextHumanId++,
       type,
@@ -1128,8 +1229,8 @@ export function initialState(
     };
   };
 
-  const makeElectrode = (col: number, row: number): Electrode => {
-    const p = placeInCell(col, row);
+  const makeElectrode = (col: number, row: number, placed: Vec2[]): Electrode => {
+    const p = placeInCell(col, row, placed);
     return {
       id: nextElectrodeId++,
       x: p.x,
@@ -1150,17 +1251,19 @@ export function initialState(
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       if (col === midCol && row === midRow) continue;
-      spawnN(config.grunts, () => enemies.push(makeEnemy("grunt", col, row)));
-      spawnN(config.hulks, () => enemies.push(makeEnemy("hulk", col, row)));
-      spawnN(config.brains, () => enemies.push(makeEnemy("brain", col, row)));
-      spawnN(config.spheroids, () => enemies.push(makeEnemy("spheroid", col, row)));
-      spawnN(config.enforcers, () => enemies.push(makeEnemy("enforcer", col, row)));
-      spawnN(config.tanks, () => enemies.push(makeEnemy("tank", col, row)));
-      spawnN(config.moms, () => humans.push(makeFamily("mom", col, row)));
-      spawnN(config.dads, () => humans.push(makeFamily("dad", col, row)));
-      spawnN(config.mikeys, () => humans.push(makeFamily("mike", col, row)));
-      spawnN(config.sallys, () => humans.push(makeFamily("sally", col, row)));
-      spawnN(config.electrodes, () => electrodes.push(makeElectrode(col, row)));
+      // Positions already taken in THIS cell — every new entity avoids them.
+      const placed: Vec2[] = [];
+      spawnN(config.grunts, () => enemies.push(makeEnemy("grunt", col, row, placed)));
+      spawnN(config.hulks, () => enemies.push(makeEnemy("hulk", col, row, placed)));
+      spawnN(config.brains, () => enemies.push(makeEnemy("brain", col, row, placed)));
+      spawnN(config.spheroids, () => enemies.push(makeEnemy("spheroid", col, row, placed)));
+      spawnN(config.enforcers, () => enemies.push(makeEnemy("enforcer", col, row, placed)));
+      spawnN(config.tanks, () => enemies.push(makeEnemy("tank", col, row, placed)));
+      spawnN(config.moms, () => humans.push(makeFamily("mom", col, row, placed)));
+      spawnN(config.dads, () => humans.push(makeFamily("dad", col, row, placed)));
+      spawnN(config.mikeys, () => humans.push(makeFamily("mike", col, row, placed)));
+      spawnN(config.sallys, () => humans.push(makeFamily("sally", col, row, placed)));
+      spawnN(config.electrodes, () => electrodes.push(makeElectrode(col, row, placed)));
     }
   }
 
@@ -1177,6 +1280,7 @@ export function initialState(
     particles: [],
     enemyMoveChance: config.enemyMoveChance,
     frame: 0,
+    materializeTimer: MATERIALIZE_DURATION,
     bullets: [],
     powerupPickups: [],
     decoy: null,
@@ -1221,23 +1325,23 @@ function lineOfSight(maze: Maze, ac: number, ar: number, bc: number, br: number)
  * the maze bounds. PLAYER_RADIUS clearance is required from every wall face.
  */
 function playerCollidesWall(maze: Maze, nx: number, ny: number): boolean {
-  const { cols, rows, cellSize } = maze;
+  const { cols, rows, cellW, cellH } = maze;
   const r = PLAYER_RADIUS;
 
-  if (nx < r || ny < r || nx > cols * cellSize - r || ny > rows * cellSize - r) return true;
+  if (nx < r || ny < r || nx > cols * cellW - r || ny > rows * cellH - r) return true;
 
-  const col = Math.floor(nx / cellSize);
-  const row = Math.floor(ny / cellSize);
+  const col = Math.floor(nx / cellW);
+  const row = Math.floor(ny / cellH);
   if (col < 0 || col >= cols || row < 0 || row >= rows) return true;
 
-  const lx = nx - col * cellSize;
-  const ly = ny - row * cellSize;
+  const lx = nx - col * cellW;
+  const ly = ny - row * cellH;
   const w = maze.walls[row * cols + col];
 
   if (lx < r && w & W_BIT) return true;
-  if (lx > cellSize - r && w & E_BIT) return true;
+  if (lx > cellW - r && w & E_BIT) return true;
   if (ly < r && w & N_BIT) return true;
-  if (ly > cellSize - r && w & S_BIT) return true;
+  if (ly > cellH - r && w & S_BIT) return true;
 
   return false;
 }
@@ -1247,18 +1351,18 @@ function playerCollidesWall(maze: Maze, nx: number, ny: number): boolean {
  * Same face-clearance logic as playerCollidesWall but with a caller radius.
  */
 function entityCollidesWall(maze: Maze, nx: number, ny: number, r: number): boolean {
-  const { cols, rows, cellSize } = maze;
-  if (nx < r || ny < r || nx > cols * cellSize - r || ny > rows * cellSize - r) return true;
-  const col = Math.floor(nx / cellSize);
-  const row = Math.floor(ny / cellSize);
+  const { cols, rows, cellW, cellH } = maze;
+  if (nx < r || ny < r || nx > cols * cellW - r || ny > rows * cellH - r) return true;
+  const col = Math.floor(nx / cellW);
+  const row = Math.floor(ny / cellH);
   if (col < 0 || col >= cols || row < 0 || row >= rows) return true;
-  const lx = nx - col * cellSize;
-  const ly = ny - row * cellSize;
+  const lx = nx - col * cellW;
+  const ly = ny - row * cellH;
   const w = maze.walls[row * cols + col];
   if (lx < r && w & W_BIT) return true;
-  if (lx > cellSize - r && w & E_BIT) return true;
+  if (lx > cellW - r && w & E_BIT) return true;
   if (ly < r && w & N_BIT) return true;
-  if (ly > cellSize - r && w & S_BIT) return true;
+  if (ly > cellH - r && w & S_BIT) return true;
   return false;
 }
 
@@ -1412,8 +1516,8 @@ function moveEnemy(state: GameState, e: Enemy): void {
   e.moving = moved;
   if (moved) {
     e.facing = facingFromVec(sx, sy) ?? e.facing;
-    e.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(e.x / maze.cellSize)));
-    e.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(e.y / maze.cellSize)));
+    e.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(e.x / maze.cellW)));
+    e.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(e.y / maze.cellH)));
     // Pop the waypoint once we're basically on it.
     if (e.path.length > 0) {
       const c = cellCenter(maze, e.path[0].col, e.path[0].row);
@@ -1424,7 +1528,11 @@ function moveEnemy(state: GameState, e: Enemy): void {
   }
 }
 
-/** Advance one family member by a random wander step (avoiding walls). */
+/**
+ * Advance one family member by a random wander step, avoiding walls AND
+ * electrodes (they are not suicidal — they never deliberately step onto an
+ * electrode). A blocked step re-rolls the heading next time.
+ */
 function moveFamily(state: GameState, h: Human): void {
   const { maze } = state;
   if ((h.wanderX === 0 && h.wanderY === 0) || Math.random() < 0.04) {
@@ -1436,15 +1544,18 @@ function moveFamily(state: GameState, h: Human): void {
   const sy = h.wanderY * FAMILY_STEP_PX;
   const nx = h.x + sx;
   const ny = h.y + sy;
-  if (!entityCollidesWall(maze, nx, ny, PLAYER_RADIUS)) {
+  const blocked =
+    entityCollidesWall(maze, nx, ny, PLAYER_RADIUS) ||
+    hitsElectrode(state, nx, ny, PLAYER_RADIUS + FAMILY_ELECTRODE_MARGIN);
+  if (!blocked) {
     h.x = nx;
     h.y = ny;
     h.moving = true;
     h.facing = facingFromVec(sx, sy) ?? h.facing;
-    h.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(h.x / maze.cellSize)));
-    h.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(h.y / maze.cellSize)));
+    h.col = Math.max(0, Math.min(maze.cols - 1, Math.floor(h.x / maze.cellW)));
+    h.row = Math.max(0, Math.min(maze.rows - 1, Math.floor(h.y / maze.cellH)));
   } else {
-    // Bounced off a wall — pick a fresh heading next time.
+    // Bounced off a wall or shied away from an electrode — re-roll heading.
     h.wanderX = 0;
     h.wanderY = 0;
     h.moving = false;
@@ -1467,60 +1578,17 @@ function damagePlayer(state: GameState): void {
 
 /**
  * Bring the player back after a death: clear the respawn delay, grant a flashing
- * invuln window, and spawn a burst of particles that fly in from the edges of
- * the arena (biased toward the corners, so the streaks are mostly diagonal) and
- * congeal onto the player's position — a "reconstitute" animation that also
- * tells the player where they are. Emits the "reconstitute" cue.
+ * invuln window, and re-run the "materialize" animation for the whole scene
+ * (every enemy and the player assemble from sprite lines flying in from
+ * off-screen). Emits the "reconstitute" cue for the come-together sound.
  *
  * Called by the render layer when the post-death pause ends (it owns the
- * timing); the converging particles then animate through step()'s particle sim.
+ * timing); the convergence then plays out while step() is frozen.
  */
-export function respawnPlayer(state: GameState, rng: () => number = Math.random): void {
-  const { player, maze } = state;
-  player.respawnTimer = 0;
-  player.invuln = INVULN_DURATION;
-
-  const W = maze.cols * maze.cellSize;
-  const H = maze.rows * maze.cellSize;
-  const corners: [number, number][] = [
-    [0, 0],
-    [W, 0],
-    [W, H],
-    [0, H],
-  ];
-
-  for (let i = 0; i < RECON_PARTICLES; i++) {
-    let sx: number;
-    let sy: number;
-    if (rng() < 0.78) {
-      // From near a corner → a mostly-diagonal approach.
-      const [cxp, cyp] = corners[Math.floor(rng() * 4) % 4];
-      sx = cxp === 0 ? rng() * W * 0.3 : W - rng() * W * 0.3;
-      sy = cyp === 0 ? rng() * H * 0.3 : H - rng() * H * 0.3;
-    } else {
-      // From a random point on a random edge → some come straight in.
-      const edge = Math.floor(rng() * 4) % 4;
-      if (edge === 0) [sx, sy] = [rng() * W, 0];
-      else if (edge === 1) [sx, sy] = [W, rng() * H];
-      else if (edge === 2) [sx, sy] = [rng() * W, H];
-      else [sx, sy] = [0, rng() * H];
-    }
-    const life = RECON_DURATION * (0.75 + rng() * 0.45); // stagger the arrivals
-    state.particles.push({
-      x: sx,
-      y: sy,
-      vx: 0,
-      vy: 0,
-      len: 3,
-      ttl: life,
-      life,
-      color: "#7dffb0",
-      tx: player.x,
-      ty: player.y,
-      sx0: sx,
-      sy0: sy,
-    });
-  }
+export function respawnPlayer(state: GameState): void {
+  state.player.respawnTimer = 0;
+  state.player.invuln = INVULN_DURATION;
+  state.materializeTimer = MATERIALIZE_DURATION;
   state.events.push("reconstitute");
 }
 
@@ -1533,8 +1601,15 @@ export function step(state: GameState, input: InputState, dt: number): GameState
   state.events = [];
   state.frame++;
 
+  // 1b. Materialize freeze: while enemies + player are assembling from sprite
+  // lines, all gameplay is suspended (no movement, shooting, or collisions).
+  if (state.materializeTimer > 0) {
+    state.materializeTimer = Math.max(0, state.materializeTimer - dt);
+    return state;
+  }
+
   const { maze, player } = state;
-  const { cols, rows, cellSize } = maze;
+  const { cols, rows, cellW, cellH } = maze;
 
   // 2. Tick timers
   if (player.shootCooldown > 0) player.shootCooldown -= dt;
@@ -1580,24 +1655,26 @@ export function step(state: GameState, input: InputState, dt: number): GameState
       }
     }
 
-    // 7. Teleport pad check
-    for (let i = 0; i < 4; i++) {
-      const pad = maze.teleportPads[i];
+    // 7. Teleport pad check — stepping onto a pad emerges you out the FAR side
+    // of its linked pair, continuing in the same direction you entered. (mx, my)
+    // is this frame's movement = the entry direction (aim is the fallback).
+    for (const pad of maze.teleportPads) {
       const pc = cellCenter(maze, pad.col, pad.row);
       const dx = player.x - pc.x;
       const dy = player.y - pc.y;
       if (dx * dx + dy * dy < TELEPORT_PAD_RADIUS * TELEPORT_PAD_RADIUS) {
-        const opp = maze.teleportPads[(i + 2) % 4];
-        const oc = cellCenter(maze, opp.col, opp.row);
-        // Land TELEPORT_EXIT_OFFSET px from the destination pad's center,
-        // offset toward the maze interior, so we don't re-trigger it.
-        const mcx = (cols * cellSize) / 2;
-        const mcy = (rows * cellSize) / 2;
-        const vx = mcx - oc.x;
-        const vy = mcy - oc.y;
-        const vlen = Math.hypot(vx, vy) || 1;
-        player.x = oc.x + (vx / vlen) * TELEPORT_EXIT_OFFSET;
-        player.y = oc.y + (vy / vlen) * TELEPORT_EXIT_OFFSET;
+        const partner = teleportPartner(maze, pad);
+        if (!partner) break;
+        const oc = cellCenter(maze, partner.col, partner.row);
+        let dirx = mx;
+        let diry = my;
+        if (dirx === 0 && diry === 0) {
+          dirx = player.aimDir.x;
+          diry = player.aimDir.y;
+        }
+        const dl = Math.hypot(dirx, diry) || 1;
+        player.x = oc.x + (dirx / dl) * TELEPORT_EXIT_OFFSET;
+        player.y = oc.y + (diry / dl) * TELEPORT_EXIT_OFFSET;
         state.events.push("teleport");
         break;
       }
@@ -1725,6 +1802,37 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     }
   }
 
+  // 13c. Smart-enemy teleport — a clever enemy (smartness > 1) standing on a pad
+  // takes it when the paired pad lands it meaningfully closer to its target,
+  // emerging out the far side heading toward the player/decoy.
+  if (maze.teleportPads.length > 0) {
+    const tgt = state.decoy ? { x: state.decoy.x, y: state.decoy.y } : { x: player.x, y: player.y };
+    const cellMin = Math.min(cellW, cellH);
+    for (const e of state.enemies) {
+      if (e.smartness <= 1) continue;
+      for (const pad of maze.teleportPads) {
+        const pc = cellCenter(maze, pad.col, pad.row);
+        if (dist2(e.x, e.y, pc.x, pc.y) >= TELEPORT_PAD_RADIUS * TELEPORT_PAD_RADIUS) continue;
+        const partner = teleportPartner(maze, pad);
+        if (!partner) continue;
+        const oc = cellCenter(maze, partner.col, partner.row);
+        const here = Math.hypot(e.x - tgt.x, e.y - tgt.y);
+        const there = Math.hypot(oc.x - tgt.x, oc.y - tgt.y);
+        if (there + cellMin < here) {
+          const dx = tgt.x - oc.x;
+          const dy = tgt.y - oc.y;
+          const dl = Math.hypot(dx, dy) || 1;
+          e.x = oc.x + (dx / dl) * TELEPORT_EXIT_OFFSET;
+          e.y = oc.y + (dy / dl) * TELEPORT_EXIT_OFFSET;
+          e.col = Math.max(0, Math.min(cols - 1, Math.floor(e.x / cellW)));
+          e.row = Math.max(0, Math.min(rows - 1, Math.floor(e.y / cellH)));
+          e.path = []; // stale after a jump — force a fresh BFS
+          break;
+        }
+      }
+    }
+  }
+
   // 13b. Family movement — every other frame, random wander
   if (state.frame % 2 === 0) {
     for (const h of state.humans) moveFamily(state, h);
@@ -1780,7 +1888,24 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     }
     b.x += b.vx * dt;
     b.y += b.vy * dt;
-    if (b.x < 0 || b.y < 0 || b.x >= cols * cellSize || b.y >= rows * cellSize) {
+    // 15a. Bullet teleport — a bullet crossing a pad emerges out the far side of
+    // its pair, keeping its velocity (so it continues in the same direction).
+    for (const pad of maze.teleportPads) {
+      const pc = cellCenter(maze, pad.col, pad.row);
+      const bpx = b.x - b.vx * dt;
+      const bpy = b.y - b.vy * dt;
+      if (segDist2(pc.x, pc.y, bpx, bpy, b.x, b.y) < TELEPORT_PAD_RADIUS * TELEPORT_PAD_RADIUS) {
+        const partner = teleportPartner(maze, pad);
+        if (partner) {
+          const oc = cellCenter(maze, partner.col, partner.row);
+          const bl = Math.hypot(b.vx, b.vy) || 1;
+          b.x = oc.x + (b.vx / bl) * TELEPORT_EXIT_OFFSET;
+          b.y = oc.y + (b.vy / bl) * TELEPORT_EXIT_OFFSET;
+        }
+        break;
+      }
+    }
+    if (b.x < 0 || b.y < 0 || b.x >= cols * cellW || b.y >= rows * cellH) {
       state.bullets.splice(i, 1);
     }
   }
@@ -1869,19 +1994,12 @@ export function step(state: GameState, input: InputState, dt: number): GameState
     }
   }
 
-  // 19. Family death — touching any enemy or intact electrode kills them
+  // 19. Family death — ONLY an intact electrode can kill a family member now;
+  // enemies never harm them. Since they actively avoid electrodes while
+  // wandering, this is a rare safety net (e.g. a spawn-overlap edge case).
   for (let i = state.humans.length - 1; i >= 0; i--) {
     const h = state.humans[i];
-    let killed = false;
-    const rrE = (ENEMY_RADIUS + PLAYER_RADIUS) * (ENEMY_RADIUS + PLAYER_RADIUS);
-    for (const e of state.enemies) {
-      if (dist2(e.x, e.y, h.x, h.y) < rrE) {
-        killed = true;
-        break;
-      }
-    }
-    if (!killed && hitsElectrode(state, h.x, h.y, PLAYER_RADIUS)) killed = true;
-    if (killed) {
+    if (hitsElectrode(state, h.x, h.y, PLAYER_RADIUS)) {
       spawnDebris(state, h.x, h.y, 1, 0, DEBRIS_COLOR[h.type] ?? "#ffffff");
       state.humans.splice(i, 1);
       state.score = Math.max(0, state.score - HUMAN_KILL_PENALTY);
