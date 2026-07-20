@@ -9,6 +9,11 @@
       "type": "stdio",
       "command": "node",
       "args": ["scripts/mcp/ops-server.mjs"]
+    },
+    "ej-insights": {
+      "type": "http",
+      "url": "https://ericjorgensen.com/mcp",
+      "headers": { "Authorization": "Bearer ${EJ_INSIGHTS_TOKEN}" }
     }
   }
 }
