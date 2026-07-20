@@ -16,6 +16,7 @@ import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import styles from "./BigSpaceTinyInvaders.module.css";
 
 // The Big Tiny aesthetic at maximum scale: a horde of thousands of tiny
@@ -697,6 +698,7 @@ export default function BigSpaceTinyInvaders() {
     syncHud(state);
     setInitials("");
     trackEvent("game_start", { game: ENTITY });
+    recordPlay(ENTITY);
     setPhase("playing");
   }, [rebuildFormation, syncHud]);
 
@@ -978,6 +980,7 @@ export default function BigSpaceTinyInvaders() {
         {phase === "idle" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG SPACE TINY INVADERS</p>
+            <FeedbackPanel entity={ENTITY} />
             <p>
               Thousands of them. One tiny you. Hold the line against the marching horde, the
               swooping squadrons that dive and rejoin it, and the UFOs with their down-beam lasers.
@@ -1031,7 +1034,6 @@ export default function BigSpaceTinyInvaders() {
               ▶ START
             </button>
             <VolumeControl />
-            <FeedbackPanel entity={ENTITY} />
           </div>
         )}
 

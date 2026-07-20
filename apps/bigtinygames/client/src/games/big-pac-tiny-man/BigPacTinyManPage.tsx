@@ -4,6 +4,7 @@ import { BigPacEngine, StartOpts } from "./engine";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import { useEngagement } from "../../lib/engagement";
 import styles from "./BigPacTinyMan.module.css";
 
@@ -135,6 +136,7 @@ export default function BigPacTinyManPage() {
     const engine = engineRef.current;
     if (!engine) return;
     trackEvent("game_start", { game: GAME });
+    recordPlay(GAME);
     engine.start();
     setStarted(true);
   };
@@ -208,6 +210,7 @@ export default function BigPacTinyManPage() {
         {!started && !gameOver && (
           <div className={styles.titleScreen}>
             <h2 className={styles.titleHeading}>BIG PAC TINY MAN</h2>
+            <FeedbackPanel entity={GAME} />
             <button
               type="button"
               className={styles.startButton}
@@ -221,7 +224,6 @@ export default function BigPacTinyManPage() {
               up.
             </p>
             <VolumeControl />
-            <FeedbackPanel entity={GAME} />
           </div>
         )}
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import Database from "better-sqlite3";
 import request from "supertest";
-import { createApp, initDb } from "./app";
+import { createApp, initDb, makeRateLimiter } from "./app";
 
 const TOKEN = "test-secret-token";
 
@@ -67,6 +67,43 @@ describe("public feedback API", () => {
 
     const res = await request(app).get("/api/feedback/random?entity=snake");
     expect(res.body.map((r: { id: number }) => r.id)).toEqual([keep.body.id]);
+  });
+});
+
+describe("submission rate limiting", () => {
+  it("caps at 5/min via the endpoint (6th from the same IP is 429)", async () => {
+    const { app } = fresh();
+    for (let i = 0; i < 5; i++) {
+      const r = await request(app).post("/api/feedback").send({ entity: "snake", text: `idea ${i}` });
+      expect(r.status).toBe(201);
+    }
+    const sixth = await request(app).post("/api/feedback").send({ entity: "snake", text: "one more" });
+    expect(sixth.status).toBe(429);
+  });
+
+  it("enforces the per-minute cap and resets after a minute (unit)", () => {
+    const rl = makeRateLimiter();
+    const t = 1_000_000;
+    for (let i = 0; i < 5; i++) expect(rl.tryConsume("a", t)).toBe(true);
+    expect(rl.tryConsume("a", t)).toBe(false); // 6th within the minute
+    expect(rl.tryConsume("a", t + 61_000)).toBe(true); // a minute later
+  });
+
+  it("enforces the per-hour cap (20) across several minutes (unit)", () => {
+    const rl = makeRateLimiter();
+    let t = 0;
+    for (let m = 0; m < 4; m++) {
+      for (let i = 0; i < 5; i++) expect(rl.tryConsume("a", t)).toBe(true); // 4×5 = 20
+      t += 61_000;
+    }
+    expect(rl.tryConsume("a", t)).toBe(false); // 21st within the hour
+  });
+
+  it("tracks each IP independently (unit)", () => {
+    const rl = makeRateLimiter();
+    for (let i = 0; i < 5; i++) rl.tryConsume("a", 0);
+    expect(rl.tryConsume("a", 0)).toBe(false);
+    expect(rl.tryConsume("b", 0)).toBe(true);
   });
 });
 

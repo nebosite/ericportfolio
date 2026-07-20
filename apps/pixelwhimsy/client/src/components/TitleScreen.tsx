@@ -20,6 +20,10 @@ export default function TitleScreen({ onStart }: { onStart: () => void }) {
         ▶ Start Painting
       </button>
 
+      <div className={styles.feedback}>
+        <FeedbackPanel entity="pixelwhimsy" />
+      </div>
+
       <section className={styles.parents}>
         <h2 className={styles.parentsTitle}>For grown-ups</h2>
         <ul className={styles.parentsList}>
@@ -37,10 +41,6 @@ export default function TitleScreen({ onStart }: { onStart: () => void }) {
           </li>
         </ul>
       </section>
-
-      <div className={styles.feedback}>
-        <FeedbackPanel entity="pixelwhimsy" />
-      </div>
 
       <footer className={styles.footer}>
         <a

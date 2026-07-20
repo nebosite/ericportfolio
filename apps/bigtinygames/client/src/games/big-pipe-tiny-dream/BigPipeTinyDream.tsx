@@ -23,6 +23,7 @@ import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import styles from "./BigPipeTinyDream.module.css";
 
 // 40x40 pipe tiles filling the viewport (the "big pipe" of the title). Pure
@@ -532,6 +533,7 @@ export default function BigPipeTinyDream() {
     setInitials("");
     sfxRef.current?.resume();
     trackEvent("game_start", { game: GAME_SLUG });
+    recordPlay(GAME_SLUG);
     startLevel(1);
   }, [startLevel]);
 
@@ -786,6 +788,7 @@ export default function BigPipeTinyDream() {
         {phase === "idle" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG PIPE TINY DREAM</p>
+            <FeedbackPanel entity={GAME_SLUG} />
             <p>
               The board is already full of pipe. Before the water wakes, twist the tiles — one click
               turns a piece a quarter turn — and dream up a path from the golden spring to every
@@ -800,7 +803,6 @@ export default function BigPipeTinyDream() {
               ▶ START
             </button>
             <VolumeControl />
-            <FeedbackPanel entity={GAME_SLUG} />
           </div>
         )}
 

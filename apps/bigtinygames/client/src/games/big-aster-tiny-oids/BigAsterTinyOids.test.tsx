@@ -28,7 +28,7 @@ describe("BigAsterTinyOids — overlays & wiring", () => {
     render(<BigAsterTinyOids />);
     expect(screen.getByText("BIG ASTER TINY OIDS")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "▶ START" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /feature request/i })).toBeInTheDocument();
   });
 
   it("loads this game's leaderboard by slug on mount", async () => {

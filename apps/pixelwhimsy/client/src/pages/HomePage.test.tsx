@@ -15,7 +15,7 @@ describe("PixelWhimsy title screen", () => {
   it("shows the grown-up notes and the feedback buttons", () => {
     render(<HomePage />);
     expect(screen.getByText(/for grown-ups/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /feature request/i })).toBeInTheDocument();
   });
 
   it("enters the full-screen paint sandbox on Start", () => {

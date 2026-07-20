@@ -28,7 +28,7 @@ describe("BigSpaceTinyInvaders — overlays & wiring", () => {
     render(<BigSpaceTinyInvaders />);
     expect(screen.getByText("BIG SPACE TINY INVADERS")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "▶ START" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /feature request/i })).toBeInTheDocument();
   });
 
   it("loads this game's leaderboard by slug on mount", async () => {

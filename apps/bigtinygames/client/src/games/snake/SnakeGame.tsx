@@ -15,6 +15,7 @@ import {
 } from "./snakeLogic";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import styles from "./SnakeGame.module.css";
 
 // The Big Tiny aesthetic: tiny 12x12 sprites on a field that fills the screen.
@@ -248,6 +249,7 @@ export default function SnakeGame() {
     setGhosts(0);
     setInitials("");
     trackEvent("game_start", { game: "snake" });
+    recordPlay("snake");
     setPhase("playing");
   }, []);
 
@@ -415,13 +417,13 @@ export default function SnakeGame() {
         {phase === "idle" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG TINY SNAKE</p>
+            <FeedbackPanel entity="snake" />
             <p>One field, one heading, ever more snakes. Eat to multiply — keep them all alive.</p>
             <p>Grab the throbbing 👻 Ghost for a wild burst — but beware its sweeping trails.</p>
             <p>Swipe or tap to steer · arrows / WASD / gamepad also work.</p>
             <button type="button" className={styles.arcadeButton} onClick={startGame}>
               ▶ START
             </button>
-            <FeedbackPanel entity="snake" />
           </div>
         )}
 

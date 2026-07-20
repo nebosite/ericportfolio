@@ -4,10 +4,11 @@
   display: inline-flex;
   flex-direction: column;
   gap: 0.75rem;
-  width: min(420px, 90vw);
+  width: min(440px, 92vw);
   text-align: left;
 }
 
+/* The two headline actions — deliberately prominent. */
 .buttons {
   display: flex;
   gap: 0.75rem;
@@ -15,35 +16,35 @@
   flex-wrap: wrap;
 }
 
+.buttons .action {
+  flex: 1 1 11rem;
+  padding: 0.8rem 1.2rem;
+  font-size: 1.05rem;
+}
+
 .action,
 .back {
   font: inherit;
+  font-weight: 700;
   cursor: pointer;
   border-radius: 8px;
-  padding: 0.55rem 1rem;
+  padding: 0.6rem 1.15rem;
   border: 2px solid currentColor;
-}
-
-.action {
-  background: currentColor;
   color: inherit;
+  letter-spacing: 0.01em;
 }
 
-/* The label text on a filled button: punch it out via mix-blend so it reads on
-   whatever the inherited color is. */
 .action {
-  position: relative;
-}
-.action {
-  background: rgba(127, 127, 127, 0.18);
+  background: rgba(127, 127, 127, 0.22);
 }
 
 .action:hover:not(:disabled) {
-  background: rgba(127, 127, 127, 0.32);
+  background: rgba(127, 127, 127, 0.36);
 }
 
 .back {
   background: transparent;
+  font-weight: 600;
 }
 
 .back:hover {
@@ -62,8 +63,9 @@
 }
 
 .label {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .textarea {
@@ -94,7 +96,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .vote {
@@ -147,4 +149,46 @@
   color: #e0564b;
   font-size: 0.85rem;
   margin: 0;
+}
+
+/* ---- 3rd / 10th-play nudge dialog ---- */
+.nudgeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Self-contained colors so it reads on any host theme (dark arcade or bright app). */
+.nudgeDialog {
+  width: min(430px, 92vw);
+  background: #faf8f3;
+  color: #1d1b16;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  padding: 1.4rem 1.5rem;
+  text-align: left;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+.nudgeTitle {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem;
+}
+
+.nudgeBody {
+  margin: 0 0 1.15rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.nudgeButtons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }

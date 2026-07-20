@@ -1,11 +1,14 @@
 import { useEffect, useState, FormEvent } from "react";
+import { trackEvent } from "../lib/analytics";
+import { takePendingNudge } from "../lib/plays";
 import styles from "./FeedbackPanel.module.css";
 
-// Standard per-entity feedback feature: two buttons that let visitors leave
-// feedback (<=1000 chars) or vote on three random active items. Repeat votes
-// are blocked per-browser via localStorage. `entity` is the game or app slug
-// (e.g. "snake", "pixelwhimsy", "singadoodle"). Kept in sync with the copies in
-// the other client apps.
+// Standard per-entity feedback feature: two prominent buttons that let a player
+// leave a feature request (<=1000 chars) or vote on three random active items.
+// Repeat votes are blocked per-browser via localStorage. `entity` is the game
+// or app slug (e.g. "snake", "big-pac-tiny-man", "pixelwhimsy"). On the 3rd and
+// 10th play of a game a nudge dialog invites a feature request. Kept in sync
+// with the copies in the other client apps.
 
 export const MAX_FEEDBACK = 1000;
 const VOTED_KEY = "feedback_voted";
@@ -39,23 +42,69 @@ type Mode = "buttons" | "leave" | "vote";
 
 export default function FeedbackPanel({ entity }: { entity: string }) {
   const [mode, setMode] = useState<Mode>("buttons");
+  // On the 3rd / 10th play a nudge is armed (see lib/plays); pop it once here.
+  const [nudge, setNudge] = useState<number | null>(null);
+
+  useEffect(() => {
+    const milestone = takePendingNudge(entity);
+    if (milestone !== null) {
+      setNudge(milestone);
+      trackEvent("feedback_nudge_shown", { entity, plays: milestone });
+    }
+  }, [entity]);
 
   return (
-    // Stop keystrokes from bubbling to window-level listeners, so typing
-    // feedback never trips any page-level key handling.
+    // Stop keystrokes from bubbling to window-level game input listeners, so
+    // typing feedback (or pressing space/enter in the form) never trips game
+    // controls on a title screen.
     <div className={styles.panel} onKeyDown={(e) => e.stopPropagation()}>
       {mode === "buttons" && (
         <div className={styles.buttons}>
           <button type="button" className={styles.action} onClick={() => setMode("leave")}>
-            Feature Request
+            💡 Feature Request
           </button>
           <button type="button" className={styles.action} onClick={() => setMode("vote")}>
-            Vote on feature requests
+            ▲ Vote on Requests
           </button>
         </div>
       )}
       {mode === "leave" && <LeaveForm entity={entity} onDone={() => setMode("buttons")} />}
       {mode === "vote" && <VoteList entity={entity} onDone={() => setMode("buttons")} />}
+
+      {nudge !== null && (
+        <div className={styles.nudgeOverlay} role="dialog" aria-modal="true">
+          <div className={styles.nudgeDialog}>
+            <p className={styles.nudgeTitle}>Enjoying the game?</p>
+            <p className={styles.nudgeBody}>
+              You've played a few times — got an idea to make it better? We read every feature
+              request.
+            </p>
+            <div className={styles.nudgeButtons}>
+              <button
+                type="button"
+                className={styles.back}
+                onClick={() => {
+                  trackEvent("feedback_nudge_dismissed", { entity, plays: nudge });
+                  setNudge(null);
+                }}
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => {
+                  trackEvent("feedback_nudge_accepted", { entity, plays: nudge });
+                  setNudge(null);
+                  setMode("leave");
+                }}
+              >
+                💡 I have an idea
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -63,6 +112,7 @@ export default function FeedbackPanel({ entity }: { entity: string }) {
 function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"editing" | "submitting" | "done" | "error">("editing");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,20 +125,39 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entity, text: trimmed }),
       });
+      if (res.status === 429) {
+        setErrorMsg("You've submitted a lot of feedback recently — please try again later.");
+        setStatus("error");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setStatus("done");
+      trackEvent("feedback_submitted", { entity, text_length: trimmed.length });
     } catch {
+      setErrorMsg("Could not send — please try again.");
       setStatus("error");
     }
+  };
+
+  // Reset to a fresh, empty form so the player can submit another request.
+  const submitAnother = () => {
+    setText("");
+    setErrorMsg("");
+    setStatus("editing");
   };
 
   if (status === "done") {
     return (
       <div className={styles.notice}>
-        <p>Thanks for the feedback!</p>
-        <button type="button" className={styles.back} onClick={onDone}>
-          Back
-        </button>
+        <p>Thanks for the feedback! 🎉</p>
+        <div className={styles.row}>
+          <button type="button" className={styles.back} onClick={onDone}>
+            Done
+          </button>
+          <button type="button" className={styles.action} onClick={submitAnother}>
+            Submit another one?
+          </button>
+        </div>
       </div>
     );
   }
@@ -96,7 +165,7 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
   return (
     <form className={styles.form} onSubmit={submit}>
       <label htmlFor="feedback-text" className={styles.label}>
-        Your feedback
+        Your feature request
       </label>
       <textarea
         id="feedback-text"
@@ -105,12 +174,12 @@ function LeaveForm({ entity, onDone }: { entity: string; onDone: () => void }) {
         rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Tell us what you think…"
+        placeholder="What would make this better?"
       />
       <div className={styles.counter}>
         {text.length}/{MAX_FEEDBACK}
       </div>
-      {status === "error" && <p className={styles.error}>Could not send — please try again.</p>}
+      {status === "error" && <p className={styles.error}>{errorMsg}</p>}
       <div className={styles.row}>
         <button type="button" className={styles.back} onClick={onDone}>
           Cancel
@@ -149,16 +218,15 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
   const upvote = async (item: FeedbackItem) => {
     if (voted.has(item.id)) return;
     try {
-      const res = await fetch(`/api/feedback/${item.id}/vote`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/feedback/${item.id}/vote`, { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { votes } = (await res.json()) as { votes: number };
       rememberVote(item.id);
+      trackEvent("feedback_voted", { entity, feedback_id: item.id, votes });
       setVoted(readVoted());
       setItems((cur) => (cur ? cur.map((i) => (i.id === item.id ? { ...i, votes } : i)) : cur));
     } catch {
-      /* leave the item as-is; the visitor can try again */
+      /* leave the item as-is; the player can try again */
     }
   };
 
@@ -167,7 +235,7 @@ function VoteList({ entity, onDone }: { entity: string; onDone: () => void }) {
       {error && <p className={styles.error}>Could not load feedback.</p>}
       {!error && items === null && <p className={styles.muted}>Loading…</p>}
       {items && items.length === 0 && (
-        <p className={styles.muted}>No feedback yet — be the first to leave some!</p>
+        <p className={styles.muted}>No feature requests yet — be the first to leave one!</p>
       )}
       {items?.map((item) => {
         const hasVoted = voted.has(item.id);

@@ -23,6 +23,7 @@ import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import styles from "./BigAsterTinyOids.module.css";
 
 // The Big Tiny aesthetic, vector edition: glowing arcade line-art on a black
@@ -494,6 +495,7 @@ export default function BigAsterTinyOids() {
     syncHud(state);
     setInitials("");
     trackEvent("game_start", { game: ENTITY });
+    recordPlay(ENTITY);
     setPhase("playing");
   }, [syncHud]);
 
@@ -697,6 +699,7 @@ export default function BigAsterTinyOids() {
         {phase === "idle" && (
           <div className={styles.overlay}>
             <p className={styles.overlayTitle}>BIG ASTER TINY OIDS</p>
+            <FeedbackPanel entity={ENTITY} />
             <p>
               Blast the rocks, surf the wrap. Watch for the STARCASTLES — when their spinning
               shields open a hole, a sweeping beam is coming. Higher waves mean more castles with
@@ -711,7 +714,6 @@ export default function BigAsterTinyOids() {
               ▶ START
             </button>
             <VolumeControl />
-            <FeedbackPanel entity={ENTITY} />
           </div>
         )}
 

@@ -65,6 +65,46 @@ function constantTimeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ab, bb);
 }
 
+// ---- rate limiting -------------------------------------------------------
+
+export interface RateRule {
+  windowMs: number;
+  max: number;
+}
+
+/** Feedback submission caps, per client IP. */
+export const FEEDBACK_RATE_LIMITS: RateRule[] = [
+  { windowMs: 60_000, max: 5 }, // 5 per minute
+  { windowMs: 3_600_000, max: 20 }, // 20 per hour
+  { windowMs: 86_400_000, max: 50 }, // 50 per day
+];
+
+/**
+ * A tiny in-memory sliding-window limiter with multiple windows. tryConsume()
+ * records a hit and returns true when allowed, or returns false (recording
+ * nothing) when ANY window is already at its cap. Framework-free + `now`
+ * injectable so the windows are unit-testable.
+ */
+export function makeRateLimiter(rules: RateRule[] = FEEDBACK_RATE_LIMITS) {
+  const hits = new Map<string, number[]>();
+  const maxWindow = Math.max(...rules.map((r) => r.windowMs));
+  return {
+    tryConsume(key: string, now: number = Date.now()): boolean {
+      const recent = (hits.get(key) ?? []).filter((t) => now - t < maxWindow);
+      for (const r of rules) {
+        const inWindow = recent.reduce((n, t) => (now - t < r.windowMs ? n + 1 : n), 0);
+        if (inWindow >= r.max) {
+          hits.set(key, recent);
+          return false;
+        }
+      }
+      recent.push(now);
+      hits.set(key, recent);
+      return true;
+    },
+  };
+}
+
 /**
  * Build the feedback service. `adminToken` (default: ADMIN_TOKEN env var) gates
  * the /api/admin routes; if it is unset, the admin API is closed entirely.
@@ -74,10 +114,15 @@ export function createApp(
   adminToken = process.env.ADMIN_TOKEN ?? "",
 ): express.Express {
   const app = express();
+  // Behind nginx: trust X-Forwarded-For so req.ip is the real client IP (used
+  // by the per-IP submission rate limiter below).
+  app.set("trust proxy", true);
   app.use(helmet());
   app.use(cors());
   app.use(morgan("tiny"));
   app.use(express.json());
+
+  const submitLimiter = makeRateLimiter();
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", app: APP, timestamp: new Date().toISOString() });
@@ -93,6 +138,13 @@ export function createApp(
     }
     if (!text || text.length > MAX_TEXT) {
       return res.status(400).json({ error: `feedback must be 1-${MAX_TEXT} characters` });
+    }
+    // Per-IP submission cap (5/min, 20/hr, 50/day). Only well-formed submissions
+    // count toward it; over the limit → 429.
+    if (!submitLimiter.tryConsume(req.ip ?? "unknown")) {
+      return res
+        .status(429)
+        .json({ error: "too many feedback submissions — please try again later" });
     }
     // New feedback enters the "Submitted" queue; an admin triages it from there.
     // Set it explicitly (not just via the column default) so existing databases

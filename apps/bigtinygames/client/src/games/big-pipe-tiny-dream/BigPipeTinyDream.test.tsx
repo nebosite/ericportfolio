@@ -27,7 +27,7 @@ describe("BigPipeTinyDream — overlays & wiring", () => {
     render(<BigPipeTinyDream />);
     expect(screen.getByText("BIG PIPE TINY DREAM")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "▶ START" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Feature Request" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /feature request/i })).toBeInTheDocument();
   });
 
   it("loads this game's leaderboard by slug on mount", async () => {

@@ -24,6 +24,7 @@ import {
 } from "./sprites";
 import { Sfx } from "./sfx";
 import { trackEvent } from "../../lib/analytics";
+import { recordPlay } from "../../lib/plays";
 import { attachGameInput } from "../input";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
@@ -178,6 +179,7 @@ export default function BigRoboTinyTron() {
     setSubmitError("");
     sfxRef.current?.resume();
     trackEvent("game_start", { game: ENTITY });
+    recordPlay(ENTITY);
     setPhase("playing");
   }, [buildLevel]);
 
@@ -640,6 +642,7 @@ export default function BigRoboTinyTron() {
           <p style={{ color: "#00ccff", margin: "0.25rem 0 0.75rem" }}>
             Twin-stick shooter · big neon maze · rescue the family
           </p>
+          <FeedbackPanel entity={ENTITY} />
 
           <div
             style={{
@@ -681,7 +684,6 @@ export default function BigRoboTinyTron() {
             START GAME
           </button>
           <VolumeControl />
-          <FeedbackPanel entity={ENTITY} />
         </div>
       )}
 
