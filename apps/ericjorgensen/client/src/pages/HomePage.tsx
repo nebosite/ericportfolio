@@ -75,6 +75,11 @@ const RAW: RawCategory[] = [
     style: "grafted",
     items: [
       {
+        name: "Model Context Protocol",
+        desc: "The MCP servers I've built — giving AI agents access to my data, ops, coaching philosophy, and desktop tools.",
+        to: "/model-context-protocol",
+      },
+      {
         name: "clusterfun.tv",
         desc: "A Jackbox-style framework, plus the games and apps grown on top of it.",
         href: "https://clusterfun.tv",

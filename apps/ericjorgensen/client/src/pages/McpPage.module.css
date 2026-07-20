@@ -1,0 +1,169 @@
+/* MCP highlight page — matches the field-guide aesthetic: paper/ink, serif body,
+   mono labels, square everywhere, no shadows, color only as a small accent. */
+
+.page {
+  min-height: 100vh;
+  background: #f3efe6;
+  color: #1d1b16;
+  font-family: "Spectral", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 48px 56px 110px;
+}
+
+.back {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a8273;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.back:hover {
+  color: #1d1b16;
+  border-bottom-color: #1d1b16;
+}
+
+.kicker {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a8273;
+  margin: 36px 0 0;
+}
+
+.title {
+  font-weight: 500;
+  font-size: 52px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+}
+
+.intro {
+  font-size: 18px;
+  line-height: 1.6;
+  color: #3b372e;
+  max-width: 640px;
+  margin: 22px 0 0;
+}
+
+.rule {
+  height: 1px;
+  background: #d8d1c2;
+  margin: 40px 0 8px;
+}
+
+/* ---- specimen list ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 22px;
+  padding: 28px 0;
+  border-bottom: 1px solid #e3ddd0;
+}
+
+.plate {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #b7ad99;
+  padding-top: 6px;
+}
+
+.itemHead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-size: 25px;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b6454;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+}
+
+.desc {
+  font-size: 16.5px;
+  line-height: 1.62;
+  color: #3b372e;
+  margin: 10px 0 0;
+  max-width: 640px;
+}
+
+.links {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  margin: 14px 0 0;
+}
+
+.link {
+  font-family: "Spline Sans Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #1d1b16;
+  text-decoration: none;
+  border-bottom: 1px solid #c9c1b0;
+  padding-bottom: 1px;
+}
+.link:hover {
+  border-bottom-color: #1d1b16;
+}
+.linkMuted {
+  color: #8a8273;
+}
+
+.footer {
+  margin-top: 44px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #6b6454;
+  max-width: 640px;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 32px 22px 80px;
+  }
+  .title {
+    font-size: 38px;
+  }
+  .item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .plate {
+    padding-top: 0;
+  }
+}

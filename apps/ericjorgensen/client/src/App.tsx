@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import GalleryPage from "./pages/GalleryPage";
 import FeedbackAdminPage from "./pages/FeedbackAdminPage";
+import McpPage from "./pages/McpPage";
 import SingadoodlePage from "./minis/singadoodle/SingadoodlePage";
 
 export default function App() {
@@ -14,6 +15,10 @@ export default function App() {
         element={<GalleryPage folder="Photography" heading="Photography" />}
       />
       <Route path="/writing" element={<GalleryPage folder="writing" heading="Writing" />} />
+      {/* MCP highlight page (linked from the AI-Enhanced list). Note: /mcp and
+          /coach are nginx-routed to the live MCP services, so the SPA route uses
+          the full name to avoid the collision. */}
+      <Route path="/model-context-protocol" element={<McpPage />} />
       {/* Pure AI Output — Singadoodle, a microphone pitch-matching trainer. */}
       <Route path="/singadoodle" element={<SingadoodlePage />} />
       {/* Singadoodle used to be called Pitchcraft — keep old links working. */}
