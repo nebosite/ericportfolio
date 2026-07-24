@@ -1,5 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { gridSize, brushOffsets, brushRadius, floodFill, CELL } from "./paint";
+import {
+  gridSize,
+  brushOffsets,
+  brushRadius,
+  floodFill,
+  mirrorPositions,
+  MirrorMode,
+  CELL,
+} from "./paint";
+
+// Order-independent comparison of a set of [x,y] cells.
+const asSet = (pairs: Array<[number, number]>): string[] =>
+  pairs.map(([x, y]) => `${x},${y}`).sort();
 
 describe("gridSize", () => {
   it("fills the viewport minus the tool/color strips, in 10px cells", () => {
@@ -40,6 +52,75 @@ describe("brushOffsets", () => {
   it("never drops below radius 1 on a tiny grid", () => {
     expect(brushRadius("round5", 4, 4)).toBe(1);
     expect(brushRadius("round20", 4, 4)).toBe(1);
+  });
+  it("spray shares the big brush's footprint", () => {
+    expect(brushRadius("spray", 200, 100)).toBe(brushRadius("round20", 200, 100));
+  });
+});
+
+describe("mirrorPositions", () => {
+  // 11x11 grid → centre (5,5). Point (7,8): offset (+2,+3) from centre.
+  const cols = 11;
+  const rows = 11;
+  const at = (mode: MirrorMode) => asSet(mirrorPositions(7, 8, cols, rows, mode));
+
+  it("mode 0 leaves the point alone", () => {
+    expect(at(0)).toEqual(asSet([[7, 8]]));
+  });
+  it("mode 1 mirrors left-right", () => {
+    expect(at(1)).toEqual(
+      asSet([
+        [7, 8],
+        [3, 8],
+      ]),
+    );
+  });
+  it("mode 2 mirrors top-bottom", () => {
+    expect(at(2)).toEqual(
+      asSet([
+        [7, 8],
+        [7, 2],
+      ]),
+    );
+  });
+  it("mode 3 mirrors four ways", () => {
+    expect(at(3)).toEqual(
+      asSet([
+        [7, 8],
+        [3, 8],
+        [7, 2],
+        [3, 2],
+      ]),
+    );
+  });
+  it("mode 4 adds the two diagonals (eight-fold)", () => {
+    expect(at(4)).toEqual(
+      asSet([
+        [7, 8],
+        [3, 8],
+        [7, 2],
+        [3, 2],
+        [8, 7],
+        [2, 7],
+        [8, 3],
+        [2, 3],
+      ]),
+    );
+  });
+  it("drops out-of-bounds diagonal reflections on a non-square grid", () => {
+    // Wide, short grid: the diagonal transpose lands off the board and is dropped,
+    // and every returned cell is in bounds.
+    const out = mirrorPositions(18, 4, 20, 6, 4);
+    for (const [x, y] of out) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThan(20);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThan(6);
+    }
+  });
+  it("dedupes points that fall on a mirror axis", () => {
+    // A point on the horizontal centre line reflects onto itself under top-bottom.
+    expect(mirrorPositions(7, 5, cols, rows, 2)).toEqual([[7, 5]]);
   });
 });
 

@@ -46,6 +46,13 @@ export default function TitleScreen({ onStart }: { onStart: () => void }) {
         <a
           className={styles.footerLink}
           href={SITE_URL}
+          onClick={() => trackEvent("outbound_link", { url: SITE_URL, name: "portfolio" })}
+        >
+          ↩ Back to Eric Jorgensen&rsquo;s portfolio
+        </a>
+        <a
+          className={styles.footerLink}
+          href={SITE_URL}
           onClick={() => trackEvent("outbound_link", { url: SITE_URL, name: "footer-copyright" })}
         >
           © {new Date().getFullYear()} Eric Jorgensen

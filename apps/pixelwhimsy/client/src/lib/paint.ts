@@ -23,7 +23,7 @@ export const PALETTE = [
   "#ffe0c2", // peach
 ];
 
-export type Brush = "single" | "round5" | "round20" | "fill";
+export type Brush = "single" | "round5" | "round20" | "spray" | "fill";
 
 export const CELL = 10; // one toy pixel = 10x10 real pixels (desktop)
 export const CELL_MOBILE = 6; // smaller toy pixels on phones/tablets
@@ -35,6 +35,7 @@ export const COLORBAR = 50; // top strip reserved for color picking
 const BRUSH_DIAMETER_FRAC: Partial<Record<Brush, number>> = {
   round20: 0.1,
   round5: 0.05,
+  spray: 0.1, // spraypaint scatters within the same footprint as the big brush
 };
 
 export interface GridDims {
@@ -83,6 +84,51 @@ export function brushOffsets(brush: Brush, cols = 0, rows = 0): Array<[number, n
     for (let dx = -r; dx <= r; dx++) {
       if (dx * dx + dy * dy <= limit) out.push([dx, dy]);
     }
+  }
+  return out;
+}
+
+// The global "mirror" modifier is a multi-state switch. Each state reflects every
+// painted cell across a growing set of symmetry axes about the grid centre:
+//   0 none · 1 horizontal · 2 vertical · 3 both (4-fold) · 4 both + diagonals (8-fold)
+export type MirrorMode = 0 | 1 | 2 | 3 | 4;
+export const MIRROR_MODES = 5;
+
+/**
+ * Every cell a paint at (x, y) should also touch under the current mirror mode,
+ * reflected about the grid centre — the original always included, duplicates and
+ * out-of-bounds reflections (the diagonals of a non-square grid) dropped.
+ */
+export function mirrorPositions(
+  x: number,
+  y: number,
+  cols: number,
+  rows: number,
+  mode: MirrorMode,
+): Array<[number, number]> {
+  if (mode <= 0) return [[x, y]];
+  const cx = (cols - 1) / 2;
+  const cy = (rows - 1) / 2;
+  const dx = x - cx;
+  const dy = y - cy;
+  const offs: Array<[number, number]> = [[dx, dy]];
+  if (mode === 1)
+    offs.push([-dx, dy]); // horizontal
+  else if (mode === 2)
+    offs.push([dx, -dy]); // vertical
+  else offs.push([-dx, dy], [dx, -dy], [-dx, -dy]); // both (modes 3 and 4)
+  if (mode === 4) offs.push([dy, dx], [-dy, dx], [dy, -dx], [-dy, -dx]); // + the two diagonals
+
+  const out: Array<[number, number]> = [];
+  const seen = new Set<number>();
+  for (const [odx, ody] of offs) {
+    const px = Math.round(cx + odx);
+    const py = Math.round(cy + ody);
+    if (px < 0 || py < 0 || px >= cols || py >= rows) continue;
+    const key = py * cols + px;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([px, py]);
   }
   return out;
 }

@@ -7,7 +7,11 @@ import {
   Brush,
   gridSize,
   brushOffsets,
+  brushRadius,
   floodFill,
+  mirrorPositions,
+  MirrorMode,
+  MIRROR_MODES,
 } from "../lib/paint";
 import {
   ANIM_BASE,
@@ -38,7 +42,31 @@ const TOOLS: Tool[] = [
   { id: "single", label: "Tiny dot", r: 2.5 },
   { id: "round5", label: "Small brush", r: 6 },
   { id: "round20", label: "Big brush", r: 12 },
+  { id: "spray", label: "Spraypaint" },
   { id: "fill", label: "Fill", emoji: "🪣" },
+];
+
+// Mirror-mode button labels, indexed by MirrorMode (0..4).
+const MIRROR_LABELS = [
+  "No mirror",
+  "Mirror left-right",
+  "Mirror top-bottom",
+  "Mirror four ways",
+  "Kaleidoscope (eight ways)",
+];
+
+// A fixed scatter (unit circle, gaussian-ish) for the spray tool's preview icon.
+const SPRAY_ICON_DOTS: Array<[number, number]> = [
+  [20, 20],
+  [12, 14],
+  [27, 13],
+  [30, 24],
+  [15, 28],
+  [23, 30],
+  [10, 22],
+  [26, 19],
+  [18, 11],
+  [31, 30],
 ];
 
 // What the child is painting with: a fixed static color index, or an animated
@@ -82,10 +110,20 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   }));
   const [brush, setBrush] = useState<Brush>("round20");
   const [swatchPhase, setSwatchPhase] = useState(0); // drives the animated picker
+  // "Wiggle" makes the brush orbit the cursor; "mirror" reflects every stamp.
+  const [wiggle, setWiggle] = useState(false);
+  const [mirror, setMirror] = useState<MirrorMode>(0);
   const paintRef = useRef(paint);
   const brushRef = useRef(brush);
+  const wiggleRef = useRef(wiggle);
+  const mirrorRef = useRef(mirror);
   paintRef.current = paint;
   brushRef.current = brush;
+  wiggleRef.current = wiggle;
+  mirrorRef.current = mirror;
+  // A continuous paint loop drives wiggle/spray while the pointer is held still.
+  const lastClientRef = useRef<{ x: number; y: number } | null>(null);
+  const paintRafRef = useRef(0);
 
   // The color palette is a draggable dialog summoned by the palette button.
   // While it's open the cursor is an eyedropper that can sample a color from a
@@ -236,33 +274,78 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     return i;
   };
 
-  // Stamp the current brush footprint at cell (cx,cy) into the index buffer.
-  const stampBrush = (cx: number, cy: number) => {
-    const index = nextStampIndex();
+  // Paint one cell `index` at every mirror image of (cx, cy). Returns true if any
+  // pixel actually changed. Out-of-bounds reflections are skipped.
+  const paintCellMirrored = (cx: number, cy: number, index: number): boolean => {
     const { cols, rows } = dimsRef.current;
     const buf = idxRef.current;
     let changed = false;
-    for (const [dx, dy] of brushOffsets(brushRef.current, cols, rows)) {
-      const x = cx + dx;
-      const y = cy + dy;
-      if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
-      const i = y * cols + x;
+    for (const [mx, my] of mirrorPositions(cx, cy, cols, rows, mirrorRef.current)) {
+      if (mx < 0 || my < 0 || mx >= cols || my >= rows) continue;
+      const i = my * cols + mx;
       if (buf[i] !== index) {
         buf[i] = index;
         changed = true;
       }
     }
+    return changed;
+  };
+
+  // Stamp the current round brush footprint at (cx,cy) — one shared color per
+  // stamp — reflected across the mirror axes.
+  const stampBrush = (cx: number, cy: number) => {
+    const index = nextStampIndex();
+    const { cols, rows } = dimsRef.current;
+    let changed = false;
+    for (const [dx, dy] of brushOffsets(brushRef.current, cols, rows)) {
+      if (paintCellMirrored(cx + dx, cy + dy, index)) changed = true;
+    }
     if (changed && index >= ANIM_BASE) hasAnimatedRef.current = true;
   };
 
-  // Paint one cursor sample, interpolating a smooth, gap-free stroke from the
-  // recent samples so fast motion never skips toy pixels (see lib/stroke).
+  // Spraypaint: scatter real random dots (gaussian, same footprint as the big
+  // brush) around (cx,cy). Each dot advances the color timer (nextStampIndex), so
+  // an animated color rainbows across the spray; each dot is mirrored too.
+  const stampSpray = (cx: number, cy: number) => {
+    const { cols, rows } = dimsRef.current;
+    const r = brushRadius("round20", cols, rows);
+    const sigma = r / 2; // ~95% of dots land within the big-brush radius (2σ)
+    const dots = Math.max(3, Math.round(r * 0.9));
+    let animated = false;
+    for (let k = 0; k < dots; k++) {
+      const index = nextStampIndex(); // each dot ticks the (animated) color forward
+      // Box–Muller: a real gaussian offset from the centre.
+      const u1 = Math.max(1e-9, Math.random());
+      const mag = Math.sqrt(-2 * Math.log(u1)) * sigma;
+      const ang = 2 * Math.PI * Math.random();
+      const dx = Math.round(cx + mag * Math.cos(ang));
+      const dy = Math.round(cy + mag * Math.sin(ang));
+      if (paintCellMirrored(dx, dy, index) && index >= ANIM_BASE) animated = true;
+    }
+    if (animated) hasAnimatedRef.current = true;
+  };
+
+  // Paint one cursor sample. The "wiggle" modifier orbits the paint point around
+  // the cursor (one revolution/second, big-brush radius). Spray scatters at the
+  // point; other brushes interpolate a smooth, gap-free stroke (see lib/stroke).
   const paintSample = (clientX: number, clientY: number) => {
-    const pt = toCell(clientX, clientY);
+    let pt = toCell(clientX, clientY);
     if (!pt) return;
+    dirtyRef.current = true; // the child is painting — stop auto-resizing the buffer
+    if (wiggleRef.current) {
+      const { cols, rows } = dimsRef.current;
+      const orbit = brushRadius("round20", cols, rows); // orbit = big-brush radius
+      const a = (performance.now() / 1000) * 2 * Math.PI; // one revolution per second
+      pt = { x: pt.x + Math.cos(a) * orbit, y: pt.y + Math.sin(a) * orbit };
+    }
+    if (brushRef.current === "spray") {
+      stampSpray(Math.round(pt.x), Math.round(pt.y));
+      ptsRef.current = [pt];
+      requestRender();
+      return;
+    }
     const pts = ptsRef.current;
     const prev = pts[pts.length - 1];
-    dirtyRef.current = true; // the child is painting — stop auto-resizing the buffer
     if (!prev) {
       stampBrush(Math.floor(pt.x), Math.floor(pt.y));
     } else {
@@ -275,6 +358,21 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
     pts.push(pt);
     if (pts.length > 3) pts.shift(); // only the last few samples shape the spline
     requestRender();
+  };
+
+  // Continuous paint loop: while the pointer is held, keep spraying / orbiting
+  // even if the cursor is still (real spraypaint keeps flowing; wiggle keeps
+  // circling). Normal brushes without wiggle paint only on pointer movement.
+  const paintLoop = () => {
+    if (!paintingRef.current) {
+      paintRafRef.current = 0;
+      return;
+    }
+    const c = lastClientRef.current;
+    if (c && (wiggleRef.current || brushRef.current === "spray")) {
+      paintSample(c.x, c.y);
+    }
+    paintRafRef.current = requestAnimationFrame(paintLoop);
   };
 
   // Eyedropper result → set the active paint to a palette index, dismiss dialog.
@@ -369,11 +467,14 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
 
     paintingRef.current = true;
     ptsRef.current = []; // start a fresh stroke
+    lastClientRef.current = { x: e.clientX, y: e.clientY };
     paintSample(e.clientX, e.clientY);
+    if (!paintRafRef.current) paintRafRef.current = requestAnimationFrame(paintLoop);
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!paintingRef.current || brushRef.current === "fill") return;
+    lastClientRef.current = { x: e.clientX, y: e.clientY };
     // Walk every coalesced sample the browser merged into this event, so a fast
     // flick still feeds the spline its in-between positions.
     const native = e.nativeEvent;
@@ -387,6 +488,11 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     const stop = () => {
       paintingRef.current = false;
+      lastClientRef.current = null;
+      if (paintRafRef.current) {
+        cancelAnimationFrame(paintRafRef.current);
+        paintRafRef.current = 0;
+      }
     };
     window.addEventListener("pointerup", stop);
     window.addEventListener("pointercancel", stop);
@@ -437,6 +543,21 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
           >
             {t.emoji ? (
               <span className={styles.toolEmoji}>{t.emoji}</span>
+            ) : t.id === "spray" ? (
+              // Spraypaint: a scatter of dots in the current color.
+              <svg viewBox="0 0 40 40" width="100%" height="100%" aria-hidden="true">
+                {SPRAY_ICON_DOTS.map(([x, y], i) => (
+                  <circle
+                    key={i}
+                    cx={x}
+                    cy={y}
+                    r={1.9}
+                    fill={currentColor}
+                    stroke="rgba(58,46,79,0.4)"
+                    strokeWidth="0.6"
+                  />
+                ))}
+              </svg>
             ) : (
               // Brush dots paint-preview the current color; a faint outline keeps
               // a white (eraser) brush visible on the white button.
@@ -453,6 +574,49 @@ export default function PaintApp({ onExit }: { onExit: () => void }) {
             )}
           </button>
         ))}
+
+        {/* Wiggle — orbits the brush around the cursor while held. */}
+        <button
+          type="button"
+          aria-label={wiggle ? "Wiggle: on" : "Wiggle"}
+          aria-pressed={wiggle}
+          className={wiggle ? styles.toolActive : styles.tool}
+          onClick={() => setWiggle((w) => !w)}
+        >
+          <span className={styles.toolEmoji}>🌀</span>
+        </button>
+
+        {/* Mirror — a multi-state kaleidoscope switch. */}
+        <button
+          type="button"
+          aria-label={MIRROR_LABELS[mirror]}
+          aria-pressed={mirror > 0}
+          className={mirror > 0 ? styles.toolActive : styles.tool}
+          onClick={() => setMirror((m) => ((m + 1) % MIRROR_MODES) as MirrorMode)}
+        >
+          <svg viewBox="0 0 40 40" width="100%" height="100%" aria-hidden="true">
+            <circle
+              cx="20"
+              cy="20"
+              r="14"
+              fill="none"
+              stroke="rgba(58,46,79,0.5)"
+              strokeWidth="1.5"
+            />
+            {(mirror === 1 || mirror >= 3) && (
+              <line x1="20" y1="5" x2="20" y2="35" stroke="#6a4fb0" strokeWidth="2.2" />
+            )}
+            {(mirror === 2 || mirror >= 3) && (
+              <line x1="5" y1="20" x2="35" y2="20" stroke="#6a4fb0" strokeWidth="2.2" />
+            )}
+            {mirror === 4 && (
+              <>
+                <line x1="9" y1="9" x2="31" y2="31" stroke="#6a4fb0" strokeWidth="2.2" />
+                <line x1="31" y1="9" x2="9" y2="31" stroke="#6a4fb0" strokeWidth="2.2" />
+              </>
+            )}
+          </svg>
+        </button>
 
         <button
           type="button"
