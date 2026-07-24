@@ -4,6 +4,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  position: relative; /* the tutorial overlay positions against this (HUD + stage) */
 }
 
 .hud {
@@ -83,6 +84,31 @@
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
+}
+
+/* "Refill all parts" — spends score to restock the whole box. */
+.refillBtn {
+  font-family: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  margin-left: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  height: 2rem;
+  color: var(--crt-black);
+  background: var(--coin-gold);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.refillBtn:hover:not(:disabled) {
+  box-shadow: 0 0 8px rgba(255, 210, 90, 0.7);
+}
+
+.refillBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* The play field fills the remaining space; the canvas is sized to it in JS. */
@@ -216,4 +242,132 @@
   color: var(--phosphor-dim);
   text-align: center;
   letter-spacing: 0.1em;
+}
+
+/* ---- Level-1 tutorial overlay ---- */
+
+.tutorialLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* the board underneath stays visible; only the dialog is interactive */
+  z-index: 20;
+}
+
+.tutorialSvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tutorialRing {
+  position: absolute;
+  width: 3rem;
+  height: 3rem;
+  margin: -1.5rem 0 0 -1.5rem; /* centre on the cell */
+  border: 3px solid var(--coin-gold);
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(255, 210, 90, 0.8);
+  animation: tutorialPulse 1s ease-in-out infinite;
+  transition:
+    left 0.5s ease,
+    top 0.5s ease;
+}
+
+@keyframes tutorialPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.5;
+  }
+}
+
+.tutorialDot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--phosphor);
+  box-shadow: 0 0 12px 4px rgba(87, 255, 122, 0.9);
+}
+
+.tutorialArrow {
+  position: absolute;
+  margin-top: -2.1rem; /* hover just above the drain cell */
+  transform: translateX(-50%);
+  color: var(--coin-gold);
+  font-size: 1.5rem;
+  text-shadow: 0 0 8px rgba(255, 210, 90, 0.9);
+  animation: tutorialBounce 0.8s ease-in-out infinite;
+}
+
+@keyframes tutorialBounce {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+
+.tutorialDialog {
+  position: absolute;
+  width: 18rem;
+  max-width: calc(100% - 1rem);
+  pointer-events: auto;
+  background: rgba(13, 13, 20, 0.96);
+  border: 2px solid var(--coin-gold);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.6);
+  transition:
+    left 0.5s ease,
+    top 0.5s ease;
+}
+
+.tutorialText {
+  margin: 0 0 0.75rem;
+  color: var(--phosphor);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.tutorialButtons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tutorialSkip {
+  font-family: inherit;
+  background: none;
+  border: none;
+  color: var(--phosphor-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.85rem;
+}
+
+.tutorialNext {
+  font-family: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  padding: 0.4rem 1.1rem;
+  background: var(--phosphor);
+  color: var(--crt-black);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tutorialNext:hover {
+  background: var(--coin-gold);
 }

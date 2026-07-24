@@ -92,9 +92,12 @@ Frame` flood loop and layered canvas 2D drawing — a textured green ground, a
   tile `connectedToSource` leaves out at 50% via a `source-atop` tint), a baked
   **water layer** that accumulates completed streams, plus per-frame glows (a halo
   per head, a shadow + ring per drain) and the countdown badge. The HUD carries
-  the SPEED toggle, the **piece bank** (four one-shot free pieces — elbow /
-  straight / cross / tee — click a slot to arm the cursor with that piece, click a
-  tile to drop it, or click the origin slot to put it back), and `DRAINS x/n`.
+  the SPEED toggle, the **EXTRA PARTS bank** (five one-shot parts — elbow /
+  straight / cross / tee / **end cap** — click a slot to arm the cursor with that
+  part, click a tile to drop it, or click the origin slot to put it back). Parts
+  are **free** to place but consumed (the slot empties); a **REFILL** button
+  restocks the whole box for `REFILL_BASE + REFILL_PER_LEVEL × level` (500 + 100 ×
+  level) points and is disabled when the score can't afford it. Also `DRAINS x/n`.
   Input: click/tap a tile to rotate (or place the armed piece); locked tiles are
   ignored, and placement also skips drains; Enter/Space/gamepad confirm starts a
   run or advances a level via the shared `../input` `attachGameInput`. Everything
@@ -121,9 +124,14 @@ itself is owned by the shared feedback service (see the repo-root `CLAUDE.md`).
 - **Path highlight**: tiles that can't `connectedToSource` are dimmed 50% so the
   live path from spring to drains reads at a glance; recomputed on every rotate /
   placement.
-- **Piece bank**: four one-shot free pieces (elbow / straight / cross / tee),
-  refreshed each level. Arm one → the cursor becomes it → click a rotatable tile
-  to drop it (spends it), or click its origin slot to put it back.
+- **Extra parts bank**: five one-shot parts (elbow / straight / cross / tee /
+  **end cap**), a full box refreshed each level. Arm one → the cursor becomes it →
+  click a rotatable tile to drop it (free, but the slot empties), or click its
+  origin slot to put it back. A **REFILL** button restocks the whole box for
+  `500 + 100 × level` points (subtracted from the score via `spentRef`; the button
+  greys out when the score can't afford it). The **end cap** is a single-opening
+  plug (never seeded; free-part only): water flows in and stops safely — no crash —
+  so it can close a tee's spare spur.
 - **Drains** = `1 + ceil(area/1000)·level`, placed randomly ≥4 from every edge,
   the source and each other. **Level clear** = feed **all** drains. **Game over**
   = a stream **crashes** into a mis-oriented tile (immediate), or every stream

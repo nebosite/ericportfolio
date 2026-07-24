@@ -36,6 +36,9 @@ const FAST_SPEED = 200; // px/s when the speed toggle is on "fast"
 const HALO_RADIUS = 70; // ~140px-wide glow that rides each advancing stream head
 const SHADOW_RADIUS = 100; // ~200px-wide dark pool behind every drain
 const MAX_HALOS = 24; // cap the per-head glows so a wide split stays cheap
+const REFILL_BASE = 500; // "refill all parts" costs REFILL_BASE + REFILL_PER_LEVEL × level points
+const REFILL_PER_LEVEL = 100;
+const refillCostFor = (level: number): number => REFILL_BASE + REFILL_PER_LEVEL * level;
 
 const WATER = "#37b6ff";
 const WATER_GLOW = "#bff0ff";
@@ -43,16 +46,18 @@ const DRAIN_RING = "#8affc8";
 const DRAIN_RING_DONE = "#48ffa0";
 const BG = "#0d0d14";
 
-type Phase = "idle" | "playing" | "levelclear" | "gameover" | "saved";
+type Phase = "idle" | "tutorial" | "playing" | "levelclear" | "gameover" | "saved";
 
-// The bank of free pieces the player can drop onto the board.
-type BankKind = "elbow" | "straight" | "cross" | "tee";
-const BANK_ORDER: BankKind[] = ["elbow", "straight", "cross", "tee"];
+// The bank of free pieces the player can drop onto the board. The end cap is a
+// free-part-only plug (never seeded) for safely closing off a dead end.
+type BankKind = "elbow" | "straight" | "cross" | "tee" | "endcap";
+const BANK_ORDER: BankKind[] = ["elbow", "straight", "cross", "tee", "endcap"];
 const BANK_SPRITE: Record<BankKind, SpriteName> = {
   elbow: "elbow",
   straight: "pipe",
   cross: "cross",
   tee: "tee",
+  endcap: "endcap",
 };
 const fullBank = (): (BankKind | null)[] => [...BANK_ORDER];
 
@@ -88,6 +93,8 @@ function spriteFor(t: Tile): { name: SpriteName; steps: number } {
       return { name: "cross", steps: t.rot % 4 };
     case "tee":
       return { name: "tee", steps: t.rot % 4 };
+    case "endcap":
+      return { name: "endcap", steps: t.rot % 4 }; // native opens N, rotates with rot
     case "start":
       return { name: "start", steps: ((t.dir ?? N) + 3) % 4 };
     default:
@@ -214,7 +221,172 @@ function getGreenTexture(): HTMLCanvasElement | null {
   return tex;
 }
 
+// ---------------------------------------------------------------------------
+// Level-1 tutorial: a 4-step dialog that points (with a dashed arrow line) at the
+// source, the pre-laid path to a drain, the splitting tee, and finally the EXTRA
+// PARTS bank. Rendered over the whole game (HUD + stage) so it can point at the
+// bank too. Positions are computed in game-local coords via getBoundingClientRect.
+
+const TUTORIAL_STEPS = 4;
+const DIALOG_W = 288;
+const DIALOG_H = 138;
+const GOLD = "#ffce3b";
+
+function Tutorial({
+  gameEl,
+  canvas,
+  bankEl,
+  grid,
+  step,
+  onNext,
+  onSkip,
+}: {
+  gameEl: HTMLElement | null;
+  canvas: HTMLCanvasElement | null;
+  bankEl: HTMLElement | null;
+  grid: Grid;
+  step: number;
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const hint = grid.hint;
+
+  // Re-render on a timer during the path step (dot animation) and once shortly
+  // after mount so late layout (fonts/measurements) is picked up.
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    if (step !== 1 || !hint) return;
+    let raf = 0;
+    const loop = (ts: number) => {
+      setT((ts / 1800) % 1);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [step, hint]);
+
+  const gameRect = gameEl?.getBoundingClientRect();
+  const gw = gameRect?.width ?? 0;
+  const gh = gameRect?.height ?? 0;
+
+  // A grid cell's centre, in game-local coordinates (accounts for canvas scale).
+  const cellPt = (c: { x: number; y: number }): { left: number; top: number } | null => {
+    if (!canvas || !gameRect) return null;
+    const cr = canvas.getBoundingClientRect();
+    if (!cr.width || !canvas.width) return null;
+    const sx = cr.width / canvas.width;
+    const sy = cr.height / canvas.height;
+    return {
+      left: cr.left - gameRect.left + (c.x * TILE + TILE / 2) * sx,
+      top: cr.top - gameRect.top + (c.y * TILE + TILE / 2) * sy,
+    };
+  };
+  const elCenter = (el: HTMLElement | null): { left: number; top: number } | null => {
+    if (!el || !gameRect) return null;
+    const r = el.getBoundingClientRect();
+    return { left: r.left - gameRect.left + r.width / 2, top: r.top - gameRect.top + r.height / 2 };
+  };
+
+  const isBankStep = step === 3;
+  const focusPt = isBankStep
+    ? elCenter(bankEl)
+    : step === 1
+      ? cellPt(hint?.target ?? grid.start)
+      : step === 2
+        ? cellPt(hint?.tee ?? grid.start)
+        : cellPt(grid.start);
+  const text = isBankStep
+    ? "These are extra parts — free to place. Click one, then replace an unfilled pipe anywhere on the board. When you run low, hit REFILL to restock the whole box (500 + 100 × level points). Use the end cap to safely plug a spare opening."
+    : step === 0
+      ? "Water will flow from this source when the timer runs out."
+      : step === 1
+        ? "This is a drain connected to the source through pipes."
+        : "Use tees to split the flow and connect to all of the drains to win!";
+
+  // Anchor the dialog to whichever game corner is FARTHEST from the focus, so it
+  // stays well clear (≥300px on a real board) and never covers the highlighted part.
+  const fx = focusPt?.left ?? gw / 2;
+  const fy = focusPt?.top ?? gh / 2;
+  const M = 14;
+  // Nudge the dialog ~a few hundred px off the focus (toward the interior so it
+  // stays on-screen), clamped to the game — not slammed into a corner.
+  const OFFSET = 300;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const dcx = fx + (fx < gw / 2 ? OFFSET : -OFFSET);
+  const dcy = fy + (fy < gh / 2 ? OFFSET : -OFFSET);
+  const dialog = {
+    left: clamp(dcx - DIALOG_W / 2, M, Math.max(M, gw - DIALOG_W - M)),
+    top: clamp(dcy - DIALOG_H / 2, M, Math.max(M, gh - DIALOG_H - M)),
+  };
+  // The arrow leaves the dialog edge nearest the focus and points at the focus.
+  const ax = Math.max(dialog.left, Math.min(fx, dialog.left + DIALOG_W));
+  const ay = Math.max(dialog.top, Math.min(fy, dialog.top + DIALOG_H));
+
+  // Step-2 travelling water dot along the pre-laid path.
+  let dot: { left: number; top: number } | null = null;
+  if (step === 1 && hint && hint.path.length > 1) {
+    const seg = t * (hint.path.length - 1);
+    const i = Math.min(hint.path.length - 2, Math.floor(seg));
+    const frac = seg - i;
+    const a = cellPt(hint.path[i]);
+    const b = cellPt(hint.path[i + 1]);
+    if (a && b) {
+      dot = { left: a.left + (b.left - a.left) * frac, top: a.top + (b.top - a.top) * frac };
+    }
+  }
+
+  return (
+    <div className={styles.tutorialLayer}>
+      <svg className={styles.tutorialSvg} width={gw} height={gh}>
+        <defs>
+          <marker id="ptdArrow" markerWidth="9" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill={GOLD} />
+          </marker>
+        </defs>
+        {focusPt && (
+          <line
+            x1={ax}
+            y1={ay}
+            x2={fx}
+            y2={fy}
+            stroke={GOLD}
+            strokeWidth={3}
+            strokeDasharray="7 5"
+            markerEnd="url(#ptdArrow)"
+          />
+        )}
+      </svg>
+      {focusPt && !isBankStep && (
+        <div className={styles.tutorialRing} style={{ left: fx, top: fy }} />
+      )}
+      {dot && <div className={styles.tutorialDot} style={{ left: dot.left, top: dot.top }} />}
+      {step === 2 &&
+        grid.drains.map((d, i) => {
+          const p = cellPt(d);
+          return p ? (
+            <div key={i} className={styles.tutorialArrow} style={{ left: p.left, top: p.top }}>
+              ▼
+            </div>
+          ) : null;
+        })}
+      <div className={styles.tutorialDialog} style={{ left: dialog.left, top: dialog.top }}>
+        <p className={styles.tutorialText}>{text}</p>
+        <div className={styles.tutorialButtons}>
+          <button type="button" className={styles.tutorialSkip} onClick={onSkip}>
+            Skip Tutorial
+          </button>
+          <button type="button" className={styles.tutorialNext} onClick={onNext}>
+            {step < TUTORIAL_STEPS - 1 ? "Next ▶" : "Start ▶"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BigPipeTinyDream() {
+  const gameRef = useRef<HTMLDivElement>(null); // outer container (HUD + stage) for tutorial coords
+  const bankElRef = useRef<HTMLDivElement>(null); // the EXTRA PARTS bank DOM node, for the tutorial arrow
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgRef = useRef<HTMLCanvasElement | null>(null); // textured green ground
@@ -225,10 +397,12 @@ export default function BigPipeTinyDream() {
   const gridRef = useRef<Grid | null>(null);
   const headsRef = useRef<Head[]>([]); // active stream heads
   const reachedRef = useRef<Array<Side | null>>([]); // per drain: entry side, or null
+  const burstsRef = useRef<Array<{ x: number; y: number; start: number }>>([]); // drain splashes
   const floodStartedRef = useRef(false);
   const levelRef = useRef(1);
   const scoreRef = useRef(0);
   const traveledRef = useRef(0); // pixels the water has travelled — the score
+  const spentRef = useRef(0); // points spent on extra parts this level (subtracted from score)
   const fastRef = useRef(false); // speed toggle: fast (100px/s) vs level speed
   const bankRef = useRef<(BankKind | null)[]>(fullBank());
   const cursorRef = useRef<{ kind: BankKind; fromSlot: number } | null>(null);
@@ -247,6 +421,7 @@ export default function BigPipeTinyDream() {
   const [cursor, setCursorState] = useState<{ kind: BankKind; fromSlot: number } | null>(null);
   const [initials, setInitials] = useState("");
   const [leaderboard, setLeaderboard] = useState<ScoreRow[]>([]);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   const setPhase = useCallback((p: Phase) => {
     phaseRef.current = p;
@@ -274,8 +449,8 @@ export default function BigPipeTinyDream() {
     }
   }, []);
 
-  // Click a bank slot: pick up a free piece (cursor becomes it), or click the
-  // slot it came from to put it back and return to normal play.
+  // Click a bank slot: pick up a part (cursor becomes it) — parts are free to use
+  // — or click the slot it came from to put it back and return to normal play.
   const onSlot = useCallback(
     (i: number) => {
       if (phaseRef.current !== "playing") return;
@@ -305,6 +480,21 @@ export default function BigPipeTinyDream() {
     },
     [setBank, setCursor],
   );
+
+  // Refill all bank slots at once, spending REFILL_BASE + REFILL_PER_LEVEL × level
+  // points. The button is disabled unless the player can afford it.
+  const onRefill = useCallback(() => {
+    if (phaseRef.current !== "playing") return;
+    const cost = refillCostFor(levelRef.current);
+    if (scoreRef.current < cost) return;
+    sfxRef.current?.resume();
+    spentRef.current += cost;
+    scoreRef.current = Math.max(0, Math.floor(traveledRef.current) - spentRef.current);
+    setScore(scoreRef.current);
+    setBank(fullBank());
+    setCursor(null);
+    sfxRef.current?.play("rotate", 0.5);
+  }, [setBank, setCursor]);
 
   // Load sprite PNGs and prime the sound effects once, on mount.
   useEffect(() => {
@@ -399,11 +589,15 @@ export default function BigPipeTinyDream() {
       ctx.fill();
     }
 
-    // A pulsating halo riding each advancing head (or the spring before flow).
+    // A pulsating halo riding each advancing head (or the spring before flow). A
+    // capped head has no exit tip in its second half, so filter those out (else
+    // headTips(h)[0] is undefined) — the stream just quietly ends at the cap.
+    const haloTips = heads
+      .slice(0, MAX_HALOS)
+      .map((h) => headTips(h)[0])
+      .filter((p): p is [number, number] => p !== undefined);
     const haloPts: Array<[number, number]> =
-      heads.length > 0
-        ? heads.slice(0, MAX_HALOS).map((h) => headTips(h)[0])
-        : [[sx + TILE / 2, sy + TILE / 2]];
+      haloTips.length > 0 ? haloTips : [[sx + TILE / 2, sy + TILE / 2]];
     const haloR = HALO_RADIUS * (0.8 + 0.2 * Math.sin(now / 500));
     for (const [hx, hy] of haloPts) {
       const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, haloR);
@@ -426,7 +620,9 @@ export default function BigPipeTinyDream() {
       ctx.lineWidth = done ? 3 : 2;
       ctx.globalAlpha = done ? 0.9 : 0.5 + 0.3 * Math.sin(now / 400 + d.x);
       ctx.beginPath();
-      ctx.arc(d.x * TILE + TILE / 2, d.y * TILE + TILE / 2, TILE * 0.46, 0, Math.PI * 2);
+      // Pulled in from the tile edge so the ring no longer crosses the drain's
+      // mouth — the opening side stays readable.
+      ctx.arc(d.x * TILE + TILE / 2, d.y * TILE + TILE / 2, TILE * 0.38, 0, Math.PI * 2);
       ctx.stroke();
     });
     ctx.globalAlpha = 1;
@@ -450,15 +646,40 @@ export default function BigPipeTinyDream() {
       }
     }
 
+    // Drain splashes: a quick radial burst of water droplets when a drain fills.
+    if (burstsRef.current.length > 0) {
+      const BURST_MS = 650;
+      burstsRef.current = burstsRef.current.filter((b) => now - b.start < BURST_MS);
+      ctx.fillStyle = WATER_GLOW;
+      for (const b of burstsRef.current) {
+        const age = (now - b.start) / BURST_MS; // 0 → 1
+        const bx = b.x * TILE + TILE / 2;
+        const by = b.y * TILE + TILE / 2;
+        const reach = TILE * (0.15 + 0.75 * age);
+        ctx.globalAlpha = 1 - age;
+        const drops = 9;
+        for (let k = 0; k < drops; k++) {
+          const ang = (k / drops) * Math.PI * 2 + b.start * 0.01; // vary the fan per burst
+          const dx = bx + Math.cos(ang) * reach;
+          const dy = by + Math.sin(ang) * reach - age * 7; // a little upward lift
+          ctx.beginPath();
+          ctx.arc(dx, dy, (1 - age) * 3.5 + 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Countdown badge over the spring until the flood begins.
     if (phaseRef.current === "playing" && !floodStartedRef.current) {
       const secs = Math.max(0, Math.ceil((flowAtRef.current - now) / 1000));
       ctx.fillStyle = "rgba(13,13,20,0.72)";
       ctx.beginPath();
-      ctx.arc(sx + TILE / 2, sy + TILE / 2, TILE * 0.42, 0, Math.PI * 2);
+      // Smaller badge so the spring's opening peeks out beside the countdown.
+      ctx.arc(sx + TILE / 2, sy + TILE / 2, TILE * 0.36, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#ffffff";
-      ctx.font = `bold ${Math.round(TILE * 0.5)}px system-ui, sans-serif`;
+      ctx.font = `bold ${Math.round(TILE * 0.42)}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(secs), sx + TILE / 2, sy + TILE / 2 + 1);
@@ -513,19 +734,35 @@ export default function BigPipeTinyDream() {
       reachedRef.current = grid.drains.map(() => null);
       floodStartedRef.current = false;
       traveledRef.current = 0;
+      spentRef.current = 0;
       flowAtRef.current = performance.now() + countdownSec(lvl) * 1000;
       levelRef.current = lvl;
       setLevel(lvl);
       setDrainsDone(0);
       setDrainsTotal(grid.drains.length);
-      setBank(fullBank()); // four fresh free pieces per level
+      setBank(fullBank()); // fresh free pieces per level
       setCursor(null);
-      setPhase("playing");
+      fastRef.current = false; // every level starts at NORMAL speed
+      setFast(false);
       renderPipes();
       draw();
+      // Level 1 opens with the on-board tutorial; the flood countdown only starts
+      // once the player finishes or skips it (see beginPlay).
+      if (lvl === 1 && grid.hint) {
+        setTutorialStep(0);
+        setPhase("tutorial");
+      } else {
+        setPhase("playing");
+      }
     },
     [draw, renderPipes, setPhase, setBank, setCursor],
   );
+
+  // Dismiss the tutorial and release the flood countdown fresh.
+  const beginPlay = useCallback(() => {
+    flowAtRef.current = performance.now() + countdownSec(levelRef.current) * 1000;
+    setPhase("playing");
+  }, [setPhase]);
 
   const startGame = useCallback(() => {
     scoreRef.current = 0;
@@ -547,6 +784,9 @@ export default function BigPipeTinyDream() {
       const i = grid.drains.findIndex((d) => d.x === dx && d.y === dy);
       if (i < 0 || reachedRef.current[i] != null) return false;
       reachedRef.current[i] = entry;
+      // Celebrate: a happy chime + a little burst of water at the drain.
+      sfxRef.current?.play("drain", 0.6);
+      burstsRef.current.push({ x: dx, y: dy, start: performance.now() });
       const wctx = waterRef.current?.getContext("2d");
       if (wctx) paintWater(wctx, entry, [], dx, dy, 0.5); // a stub into the drain
       const done = reachedRef.current.filter((r) => r != null).length;
@@ -602,7 +842,7 @@ export default function BigPipeTinyDream() {
           }
         }
         headsRef.current = next;
-        scoreRef.current = Math.floor(traveledRef.current);
+        scoreRef.current = Math.max(0, Math.floor(traveledRef.current) - spentRef.current);
         setScore(scoreRef.current);
       }
 
@@ -660,8 +900,9 @@ export default function BigPipeTinyDream() {
       const cur = cursorRef.current;
 
       if (cur) {
-        // Drop the free piece here (can't replace the source, a drain, or a wet
-        // pipe); the piece is spent and its slot stays empty.
+        // Drop the extra piece here (can't replace the source, a drain, or a wet
+        // pipe). The piece is free but one-shot — its slot stays empty until the
+        // player pays to REFILL the whole box.
         if (isLocked(t) || t.kind === "terminus") return;
         grid.tiles[idx(grid, gx, gy)] = {
           kind: cur.kind,
@@ -744,7 +985,7 @@ export default function BigPipeTinyDream() {
   );
 
   return (
-    <div className={styles.game}>
+    <div className={styles.game} ref={gameRef}>
       <div className={styles.hud}>
         <span>SCORE: {score.toString().padStart(6, "0")}</span>
         <span>LEVEL {level}</span>
@@ -756,8 +997,8 @@ export default function BigPipeTinyDream() {
         >
           SPEED: {fast ? "FAST ⏩" : "NORMAL"}
         </button>
-        <div className={styles.bank} role="group" aria-label="Free Parts">
-          <span className={styles.bankLabel}>FREE PARTS</span>
+        <div className={styles.bank} role="group" aria-label="Extra Parts" ref={bankElRef}>
+          <span className={styles.bankLabel}>EXTRA PARTS</span>
           {bank.map((kind, i) => (
             <button
               key={i}
@@ -775,6 +1016,15 @@ export default function BigPipeTinyDream() {
               ) : null}
             </button>
           ))}
+          <button
+            type="button"
+            className={styles.refillBtn}
+            onClick={onRefill}
+            disabled={phase !== "playing" || score < refillCostFor(level)}
+            title={`Refill all parts — costs ${refillCostFor(level)} points`}
+          >
+            REFILL {refillCostFor(level)}
+          </button>
         </div>
         <span className={styles.drainHint}>
           ◎ DRAINS {drainsDone}/{drainsTotal}
@@ -864,6 +1114,21 @@ export default function BigPipeTinyDream() {
           </div>
         )}
       </div>
+
+      {/* Tutorial spans the whole game (HUD + stage) so it can point at the bank. */}
+      {phase === "tutorial" && gridRef.current?.hint && (
+        <Tutorial
+          gameEl={gameRef.current}
+          canvas={canvasRef.current}
+          bankEl={bankElRef.current}
+          grid={gridRef.current}
+          step={tutorialStep}
+          onSkip={beginPlay}
+          onNext={() =>
+            tutorialStep < TUTORIAL_STEPS - 1 ? setTutorialStep(tutorialStep + 1) : beginPlay()
+          }
+        />
+      )}
     </div>
   );
 }

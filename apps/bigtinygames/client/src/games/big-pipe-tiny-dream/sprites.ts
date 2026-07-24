@@ -4,6 +4,7 @@ import pipeUrl from "./assets/sprites/pipe.png";
 import teeUrl from "./assets/sprites/tee.png";
 import startUrl from "./assets/sprites/start.png";
 import terminusUrl from "./assets/sprites/terminus.png";
+import endcapUrl from "./assets/sprites/endcap.png";
 
 // The pipe tiles are editable 40x40 PNGs in this game's assets/sprites/ folder,
 // drawn at their native orientation (documented below). The render layer rotates
@@ -17,8 +18,9 @@ import terminusUrl from "./assets/sprites/terminus.png";
 //   tee      — openings east + south + west (bar on top, stem down)
 //   start    — spring, opening east
 //   terminus — drain, opening east
+//   endcap   — single-opening plug, opening north (a pipe stub with a capped end)
 
-export type SpriteName = "cross" | "elbow" | "pipe" | "tee" | "start" | "terminus";
+export type SpriteName = "cross" | "elbow" | "pipe" | "tee" | "start" | "terminus" | "endcap";
 
 const SPRITE_URLS: Record<SpriteName, string> = {
   cross: crossUrl,
@@ -27,6 +29,7 @@ const SPRITE_URLS: Record<SpriteName, string> = {
   tee: teeUrl,
   start: startUrl,
   terminus: terminusUrl,
+  endcap: endcapUrl,
 };
 
 /** The bundled URL for a sprite (for <img> icons like the piece bank). */

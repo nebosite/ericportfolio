@@ -4,16 +4,25 @@ import {
   E,
   S,
   W,
+  OPP,
+  DX,
+  DY,
   Tile,
   Grid,
   Head,
   Rng,
+  Side,
+  Step,
   openings,
   exits,
   canReceive,
   isLocked,
+  isDirKind,
   rotateTile,
+  orientToOpen,
   generateGrid,
+  carveLevel1Trail,
+  pathHasTurn,
   startFlow,
   advanceHead,
   connectedToSource,
@@ -87,6 +96,35 @@ describe("exits", () => {
   it("a terminus has nowhere onward, and a closed side yields none", () => {
     expect(exits(tile("terminus", 0, W), W)).toEqual([]);
     expect(exits(tile("straight", 0), E)).toEqual([]);
+  });
+
+  it("an endcap has a single opening and no onward exit (it stops water)", () => {
+    expect(exits(tile("endcap", 0), N)).toEqual([]); // enters its one opening → nowhere onward
+    expect(exits(tile("endcap", 0), S)).toEqual([]); // closed side → none
+  });
+});
+
+describe("endcap (free-part plug)", () => {
+  it("has a single opening that rotates", () => {
+    expect(openings(tile("endcap", 0))).toEqual([true, false, false, false]); // N
+    expect(openings(tile("endcap", 1))).toEqual([false, true, false, false]); // E
+    expect(openings(tile("endcap", 3))).toEqual([false, false, false, true]); // W
+  });
+
+  it("water flows in and STOPS — no crash, no drain", () => {
+    // start(E) → straight(E–W) → endcap(opening W): the cap swallows the stream.
+    const g = makeGrid(
+      3,
+      1,
+      [tile("start", 0, E), tile("straight", 1), tile("endcap", 3)],
+      0,
+      0,
+      [],
+    );
+    const res = floodToCompletion(g);
+    expect(res.crashed).toBe(false);
+    expect(res.drained).toBe(0);
+    expect(tileAt(g, 2, 0).water[W]).toBe(true); // the cap filled, then the stream ended
   });
 });
 
@@ -168,6 +206,157 @@ describe("generateGrid", () => {
     );
     expect(a.start).toEqual(b.start);
     expect(a.drains).toEqual(b.drains);
+  });
+});
+
+describe("orientToOpen", () => {
+  it("turns any pipe kind to open a given side", () => {
+    for (const kind of ["straight", "elbow", "cross", "tee"] as const) {
+      for (const side of [N, E, S, W]) {
+        const t = tile(kind, 0);
+        orientToOpen(t, side);
+        expect(openings(t)[side]).toBe(true);
+      }
+    }
+  });
+
+  it("points a dir-kind's single opening at the side", () => {
+    const t = tile("terminus", 0, N);
+    orientToOpen(t, W);
+    expect(t.dir).toBe(W);
+    expect(openings(t)).toEqual([false, false, false, true]);
+  });
+});
+
+describe("source/drain neighbours connect to the opening", () => {
+  const neighbourOpensBack = (g: Grid, x: number, y: number, dir: Side): void => {
+    const nx = wrapX(g, x + DX[dir]);
+    const ny = wrapY(g, y + DY[dir]);
+    const n = tileAt(g, nx, ny);
+    if (isDirKind(n.kind)) return; // impl leaves another spout/drain alone
+    expect(openings(n)[OPP[dir]]).toBe(true);
+  };
+  const checkAll = (g: Grid): void => {
+    const s = tileAt(g, g.start.x, g.start.y);
+    neighbourOpensBack(g, g.start.x, g.start.y, s.dir as Side);
+    for (const d of g.drains) {
+      neighbourOpensBack(g, d.x, d.y, tileAt(g, d.x, d.y).dir as Side);
+    }
+  };
+
+  it("holds for the source and every drain (level 2, all random)", () => {
+    for (let t = 0; t < 5; t++) checkAll(generateGrid(40, 30, Math.random, 2));
+  });
+
+  it("holds at level 1 too (trail + random drains)", () => {
+    for (let t = 0; t < 5; t++) checkAll(generateGrid(40, 30, Math.random, 1));
+  });
+});
+
+// Walk the whole flood discretely (tile by tile), reporting whether any branch
+// crashed and how many drains were fed. Mutates the grid's water flags.
+function floodToCompletion(g: Grid): { crashed: boolean; drained: number } {
+  let crashed = false;
+  let drained = 0;
+  const heads: Head[] = [];
+  const handle = (s: Step): void => {
+    if (s.type === "continue") heads.push(s.head);
+    else if (s.type === "drain") drained++;
+    else if (s.type === "dead" && s.reason === "crash") crashed = true;
+  };
+  handle(startFlow(g));
+  let guard = 0;
+  while (heads.length && guard++ < 100000) {
+    const h = heads.shift() as Head;
+    for (const s of advanceHead(g, h)) handle(s);
+  }
+  return { crashed, drained };
+}
+
+describe("carveLevel1Trail (level-1 example route)", () => {
+  const boardOfStraights = (cols: number, rows: number): Tile[] =>
+    Array.from({ length: cols * rows }, () => tile("straight", 0));
+
+  it("wanders to the CLOSEST drain and reaches it (connected, no straight shot)", () => {
+    const cols = 13;
+    const rows = 13;
+    const sx = 6;
+    const sy = 6;
+    const near = { x: 9, y: 10 }; // ~4.2 from source — the target
+    const far = { x: 2, y: 2 }; // ~5.7 from source
+    const tiles = boardOfStraights(cols, rows);
+    tiles[sy * cols + sx] = tile("start", 0, N);
+    tiles[near.y * cols + near.x] = tile("terminus", 0, N);
+    tiles[far.y * cols + far.x] = tile("terminus", 0, N);
+
+    const res = carveLevel1Trail(tiles, cols, rows, sx, sy, [far, near]);
+    expect(res).not.toBeNull();
+    const { hint } = res as NonNullable<typeof res>;
+
+    expect(hint.target).toEqual(near); // closest drain chosen
+    expect(hint.path[0]).toEqual({ x: sx, y: sy });
+    expect(hint.path[hint.path.length - 1]).toEqual(near);
+    expect(pathHasTurn(hint.path)).toBe(true); // wanders — not a straight shot
+
+    const g: Grid = { cols, rows, tiles, start: { x: sx, y: sy }, drains: [near, far] };
+    expect(connectedToSource(g)[idx(g, near.x, near.y)]).toBe(true);
+  });
+
+  it("turns one straight into a tee that SPLITS but leaves its third opening free", () => {
+    const cols = 15;
+    const rows = 15;
+    const sx = 7;
+    const sy = 7;
+    const near = { x: 11, y: 11 };
+    const other = { x: 2, y: 3 };
+    const tiles = boardOfStraights(cols, rows);
+    tiles[sy * cols + sx] = tile("start", 0, N);
+    tiles[near.y * cols + near.x] = tile("terminus", 0, N);
+    tiles[other.y * cols + other.x] = tile("terminus", 0, N);
+
+    const res = carveLevel1Trail(tiles, cols, rows, sx, sy, [near, other]);
+    expect(res).not.toBeNull();
+    const { hint } = res as NonNullable<typeof res>;
+
+    const teeTile = tiles[hint.tee.y * cols + hint.tee.x];
+    expect(teeTile.kind).toBe("tee");
+    // A tee shows three openings — two continue the trail, the third is the free
+    // hint spur (so the trail does NOT solve every drain for the player).
+    expect(openings(teeTile).filter(Boolean)).toHaveLength(3);
+
+    // Entering along the trail, the tee SPLITS into two exits (one onward to the
+    // target, one out the free spur) — the branch point the player extends.
+    const dirTo = (a: { x: number; y: number }, b: { x: number; y: number }): Side =>
+      b.x > a.x ? E : b.x < a.x ? W : b.y > a.y ? S : N;
+    const teeIdx = hint.path.findIndex((c) => c.x === hint.tee.x && c.y === hint.tee.y);
+    const entry = dirTo(hint.path[teeIdx], hint.path[teeIdx - 1]); // side facing the previous cell
+    expect(exits(teeTile, entry)).toHaveLength(2);
+
+    // The tee sits near the MIDDLE of the run, not at either end.
+    const n = hint.path.length - 1;
+    expect(teeIdx).toBeGreaterThan(n * 0.2);
+    expect(teeIdx).toBeLessThan(n * 0.8);
+  });
+
+  it("the pre-laid trail actually floods through to its target drain", () => {
+    const cols = 13;
+    const rows = 13;
+    const sx = 6;
+    const sy = 6;
+    const near = { x: 9, y: 10 };
+    const tiles = boardOfStraights(cols, rows);
+    tiles[sy * cols + sx] = tile("start", 0, N);
+    tiles[near.y * cols + near.x] = tile("terminus", 0, N);
+    const res = carveLevel1Trail(tiles, cols, rows, sx, sy, [near]);
+    expect(res).not.toBeNull();
+    const g: Grid = { cols, rows, tiles, start: { x: sx, y: sy }, drains: [near] };
+    expect(floodToCompletion(g).drained).toBeGreaterThanOrEqual(1);
+  });
+
+  it("returns null when there are no drains to target", () => {
+    const tiles = boardOfStraights(9, 9);
+    tiles[4 * 9 + 4] = tile("start", 0, N);
+    expect(carveLevel1Trail(tiles, 9, 9, 4, 4, [])).toBeNull();
   });
 });
 

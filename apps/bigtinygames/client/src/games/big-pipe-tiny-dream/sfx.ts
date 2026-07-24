@@ -2,6 +2,7 @@ import rotateUrl from "./assets/sounds/rotate.wav";
 import flowUrl from "./assets/sounds/flow.wav";
 import levelupUrl from "./assets/sounds/levelup.wav";
 import gameoverUrl from "./assets/sounds/gameover.wav";
+import drainUrl from "./assets/sounds/drain.wav";
 import { getVolume } from "../../lib/volume";
 
 // Sound effects for Big Pipe Tiny Dream. Plays the clips in this game's
@@ -9,13 +10,14 @@ import { getVolume } from "../../lib/volume";
 // one-shots). These are placeholder beeps — per the repo asset rule every clip
 // is a short (<2s) hand-editable WAV; replace the files to change the sounds.
 
-export type SoundName = "rotate" | "flow" | "levelup" | "gameover";
+export type SoundName = "rotate" | "flow" | "levelup" | "gameover" | "drain";
 
 const SOUND_FILES: Record<SoundName, string> = {
   rotate: rotateUrl,
   flow: flowUrl,
   levelup: levelupUrl,
   gameover: gameoverUrl,
+  drain: drainUrl,
 };
 
 export class Sfx {
