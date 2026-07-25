@@ -584,7 +584,7 @@ export default function BigAsterTinyOids() {
       if (state.over) {
         sfxRef.current?.setLoop("thrust", false);
         sfxRef.current?.setLoop("nova", false);
-        trackEvent("game_over", { game: ENTITY, score: state.score });
+        trackEvent("game_over", { game: ENTITY, score: state.score, level: state.wave });
         setPhase("gameover");
         return;
       }

@@ -861,7 +861,11 @@ export default function BigPipeTinyDream() {
       if (crashed || (floodStartedRef.current && headsRef.current.length === 0)) {
         stopLoop();
         sfxRef.current?.play("gameover", 0.6);
-        trackEvent("game_over", { game: GAME_SLUG, score: scoreRef.current });
+        trackEvent("game_over", {
+          game: GAME_SLUG,
+          score: scoreRef.current,
+          level: levelRef.current,
+        });
         setPhase("gameover");
         return;
       }

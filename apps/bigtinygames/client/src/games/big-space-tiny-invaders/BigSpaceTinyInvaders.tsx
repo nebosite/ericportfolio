@@ -896,7 +896,7 @@ export default function BigSpaceTinyInvaders() {
       if (state.over) {
         sfxRef.current?.setLoop("laser", false);
         sfxRef.current?.setLoop("siren", false);
-        trackEvent("game_over", { game: ENTITY, score: state.score });
+        trackEvent("game_over", { game: ENTITY, score: state.score, level: state.level });
         setPhase("gameover");
         return;
       }

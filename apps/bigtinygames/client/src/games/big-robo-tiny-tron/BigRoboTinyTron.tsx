@@ -635,7 +635,7 @@ export default function BigRoboTinyTron() {
       if (evts.includes("humanRescue")) trackFeature(ENTITY, "rescue");
 
       if (evts.includes("gameover")) {
-        trackEvent("game_over", { game: ENTITY, score: next.score });
+        trackEvent("game_over", { game: ENTITY, score: next.score, level: next.level });
         setPhase("gameover");
         return;
       }
