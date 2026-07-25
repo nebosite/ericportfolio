@@ -14,7 +14,7 @@ import {
   tapTurn,
 } from "./snakeLogic";
 import FeedbackPanel from "../../components/FeedbackPanel";
-import { trackEvent } from "../../lib/analytics";
+import { trackEvent, trackFeature } from "../../lib/analytics";
 import { recordPlay } from "../../lib/plays";
 import styles from "./SnakeGame.module.css";
 
@@ -333,7 +333,15 @@ export default function SnakeGame() {
       const queued = dirQueueRef.current.shift();
       if (queued) dirRef.current = queued;
 
+      const hadGhostPowerup = !!stateRef.current?.ghostPowerup;
       let next = step(stateRef.current!, dirRef.current);
+
+      // A Ghost powerup that was on the field and is now gone was just grabbed —
+      // the game's signature feature. (addGhostPowerup below never re-adds one
+      // the same tick it's eaten, so this can't false-positive.)
+      if (hadGhostPowerup && !next.ghostPowerup && !next.over) {
+        trackFeature("snake", "ghost_powerup");
+      }
 
       // Drop a Ghost powerup on a cadence measured in ticks (first ~2s, then
       // ~20s). addGhostPowerup is a no-op while one is already on the field.

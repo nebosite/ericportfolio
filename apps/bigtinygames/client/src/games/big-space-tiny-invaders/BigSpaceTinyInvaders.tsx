@@ -15,7 +15,7 @@ import {
 import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
-import { trackEvent } from "../../lib/analytics";
+import { trackEvent, trackFeature } from "../../lib/analytics";
 import { recordPlay } from "../../lib/plays";
 import styles from "./BigSpaceTinyInvaders.module.css";
 
@@ -869,6 +869,7 @@ export default function BigSpaceTinyInvaders() {
       for (const event of new Set(state.events)) {
         if (event !== "laser") sfxRef.current?.play(event);
       }
+      if (state.events.includes("powerup")) trackFeature(ENTITY, "powerup");
       sfxRef.current?.setLoop(
         "laser",
         state.ufos.some((u) => u.laser > 0),

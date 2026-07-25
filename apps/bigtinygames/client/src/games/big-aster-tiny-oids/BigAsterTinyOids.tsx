@@ -22,7 +22,7 @@ import {
 import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
-import { trackEvent } from "../../lib/analytics";
+import { trackEvent, trackFeature } from "../../lib/analytics";
 import { recordPlay } from "../../lib/plays";
 import styles from "./BigAsterTinyOids.module.css";
 
@@ -575,6 +575,7 @@ export default function BigAsterTinyOids() {
       // One shot per distinct sound per frame, so a puffball clearing a dozen
       // rocks doesn't fire a dozen overlapping booms.
       for (const event of new Set(state.events)) sfxRef.current?.play(event);
+      if (state.events.includes("powerup")) trackFeature(ENTITY, "powerup");
       // The engine rumble loops for exactly as long as the ship is thrusting,
       // and the deep synth buzz for as long as any nova is in flight.
       sfxRef.current?.setLoop("thrust", state.respawn <= 0 && !state.over && state.ship.thrusting);

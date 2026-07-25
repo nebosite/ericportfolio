@@ -24,7 +24,7 @@ import {
   SrcRect,
 } from "./sprites";
 import { Sfx } from "./sfx";
-import { trackEvent } from "../../lib/analytics";
+import { trackEvent, trackFeature } from "../../lib/analytics";
 import { recordPlay } from "../../lib/plays";
 import { attachGameInput } from "../input";
 import FeedbackPanel from "../../components/FeedbackPanel";
@@ -628,6 +628,11 @@ export default function BigRoboTinyTron() {
       setDisplayLevel(next.level);
 
       const evts = next.events;
+
+      // Feature usage — one event per discrete action (not per frame).
+      if (evts.includes("powerupPickup")) trackFeature(ENTITY, "powerup");
+      if (evts.includes("teleport")) trackFeature(ENTITY, "teleport");
+      if (evts.includes("humanRescue")) trackFeature(ENTITY, "rescue");
 
       if (evts.includes("gameover")) {
         trackEvent("game_over", { game: ENTITY, score: next.score });

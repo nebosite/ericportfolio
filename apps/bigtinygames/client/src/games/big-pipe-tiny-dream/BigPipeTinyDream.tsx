@@ -22,7 +22,7 @@ import { loadSprites, spriteUrl, SpriteImages, SpriteName } from "./sprites";
 import { Sfx } from "./sfx";
 import FeedbackPanel from "../../components/FeedbackPanel";
 import VolumeControl from "../../components/VolumeControl";
-import { trackEvent } from "../../lib/analytics";
+import { trackEvent, trackFeature } from "../../lib/analytics";
 import { recordPlay } from "../../lib/plays";
 import styles from "./BigPipeTinyDream.module.css";
 
@@ -441,6 +441,7 @@ export default function BigPipeTinyDream() {
   const toggleFast = useCallback(() => {
     fastRef.current = !fastRef.current;
     setFast(fastRef.current);
+    trackFeature(GAME_SLUG, "speed_toggle", { fast: fastRef.current });
     sfxRef.current?.resume();
     // Hitting the speed control also releases the water immediately (skips any
     // remaining countdown).
@@ -493,6 +494,7 @@ export default function BigPipeTinyDream() {
     setScore(scoreRef.current);
     setBank(fullBank());
     setCursor(null);
+    trackFeature(GAME_SLUG, "refill", { level: levelRef.current, cost });
     sfxRef.current?.play("rotate", 0.5);
   }, [setBank, setCursor]);
 
@@ -909,6 +911,7 @@ export default function BigPipeTinyDream() {
           rot: 0,
           water: [false, false, false, false],
         };
+        trackFeature(GAME_SLUG, "part_placed", { part: cur.kind });
         setCursor(null);
       } else {
         if (isLocked(t)) return;
