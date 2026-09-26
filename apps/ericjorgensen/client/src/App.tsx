@@ -4,6 +4,7 @@ import GalleryPage from "./pages/GalleryPage";
 import FeedbackAdminPage from "./pages/FeedbackAdminPage";
 import McpPage from "./pages/McpPage";
 import SingadoodlePage from "./minis/singadoodle/SingadoodlePage";
+import ThreeAheadPage from "./minis/threeahead/ThreeAheadPage";
 
 export default function App() {
   return (
@@ -23,6 +24,8 @@ export default function App() {
       <Route path="/singadoodle" element={<SingadoodlePage />} />
       {/* Singadoodle used to be called Pitchcraft — keep old links working. */}
       <Route path="/pitchcraft" element={<Navigate to="/singadoodle" replace />} />
+      {/* Pure AI Output — Three Ahead Chess, chess planned three sealed moves at a time. */}
+      <Route path="/three-ahead-chess" element={<ThreeAheadPage />} />
       {/* Secret, password-gated feedback console. */}
       <Route path="/manage/feedback" element={<FeedbackAdminPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

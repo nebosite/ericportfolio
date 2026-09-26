@@ -35,6 +35,8 @@ check "insights health"      "http://localhost:3006/api/health"
 check "mentor health"        "http://localhost:3007/api/health"
 # The feedback admin API must reject an unauthenticated request.
 check "feedback admin gated" "http://localhost:3005/api/admin/feedback" 401
+# The Three Ahead Chess relay is mounted (an unknown table → 404, not a 5xx).
+check "threeahead relay"     "http://localhost:3001/api/threeahead/games/SMOKEX/state?round=1" 404
 # The insights MCP endpoint must reject an unauthenticated request.
 check "insights mcp gated"   "http://localhost:3006/mcp" 401
 # The public mentor MCP endpoint is mounted (a GET with no session → 400).

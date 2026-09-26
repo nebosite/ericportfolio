@@ -105,6 +105,11 @@ const RAW: RawCategory[] = [
         to: "/singadoodle",
       },
       {
+        name: "Three Ahead Chess",
+        desc: "Chess where both players seal three moves at a time — then fate executes them.",
+        to: "/three-ahead-chess",
+      },
+      {
         name: "PixelWhimsy",
         desc: "A pixel-art toy for children.",
         href: "https://pixelwhimsy.com",

@@ -5,6 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import type { Database } from "better-sqlite3";
+import { ThreeAheadOptions, initThreeAheadDb, mountThreeAhead } from "./threeahead";
 
 const APP = "ericjorgensen";
 
@@ -30,15 +31,19 @@ export function initDb(db: Database): void {
     );
   `);
   db.prepare("INSERT OR IGNORE INTO visits (id, count) VALUES (1, 0)").run();
+  initThreeAheadDb(db);
 }
 
 /** Build the Express app around an already-initialized database. */
-export function createApp(db: Database): express.Express {
+export function createApp(db: Database, threeAheadOpts: ThreeAheadOptions = {}): express.Express {
   const app = express();
   app.use(helmet());
   app.use(cors());
   app.use(morgan("tiny"));
   app.use(express.json());
+
+  // Three Ahead Chess network play (match-making + sealed-order relay).
+  mountThreeAhead(app, db, threeAheadOpts);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", app: APP, timestamp: new Date().toISOString() });

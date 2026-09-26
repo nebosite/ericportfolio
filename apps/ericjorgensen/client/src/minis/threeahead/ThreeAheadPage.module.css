@@ -1,0 +1,1019 @@
+/* Three Ahead Chess — an art deco salon: black lacquer, gold leaf, champagne
+   and deep emerald, geometric sunbursts and stepped frames. Display type is
+   Limelight (marquee) and Poiret One (headings); Josefin Sans carries the
+   reading text. */
+
+@import url("https://fonts.googleapis.com/css2?family=Limelight&family=Poiret+One&family=Josefin+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap");
+
+.page {
+  --lacquer: #0d0f14;
+  --lacquer-2: #14161e;
+  --panel: linear-gradient(170deg, #191c26 0%, #10121a 100%);
+  --gold: #d4af37;
+  --gold-soft: #b8963a;
+  --gold-dim: rgba(212, 175, 55, 0.4);
+  --gold-faint: rgba(212, 175, 55, 0.16);
+  --champagne: #f0e2bd;
+  --ink: #e8dfc8;
+  --ink-dim: #a99c7d;
+  --emerald: #123f37;
+  --board-dark: #143530;
+  --board-light: #e4d3a4;
+  --danger: #c0563a;
+
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgba(212, 175, 55, 0.13), transparent 62%),
+    repeating-conic-gradient(
+      from -90deg at 50% -30%,
+      rgba(212, 175, 55, 0.035) 0deg 4deg,
+      transparent 4deg 12deg
+    ),
+    linear-gradient(180deg, #121420 0%, var(--lacquer) 46%, #0a0b10 100%);
+  color: var(--ink);
+  font-family: "Josefin Sans", "Segoe UI", sans-serif;
+  padding-bottom: 24px;
+}
+
+.container {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 18px 16px 0;
+}
+
+/* ---- Top bar ---------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.back {
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+.back:hover {
+  color: var(--gold);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+  border: 1px solid var(--gold-dim);
+  padding: 6px 12px 4px;
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  background: var(--gold);
+  transform: rotate(45deg);
+}
+
+/* ---- Marquee rules (═══◆═══) ------------------------------------------ */
+
+.marquee {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0;
+}
+
+.marqueeRule {
+  flex: 1;
+  height: 5px;
+  border-top: 1px solid var(--gold-dim);
+  border-bottom: 1px solid var(--gold-dim);
+}
+
+.marqueeDiamond {
+  width: 12px;
+  height: 12px;
+  background: var(--gold);
+  transform: rotate(45deg);
+  box-shadow: 0 0 14px rgba(212, 175, 55, 0.55);
+}
+
+/* ---- Title screen ------------------------------------------------------ */
+
+.title {
+  position: relative;
+  text-align: center;
+  padding-top: 22px;
+}
+
+.sunburst {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  width: 640px;
+  height: 320px;
+  transform: translateX(-50%);
+  background: repeating-conic-gradient(
+    from -90deg at 50% 100%,
+    rgba(212, 175, 55, 0.1) 0deg 3deg,
+    transparent 3deg 10deg
+  );
+  -webkit-mask-image: radial-gradient(closest-side at 50% 100%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 50% 100%, #000 30%, transparent 100%);
+  pointer-events: none;
+}
+
+.titleName {
+  position: relative;
+  font-family: "Limelight", serif;
+  font-weight: 400;
+  font-size: clamp(38px, 8vw, 74px);
+  letter-spacing: 0.06em;
+  margin: 18px 0 0;
+  color: var(--champagne);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.titleAhead {
+  color: var(--gold);
+}
+
+.tagline {
+  font-family: "Poiret One", sans-serif;
+  font-size: clamp(15px, 2.6vw, 19px);
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+  max-width: 560px;
+  margin: 14px auto 30px;
+  line-height: 1.7;
+}
+
+/* House rule toggle — a deco switch above the mode cards. */
+
+.houseRule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 720px;
+  margin: 0 auto 26px;
+  padding: 10px 18px 8px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: rgba(16, 18, 26, 0.6);
+}
+
+.houseRuleLabel {
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+}
+
+.houseRuleToggle {
+  position: relative;
+  width: 46px;
+  height: 22px;
+  flex: none;
+  border: 1px solid var(--gold-dim);
+  background: var(--lacquer);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.houseRuleKnob {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: var(--ink-dim);
+  transform: rotate(45deg) scale(0.8);
+  transition:
+    left 0.2s,
+    background 0.2s;
+}
+
+.houseRuleOn {
+  background: rgba(212, 175, 55, 0.25);
+  border-color: var(--gold);
+}
+.houseRuleOn .houseRuleKnob {
+  left: 26px;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.7);
+}
+
+.houseRuleText {
+  font-size: 13.5px;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+.houseRuleText em {
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.machineStatus {
+  font-size: 12.5px;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  color: var(--gold-soft);
+  margin: 0 0 12px;
+}
+
+/* Mode cards — three framed panels on the title screen. */
+
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  max-width: 1000px;
+  margin: 0 auto 34px;
+  text-align: center;
+}
+
+.modeCard {
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  outline: 1px solid rgba(212, 175, 55, 0.14);
+  outline-offset: 4px;
+  padding: 18px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.modeTitle {
+  font-family: "Poiret One", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 8px;
+}
+
+.modeBlurb {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  margin: 0 0 10px;
+}
+
+.netError {
+  max-width: 640px;
+  margin: 0 auto 18px;
+  padding: 10px 16px 8px;
+  border: 1px solid rgba(192, 86, 58, 0.55);
+  color: #e08a6d;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+
+.orDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 12px 0;
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.joinRow {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.joinInput {
+  width: 130px;
+  background: var(--lacquer);
+  border: 1px solid var(--gold-dim);
+  color: var(--champagne);
+  font-family: "Josefin Sans", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 12px 8px 10px;
+}
+.joinInput::placeholder {
+  color: rgba(169, 156, 125, 0.45);
+  letter-spacing: 0.14em;
+}
+.joinInput:focus {
+  outline: 1px solid var(--gold);
+}
+
+.codeDisplay {
+  font-family: "Limelight", serif;
+  font-size: 34px;
+  letter-spacing: 0.28em;
+  text-align: center;
+  color: var(--gold);
+  border: 1px dashed var(--gold-dim);
+  padding: 14px 6px 10px;
+  margin: 6px 0 12px;
+  text-indent: 0.28em; /* balance the trailing letter-spacing */
+}
+
+.sealedCapture {
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.levelRowCompact {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.levelDiamondCompact {
+  width: 24px;
+  height: 24px;
+}
+.levelDiamondCompact span {
+  font-size: 11px;
+}
+
+.rulesPanel {
+  max-width: 640px;
+  margin: 0 auto 30px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  outline: 1px solid rgba(212, 175, 55, 0.14);
+  outline-offset: 4px;
+  padding: 20px 26px 12px;
+}
+
+.rulesTitle {
+  font-family: "Poiret One", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.rulesList {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.65;
+}
+.rulesList li {
+  margin-bottom: 10px;
+}
+.rulesList strong {
+  color: var(--champagne);
+  font-weight: 600;
+}
+
+/* Level selector — a row of gold diamonds. */
+
+.levelHead {
+  font-family: "Poiret One", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 16px;
+}
+
+.levelRow {
+  display: flex;
+  justify-content: center;
+  gap: clamp(4px, 1.4vw, 12px);
+  flex-wrap: wrap;
+}
+
+.levelDiamond {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--gold-dim);
+  background: var(--lacquer-2);
+  color: var(--ink-dim);
+  transform: rotate(45deg);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.levelDiamond span {
+  display: block;
+  transform: rotate(-45deg);
+  font-family: "Josefin Sans", sans-serif;
+  font-size: 14px;
+}
+.levelDiamond:hover {
+  color: var(--champagne);
+  border-color: var(--gold);
+}
+
+.levelActive {
+  background: var(--gold);
+  color: #14121a;
+  border-color: var(--gold);
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.5);
+}
+.levelActive span {
+  font-weight: 600;
+}
+.levelActive:hover {
+  color: #14121a;
+}
+
+.levelCaption {
+  margin-top: 10px;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink-dim);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.startRow {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.startButton {
+  font-family: "Josefin Sans", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #14121a;
+  background: linear-gradient(180deg, #e9c95e, #c49a2c);
+  border: none;
+  outline: 1px solid rgba(212, 175, 55, 0.5);
+  outline-offset: 3px;
+  padding: 13px 20px 10px;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.startButton:hover:enabled {
+  filter: brightness(1.12);
+}
+.startButton:disabled {
+  filter: grayscale(0.6) brightness(0.7);
+  cursor: default;
+}
+
+.startOnyx {
+  color: var(--champagne);
+  background: linear-gradient(180deg, #23252e, #101218);
+  outline-color: var(--gold-dim);
+  border: 1px solid var(--gold-dim);
+  padding: 12px 19px 9px;
+}
+
+/* ---- Game layout -------------------------------------------------------- */
+
+.gameLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 22px;
+  align-items: start;
+  margin-top: 6px;
+}
+
+.boardColumn {
+  min-width: 0;
+}
+
+.gameTitle {
+  font-family: "Limelight", serif;
+  font-weight: 400;
+  font-size: clamp(18px, 3vw, 26px);
+  letter-spacing: 0.1em;
+  color: var(--champagne);
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* ---- Board -------------------------------------------------------------- */
+
+.boardFrame {
+  position: relative;
+  background: linear-gradient(160deg, #1c1e28, #12141c);
+  border: 1px solid var(--gold-soft);
+  outline: 1px solid var(--gold-dim);
+  outline-offset: 5px;
+  box-shadow:
+    0 0 0 8px rgba(10, 11, 16, 0.9),
+    0 24px 50px rgba(0, 0, 0, 0.55);
+  padding: 26px;
+}
+
+.board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  aspect-ratio: 1;
+  border: 1px solid var(--gold-soft);
+}
+
+.square {
+  position: relative;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+}
+
+.squareLight {
+  background: linear-gradient(135deg, var(--board-light), #d3bf8c);
+}
+
+.squareDark {
+  background: linear-gradient(135deg, #1a423b, var(--board-dark));
+}
+
+.squareSelected {
+  box-shadow: inset 0 0 0 3px var(--gold);
+}
+
+.squareOption:hover {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.squareFrom {
+  box-shadow: inset 0 0 0 3px rgba(212, 175, 55, 0.45);
+}
+
+.squareLanded {
+  box-shadow: inset 0 0 0 3px var(--gold);
+}
+
+.optionDot {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22%;
+  height: 22%;
+  background: var(--gold);
+  transform: rotate(45deg);
+  opacity: 0.85;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.7);
+  pointer-events: none;
+}
+
+.optionRing {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 62%;
+  height: 62%;
+  border: 3px solid var(--danger);
+  transform: rotate(45deg);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.orderBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--gold);
+  color: #14121a;
+  font-size: 12px;
+  font-weight: 600;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.orderBadge > span {
+  transform: rotate(-45deg);
+}
+
+.pieceLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12.5%;
+  height: 12.5%;
+  /* % padding resolves against the BOARD width; 0.75% ≈ 6% of a square. */
+  padding: 0.75%;
+  box-sizing: border-box;
+  pointer-events: none;
+  transition: transform 0.55s cubic-bezier(0.5, 0, 0.2, 1);
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+  z-index: 2;
+}
+.pieceLayer > svg {
+  display: block;
+}
+
+.ghost {
+  opacity: 0.32;
+  filter: grayscale(0.6);
+  z-index: 1;
+}
+
+.fileLabels,
+.rankLabels {
+  position: absolute;
+  display: flex;
+  justify-content: space-around;
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--gold-soft);
+}
+
+.fileLabels {
+  left: 26px;
+  right: 26px;
+  bottom: 6px;
+}
+
+.rankLabels {
+  flex-direction: column;
+  top: 26px;
+  bottom: 26px;
+  left: 8px;
+}
+
+/* ---- Captured trays ------------------------------------------------------ */
+
+.trays {
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.tray {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  background: rgba(16, 18, 26, 0.72);
+  padding: 6px 12px;
+}
+
+.trayLabel {
+  font-family: "Poiret One", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.trayPieces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.trayPiece {
+  width: 26px;
+  height: 26px;
+  display: inline-block;
+}
+
+.trayEmpty {
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(169, 156, 125, 0.55);
+}
+
+/* ---- Right rail ----------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roundPlaque {
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  outline: 1px solid rgba(212, 175, 55, 0.14);
+  outline-offset: 4px;
+  padding: 14px 10px 12px;
+}
+
+.plaqueKicker {
+  display: block;
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.plaqueNumber {
+  display: block;
+  font-family: "Limelight", serif;
+  font-size: 40px;
+  line-height: 1.1;
+  color: var(--gold);
+}
+
+.plaqueSub {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+}
+
+.ordersPanel,
+.logPanel {
+  background: var(--panel);
+  border: 1px solid var(--gold-dim);
+  padding: 16px 16px 14px;
+}
+
+.panelTitle {
+  font-family: "Poiret One", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.panelHint {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  margin: 0 0 12px;
+}
+
+.orderList {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orderRow,
+.orderRowEmpty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  padding: 8px 10px;
+  background: rgba(13, 15, 20, 0.6);
+}
+
+.orderRowEmpty {
+  border-style: dashed;
+  border-color: rgba(212, 175, 55, 0.16);
+}
+
+.orderNumber {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gold-soft);
+  color: var(--gold);
+  font-size: 12px;
+  transform: rotate(45deg);
+}
+.orderNumber > span {
+  transform: rotate(-45deg);
+}
+
+.orderMove {
+  flex: 1;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--champagne);
+}
+
+.orderUnwritten {
+  flex: 1;
+  font-size: 13px;
+  font-style: italic;
+  color: rgba(169, 156, 125, 0.5);
+}
+
+.captureToggle {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgba(192, 86, 58, 0.5);
+  background: transparent;
+  color: rgba(192, 86, 58, 0.55);
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.captureToggle:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.captureOn {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+  box-shadow: 0 0 10px rgba(192, 86, 58, 0.5);
+}
+
+.orderActions {
+  display: flex;
+  gap: 10px;
+}
+
+.ghostButton {
+  flex: 1;
+  font-family: "Poiret One", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  padding: 10px 6px 8px;
+  cursor: pointer;
+}
+.ghostButton:hover:enabled {
+  color: var(--champagne);
+  border-color: var(--gold);
+}
+.ghostButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sealButton {
+  flex: 2;
+  font-family: "Josefin Sans", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #14121a;
+  background: linear-gradient(180deg, #e9c95e, #c49a2c);
+  border: none;
+  padding: 11px 6px 9px;
+  cursor: pointer;
+}
+.sealButton:hover:enabled {
+  filter: brightness(1.12);
+}
+.sealButton:disabled {
+  filter: grayscale(0.7) brightness(0.65);
+  cursor: default;
+}
+
+.playbackList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.playbackLine {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.5;
+  border-left: 2px solid var(--gold-dim);
+  padding-left: 10px;
+  animation: reveal 0.45s ease-out;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.logPanel {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.logRound {
+  margin-bottom: 12px;
+}
+
+.logRoundHead {
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.logLine {
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+
+.abandon {
+  font-family: "Poiret One", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  background: transparent;
+  border: none;
+  color: rgba(169, 156, 125, 0.7);
+  cursor: pointer;
+  padding: 6px;
+}
+.abandon:hover {
+  color: var(--danger);
+}
+
+/* ---- Feedback + footer ----------------------------------------------------- */
+
+.feedbackWrap {
+  max-width: 640px;
+  margin: 6px auto 12px;
+}
+
+.feedbackHeading {
+  font-family: "Poiret One", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ---- Responsive ------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .gameLayout {
+    grid-template-columns: 1fr;
+  }
+  .modeGrid {
+    grid-template-columns: 1fr;
+  }
+  .boardFrame {
+    padding: 20px;
+  }
+  .fileLabels {
+    left: 20px;
+    right: 20px;
+    bottom: 3px;
+  }
+  .rankLabels {
+    top: 20px;
+    bottom: 20px;
+    left: 5px;
+  }
+}
