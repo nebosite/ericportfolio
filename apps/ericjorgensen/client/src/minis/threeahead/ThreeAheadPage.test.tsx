@@ -506,3 +506,21 @@ describe("the race house rule", () => {
     expect(screen.getByText(/^White/)).toBeInTheDocument();
   });
 });
+
+describe("optimistic planning view", () => {
+  it("shows a piece on its ordered square even through today's blockers", () => {
+    renderPage();
+    startAsWhite();
+    // The f1 bishop is walled in by the e2 pawn — but you may plan through it.
+    clickSquare("f1, white bishop");
+    clickSquare("b5");
+    expect(screen.getByText("Bf1 → b5")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "b5, white bishop" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "f1" })).toBeInTheDocument(); // vacated
+    expect(screen.getByRole("button", { name: "e2, white pawn" })).toBeInTheDocument(); // untouched
+    // A follow-up order plans FROM the optimistic square.
+    clickSquare("b5, white bishop");
+    clickSquare("c6");
+    expect(screen.getByText("Bb5 → c6")).toBeInTheDocument();
+  });
+});

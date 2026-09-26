@@ -5,6 +5,7 @@ import {
   Piece,
   PieceType,
   Side,
+  applyOrderOptimistic,
   cloneBoard,
   describeOutcome,
   executeOrder,
@@ -373,5 +374,51 @@ describe("narration", () => {
     expect(describeOutcome(stopped)).toMatch(/halts at a4/);
     const captured = executeOrder(cloneBoard(board), order(rook, board, "a5", true));
     expect(describeOutcome(captured)).toMatch(/takes the knight/);
+  });
+});
+
+describe("optimistic planning view", () => {
+  it("places a slider on its ordered square straight through a blocker", () => {
+    const board = empty();
+    const bishop = put(board, "f1", "white", "bishop");
+    put(board, "e2", "white", "pawn"); // blocks the diagonal today
+    applyOrderOptimistic(board, order(bishop, board, "b5"));
+    expect(board[sq("b5")]!.id).toBe(bishop.id);
+    expect(board[sq("f1")]).toBeNull();
+    expect(board[sq("e2")]!.type).toBe("pawn"); // the blocker is untouched
+  });
+
+  it("displaces whatever stands on the ordered square", () => {
+    const board = empty();
+    const rook = put(board, "a1", "white", "rook");
+    const knight = put(board, "a8", "black", "knight");
+    applyOrderOptimistic(board, order(rook, board, "a8", true));
+    expect(board[sq("a8")]!.id).toBe(rook.id);
+    expect(board.some((p) => p?.id === knight.id)).toBe(false); // ghost fodder
+  });
+
+  it("crowns a pawn shown reaching the last rank", () => {
+    const board = empty();
+    const pawn = put(board, "g2", "white", "pawn");
+    applyOrderOptimistic(board, order(pawn, board, "g8"));
+    expect(board[sq("g8")]!.type).toBe("queen");
+  });
+
+  it("brings the rook along for a castling picture", () => {
+    const board = empty();
+    const king = put(board, "e1", "white", "king");
+    put(board, "h1", "white", "rook");
+    applyOrderOptimistic(board, order(king, board, "g1"));
+    expect(board[sq("g1")]!.type).toBe("king");
+    expect(board[sq("f1")]!.type).toBe("rook");
+  });
+
+  it("does nothing for a piece that is already gone", () => {
+    const board = empty();
+    const rook = put(board, "a1", "white", "rook");
+    const savedOrder = order(rook, board, "a8");
+    board[sq("a1")] = null;
+    applyOrderOptimistic(board, savedOrder);
+    expect(board[sq("a8")]).toBeNull();
   });
 });

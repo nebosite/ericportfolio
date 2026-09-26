@@ -445,6 +445,47 @@ function attemptCastle(board: Board, from: Square, order: Order): Attempt {
   return { landed: order.to, kind: "moved", castled: true };
 }
 
+/* ---- Optimistic planning view ----------------------------------------------
+   While CHOOSING moves, the UI assumes every sealed order works exactly as
+   intended: the piece arrives on its ordered square no matter what currently
+   blocks the path (the blocker may well have moved by then). Execution stays
+   strict — this view is only the player's hopeful sketch of the future. */
+
+/** Apply `order` to `board` (mutating) as if it fully succeeds: the piece is
+ *  placed on its ordered square, whatever stands there is displaced (shown as
+ *  a ghost by the UI), pawns crown on the last rank, and a castling king
+ *  brings its rook along for the picture. */
+export function applyOrderOptimistic(board: Board, order: Order): void {
+  const from = findPiece(board, order.pieceId);
+  if (from === null || from === order.to) return;
+  const piece = board[from]!;
+  // Castling: a yet-unmoved king sliding two files from its home file.
+  if (
+    piece.type === "king" &&
+    !piece.hasMoved &&
+    fileOf(from) === 4 &&
+    rankOf(order.to) === rankOf(from) &&
+    Math.abs(fileOf(order.to) - fileOf(from)) === 2
+  ) {
+    const rank = rankOf(from);
+    const wing = fileOf(order.to) === 6 ? "king" : "queen";
+    const rookFrom = square(wing === "king" ? 7 : 0, rank);
+    const rookTo = square(wing === "king" ? 5 : 3, rank);
+    const rook = board[rookFrom];
+    if (rook && rook.type === "rook" && rook.side === piece.side && !rook.hasMoved) {
+      board[rookFrom] = null;
+      board[rookTo] = rook;
+      rook.hasMoved = true;
+    }
+  }
+  board[from] = null;
+  board[order.to] = piece;
+  piece.hasMoved = true;
+  if (piece.type === "pawn" && rankOf(order.to) === lastRank(piece.side)) {
+    piece.type = "queen";
+  }
+}
+
 /* ---- Round resolution ----------------------------------------------------- */
 
 export interface RoundResult {

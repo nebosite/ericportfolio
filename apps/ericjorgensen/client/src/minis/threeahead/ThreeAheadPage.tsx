@@ -14,9 +14,9 @@ import {
   RoundResult,
   Side,
   Square,
+  applyOrderOptimistic,
   cloneBoard,
   describeOutcome,
-  executeOrder,
   fileOf,
   initialBoard,
   moveOptions,
@@ -117,10 +117,12 @@ export default function ThreeAheadPage() {
   /* ---- Planning state ----------------------------------------------------- */
 
   // The board the player plans against: their own earlier orders assumed to
-  // succeed, the enemy assumed frozen. Rebuilt whenever the plan changes.
+  // FULLY succeed — each piece shown on its ordered square even if something
+  // currently blocks the path (the blocker may have moved by then). Execution
+  // stays strict; this optimism is the planner's privilege.
   const predicted = useMemo(() => {
     const sim = cloneBoard(board);
-    for (const s of sealed) executeOrder(sim, s.order);
+    for (const s of sealed) applyOrderOptimistic(sim, s.order);
     return sim;
   }, [board, sealed]);
 
