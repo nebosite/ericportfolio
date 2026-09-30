@@ -1,0 +1,129 @@
+{
+  "space": "sensible",
+  "whitePlans": 11048,
+  "blackPlans": 11048,
+  "equilibrium": {
+    "value": -0.28125,
+    "provenLower": -0.28125000000000766,
+    "provenUpper": -0.28124999999999944,
+    "meaning": "expected (Ivory decisive − Onyx decisive) in round 1 when both sides play optimal mixtures",
+    "ivoryMix": [
+      {
+        "p": 0.1563,
+        "plan": "Nb1-c3, d2-d3, Ke1-d2"
+      },
+      {
+        "p": 0.125,
+        "plan": "e2-e3, Qd1-g4, Ke1-d1"
+      },
+      {
+        "p": 0.0937,
+        "plan": "e2-e3, Bf1-d3, Ke1-f1"
+      },
+      {
+        "p": 0.0937,
+        "plan": "f2-f3, Ke1-f2, g2-g3"
+      },
+      {
+        "p": 0.0937,
+        "plan": "d2-d3, Bc1-g5, Ng1-f3"
+      },
+      {
+        "p": 0.0625,
+        "plan": "Nb1-c3, e2-e3, Ke1-e2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "e2-e4, Bf1-d3, Ke1-f1"
+      },
+      {
+        "p": 0.0625,
+        "plan": "Nb1-c3, Ng1-f3, e2-e3"
+      },
+      {
+        "p": 0.0625,
+        "plan": "b2-b4, e2-e3, g2-g3"
+      },
+      {
+        "p": 0.0625,
+        "plan": "c2-c3, Qd1-c2, Ke1-d1"
+      },
+      {
+        "p": 0.0313,
+        "plan": "Ng1-f3, e2-e3, g2-g3"
+      },
+      {
+        "p": 0.0313,
+        "plan": "Nb1-c3, f2-f4, g2-g3"
+      },
+      {
+        "p": 0.0313,
+        "plan": "b2-b4, d2-d3, Ke1-d2"
+      },
+      {
+        "p": 0.0312,
+        "plan": "e2-e4, Qd1-f3, Ke1-d1"
+      }
+    ],
+    "onyxMix": [
+      {
+        "p": 0.125,
+        "plan": "e7-e6, Qd8-h4, Qh4xf2"
+      },
+      {
+        "p": 0.125,
+        "plan": "c7-c6, Qd8-a5, Qa5xd2"
+      },
+      {
+        "p": 0.1094,
+        "plan": "Nb8-c6, Nc6-e5, Ne5-d3"
+      },
+      {
+        "p": 0.0938,
+        "plan": "e7-e6, Qd8-g5, Qg5xd2"
+      },
+      {
+        "p": 0.0937,
+        "plan": "Ng8-f6, Nf6-e4, Ne4xf2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "b7-b6, Bc8-a6, Ba6xe2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "Ng8-f6, Nf6-e4, Ne4xd2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "e7-e6, Qd8-f6, Qf6xf2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "c7-c6, Qd8-b6, Qb6xf2"
+      },
+      {
+        "p": 0.0625,
+        "plan": "Nb8-c6, Nc6-e5, Ne5-f3"
+      },
+      {
+        "p": 0.0469,
+        "plan": "Nb8-c6, Nc6-d4, Nd4xc2"
+      },
+      {
+        "p": 0.0469,
+        "plan": "e7-e6, Qd8-g5, Bf8-b4"
+      },
+      {
+        "p": 0.0312,
+        "plan": "d7-d6, Bc8-g4, Bg4xe2"
+      },
+      {
+        "p": 0.0156,
+        "plan": "a7-a6, Ng8-f6, Nf6-e4"
+      }
+    ]
+  },
+  "nextLead": "onyx",
+  "seconds": 0.767
+}

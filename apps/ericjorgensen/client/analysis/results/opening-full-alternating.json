@@ -1,0 +1,181 @@
+{
+  "space": "full",
+  "whitePlans": 217486,
+  "blackPlans": 217486,
+  "equilibrium": {
+    "value": -0.318681318681318,
+    "provenLower": -0.31868131868132665,
+    "provenUpper": -0.3186813186813131,
+    "meaning": "expected (Ivory decisive − Onyx decisive) in round 1 when both sides play optimal mixtures",
+    "ivoryMix": [
+      {
+        "p": 0.1484,
+        "plan": "e2-e3, Bf1-d3, Ke1-f1"
+      },
+      {
+        "p": 0.1209,
+        "plan": "e2-e3, Qd1-f3, Ke1-d1"
+      },
+      {
+        "p": 0.1209,
+        "plan": "Nb1-c3, f2-f4, g2-g3"
+      },
+      {
+        "p": 0.0879,
+        "plan": "Nb1-c3, d2-d3, Ke1-d2"
+      },
+      {
+        "p": 0.0659,
+        "plan": "d2-d4, Ke1-d2, d4xe5"
+      },
+      {
+        "p": 0.0604,
+        "plan": "f2-f4, Ke1-f2, g2-g3"
+      },
+      {
+        "p": 0.0604,
+        "plan": "e2-e3, Ke1-e2, g2-g3"
+      },
+      {
+        "p": 0.0495,
+        "plan": "c2-c3, Qd1-c2, Ke1-d1"
+      },
+      {
+        "p": 0.044,
+        "plan": "f2-f3, Ke1-f2, Kf2-g3"
+      },
+      {
+        "p": 0.0385,
+        "plan": "c2-c3, f2-f4, c3xd4"
+      },
+      {
+        "p": 0.0385,
+        "plan": "Nb1-c3, e2-e3, Ke1-e2"
+      },
+      {
+        "p": 0.0275,
+        "plan": "Nb1-c3, Ng1-f3, g2-g3"
+      },
+      {
+        "p": 0.0275,
+        "plan": "Ng1-f3, e2-e3, Ke1-e2"
+      },
+      {
+        "p": 0.0275,
+        "plan": "c2-c3, g2-g3, c3xd4"
+      },
+      {
+        "p": 0.022,
+        "plan": "d2-d3, Ke1-d2, Kd2-c3"
+      },
+      {
+        "p": 0.022,
+        "plan": "d2-d4, Ke1-d2, Kd2-d3"
+      },
+      {
+        "p": 0.022,
+        "plan": "d2-d4, f2-f4, Ke1-f2"
+      },
+      {
+        "p": 0.0165,
+        "plan": "b2-b4, d2-d3, Ke1-d2"
+      }
+    ],
+    "onyxMix": [
+      {
+        "p": 0.1319,
+        "plan": "a7-a6, Ng8-f6, Nf6-e4"
+      },
+      {
+        "p": 0.0769,
+        "plan": "Ng8-h6, Nh6xg4, Ng4xe3"
+      },
+      {
+        "p": 0.0769,
+        "plan": "c7-c6, Qd8-a5, Qa5xd2"
+      },
+      {
+        "p": 0.0769,
+        "plan": "Nb8-c6, Nc6-e5, Ne5xf3"
+      },
+      {
+        "p": 0.0659,
+        "plan": "Ng8-f6, Nf6xe4, Ne4xc3"
+      },
+      {
+        "p": 0.0659,
+        "plan": "Nb8-c6, Nc6xb4, Nb4xd3"
+      },
+      {
+        "p": 0.0549,
+        "plan": "e7-e6, Qd8-h4, Qh4xf2"
+      },
+      {
+        "p": 0.0549,
+        "plan": "c7-c6, Qd8-b6, Qb6xf2"
+      },
+      {
+        "p": 0.0549,
+        "plan": "d7-d6, Bc8xg4, Bg4xe2"
+      },
+      {
+        "p": 0.0549,
+        "plan": "Ng8-h6, Nh6-g4, Ng4xe3"
+      },
+      {
+        "p": 0.044,
+        "plan": "Nb8-a6, Na6-c5, Nc5xd3"
+      },
+      {
+        "p": 0.044,
+        "plan": "Nb8-c6, Nc6xd4, Nd4xf3"
+      },
+      {
+        "p": 0.033,
+        "plan": "e7-e6, Qd8-f6, Qf6xf2"
+      },
+      {
+        "p": 0.022,
+        "plan": "e7-e6, Qd8-g5, Qg5xe3"
+      },
+      {
+        "p": 0.022,
+        "plan": "Nb8-c6, Nc6xd4, Nd4-f3"
+      },
+      {
+        "p": 0.022,
+        "plan": "Ng8-f6, Nf6-e4, Ne4xc3"
+      },
+      {
+        "p": 0.022,
+        "plan": "e7-e6, Qd8-g5, Qg5xd2"
+      },
+      {
+        "p": 0.022,
+        "plan": "b7-b6, Bc8-a6, Ba6xe2"
+      },
+      {
+        "p": 0.011,
+        "plan": "Ng8-h6, Nh6-f5, Nf5xg3"
+      },
+      {
+        "p": 0.011,
+        "plan": "Nb8-a6, Na6-c5, Nc5-d3"
+      },
+      {
+        "p": 0.011,
+        "plan": "e7-e5, Qd8-f6, Qf6xf2"
+      },
+      {
+        "p": 0.011,
+        "plan": "e7-e6, Qd8xh4, Qh4xf2"
+      },
+      {
+        "p": 0.011,
+        "plan": "Ng8-f6, Nf6-e4, Ne4-g3"
+      }
+    ]
+  },
+  "nextLead": "onyx",
+  "seconds": 9.445
+}

@@ -7,6 +7,7 @@ import {
   cloneBoard,
   executeOrder,
   initialBoard,
+  resolveRound,
   square,
   squareName,
 } from "./chess";
@@ -14,6 +15,7 @@ import {
   evaluate,
   generateCandidates,
   isAttacked,
+  kingThreats,
   levelBudgetMs,
   mulberry32,
   planKingHunt,
@@ -276,5 +278,65 @@ describe("levelBudgetMs", () => {
     expect(levelBudgetMs(3)).toBe(0);
     expect(levelBudgetMs(4)).toBeGreaterThan(0);
     expect(levelBudgetMs(10)).toBe(10000);
+  });
+});
+
+describe("the first-strike rush (e4, Qh5, Qxf7)", () => {
+  // Reported by a human: Ivory ends round 1 with the queen on f7 attacking
+  // e8, and because Ivory leads round 2, Qxe8 lands before Onyx can move.
+  const rush = (board: Board) => {
+    const id = (name: string) => board[sq(name)]!.id;
+    return [
+      { pieceId: id("e2"), from: sq("e2"), to: sq("e4"), capture: false },
+      { pieceId: id("d1"), from: sq("d1"), to: sq("h5"), capture: false },
+      { pieceId: id("d1"), from: sq("h5"), to: sq("f7"), capture: true },
+    ];
+  };
+
+  it("is seen as a next-round threat by the full threat search", () => {
+    const board = initialBoard();
+    const a7 = board[sq("a7")]!.id;
+    const quiet = [
+      { pieceId: a7, from: sq("a7"), to: sq("a6"), capture: false },
+      { pieceId: a7, from: sq("a6"), to: sq("a5"), capture: false },
+      { pieceId: board[sq("h7")]!.id, from: sq("h7"), to: sq("h6"), capture: false },
+    ];
+    const threats = kingThreats(board, quiet, "black", false, true);
+    const queenId = board[sq("d1")]!.id;
+    expect(threats.some((t) => t.step === 7 && board[t.hunter]!.id === queenId)).toBe(true);
+  });
+
+  it("is neutralized by an ambush on the landing square", () => {
+    const board = initialBoard();
+    const kingId = board[sq("e8")]!.id;
+    const pawn = board[sq("a7")]!.id;
+    const ambushPlan = [
+      { pieceId: pawn, from: sq("a7"), to: sq("a6"), capture: false },
+      { pieceId: pawn, from: sq("a6"), to: sq("a5"), capture: false },
+      { pieceId: kingId, from: sq("e8"), to: sq("f7"), capture: true },
+    ];
+    const threats = kingThreats(board, ambushPlan, "black", false, true);
+    expect(threats.some((t) => t.landing === sq("f7"))).toBe(false);
+  });
+
+  it("is no longer a sure thing against the deep planner's defenses", async () => {
+    // The deep planner (levels 4–6) now sees the first strike and ambushes or
+    // blocks it — though, like any fixed-choice defender, not always the
+    // right one. (Levels 7–10 play the equilibrium book instead: see
+    // nashPlanner.test.ts.)
+    let lethal = 0;
+    const seeds = 8;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const board = initialBoard();
+      const black = await planOrdersDeep(board, "black", 10, mulberry32(seed), {
+        budgetMs: Number.MAX_SAFE_INTEGER,
+        maxRollouts: 120,
+        yieldEvery: 0,
+      });
+      const result = resolveRound(board, rush(board), black);
+      const kingSq = result.board.findIndex((p) => p?.type === "king" && p.side === "black");
+      if (result.winner === "white" || isAttacked(result.board, kingSq, "white")) lethal++;
+    }
+    expect(lethal).toBeLessThan(seeds);
   });
 });

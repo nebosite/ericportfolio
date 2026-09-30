@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { describe, it, expect } from "vitest";
 import { Board, Order, PieceType, Side, initialBoard, resolveRound } from "./chess";
 import { DeepOptions, mulberry32, planOrders, planOrdersDeep } from "./ai";
+import { planOrdersNash } from "./nashPlanner";
 
 // Self-play soak study — NOT part of the normal suite (it takes minutes).
 // Run it by hand to probe the game's balance for degenerate win conditions:
@@ -27,7 +28,12 @@ const GUARD = process.env.SELFPLAY_GUARD ? Number(process.env.SELFPLAY_GUARD) : 
 /** Deep-search rollouts per plan for each side (0/unset = greedy). */
 const DEEP_W = Number(process.env.SELFPLAY_DEEP_W ?? process.env.SELFPLAY_DEEP ?? 0);
 const DEEP_B = Number(process.env.SELFPLAY_DEEP_B ?? process.env.SELFPLAY_DEEP ?? 0);
-const ROUND_CAP = 120;
+/** Equilibrium-planner thinking time per plan in ms, per side (0/unset = off).
+ *  When set, that side plays like levels 7–10: it solves each round's matrix
+ *  game and samples the equilibrium mix (the opening book at the start). */
+const NASH_W = Number(process.env.SELFPLAY_NASH_W ?? process.env.SELFPLAY_NASH ?? 0);
+const NASH_B = Number(process.env.SELFPLAY_NASH_B ?? process.env.SELFPLAY_NASH ?? 0);
+const ROUND_CAP = Number(process.env.SELFPLAY_ROUND_CAP ?? 120);
 
 interface GameStat {
   winner: "white" | "black" | null;
@@ -37,12 +43,27 @@ interface GameStat {
   fatalOrder: number | null;
 }
 
-function plan(
+async function plan(
   board: Board,
   side: Side,
   rng: () => number,
   deepRollouts: number,
-): Order[] | Promise<Order[]> {
+  nashMs: number,
+  round: number,
+): Promise<Order[]> {
+  if (nashMs > 0) {
+    // Under alternating leads the planner is told exactly who leads now and next.
+    const odd = round % 2 === 1;
+    const nash = await planOrdersNash(board, side, rng, {
+      budgetMs: nashMs,
+      raceLead: FIRST === "race",
+      lead:
+        FIRST === "alt"
+          ? { first: odd ? "white" : "black", next: odd ? "black" : "white" }
+          : undefined,
+    });
+    if (nash) return nash;
+  }
   const opts: DeepOptions = {
     dodge: DODGE,
     knightBounty: KNIGHT,
@@ -66,8 +87,8 @@ async function playGame(seed: number): Promise<GameStat> {
   const rngLead = mulberry32(seed * 977 + 5);
   let board = initialBoard();
   for (let round = 1; round <= ROUND_CAP; round++) {
-    const white = await plan(board, "white", rngW, DEEP_W);
-    const black = await plan(board, "black", rngB, DEEP_B);
+    const white = await plan(board, "white", rngW, DEEP_W, NASH_W, round);
+    const black = await plan(board, "black", rngB, DEEP_B, NASH_B, round);
     const lead: Side =
       FIRST === "alt"
         ? round % 2 === 1
@@ -132,7 +153,8 @@ describe.skipIf(!process.env.SELFPLAY)("self-play soak", () => {
       const lines: string[] = [];
       lines.push(
         `=== Three Ahead Chess self-play: ${GAMES} games, level ${LEVEL}, dodge=${DODGE}, first=${FIRST}, ` +
-          `knight=${KNIGHT ?? "default"}, guard=${GUARD ?? "default"}, deepW=${DEEP_W}, deepB=${DEEP_B} ===`,
+          `knight=${KNIGHT ?? "default"}, guard=${GUARD ?? "default"}, deepW=${DEEP_W}, deepB=${DEEP_B}, ` +
+          `nashW=${NASH_W}ms, nashB=${NASH_B}ms ===`,
       );
       lines.push(`Elapsed: ${((Date.now() - started) / 1000).toFixed(0)}s`);
       lines.push(

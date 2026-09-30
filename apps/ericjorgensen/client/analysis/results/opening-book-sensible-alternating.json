@@ -1,0 +1,651 @@
+{
+  "space": "sensible",
+  "ivory": [
+    {
+      "p": 0.03125000000000814,
+      "orders": [
+        {
+          "pieceId": 6,
+          "from": 6,
+          "to": 21,
+          "capture": false
+        },
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        },
+        {
+          "pieceId": 14,
+          "from": 14,
+          "to": 22,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.1562500000000007,
+      "orders": [
+        {
+          "pieceId": 1,
+          "from": 1,
+          "to": 18,
+          "capture": false
+        },
+        {
+          "pieceId": 11,
+          "from": 11,
+          "to": 19,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 11,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.06250000000000393,
+      "orders": [
+        {
+          "pieceId": 1,
+          "from": 1,
+          "to": 18,
+          "capture": false
+        },
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 12,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.09374999999999697,
+      "orders": [
+        {
+          "pieceId": 11,
+          "from": 11,
+          "to": 19,
+          "capture": false
+        },
+        {
+          "pieceId": 2,
+          "from": 2,
+          "to": 38,
+          "capture": false
+        },
+        {
+          "pieceId": 6,
+          "from": 6,
+          "to": 21,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.062499999999992555,
+      "orders": [
+        {
+          "pieceId": 10,
+          "from": 10,
+          "to": 18,
+          "capture": false
+        },
+        {
+          "pieceId": 3,
+          "from": 3,
+          "to": 10,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 3,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.09374999999999775,
+      "orders": [
+        {
+          "pieceId": 13,
+          "from": 13,
+          "to": 21,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 13,
+          "capture": false
+        },
+        {
+          "pieceId": 14,
+          "from": 14,
+          "to": 22,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.09374999999999799,
+      "orders": [
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        },
+        {
+          "pieceId": 5,
+          "from": 5,
+          "to": 19,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 5,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.06249999999999703,
+      "orders": [
+        {
+          "pieceId": 1,
+          "from": 1,
+          "to": 18,
+          "capture": false
+        },
+        {
+          "pieceId": 6,
+          "from": 6,
+          "to": 21,
+          "capture": false
+        },
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.1250000000000041,
+      "orders": [
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        },
+        {
+          "pieceId": 3,
+          "from": 3,
+          "to": 30,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 3,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.0624999999999961,
+      "orders": [
+        {
+          "pieceId": 9,
+          "from": 9,
+          "to": 25,
+          "capture": false
+        },
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 20,
+          "capture": false
+        },
+        {
+          "pieceId": 14,
+          "from": 14,
+          "to": 22,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.0625000000000014,
+      "orders": [
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 28,
+          "capture": false
+        },
+        {
+          "pieceId": 5,
+          "from": 5,
+          "to": 19,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 5,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.031249999999998432,
+      "orders": [
+        {
+          "pieceId": 12,
+          "from": 12,
+          "to": 28,
+          "capture": false
+        },
+        {
+          "pieceId": 3,
+          "from": 3,
+          "to": 21,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 3,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.03125000000000228,
+      "orders": [
+        {
+          "pieceId": 1,
+          "from": 1,
+          "to": 18,
+          "capture": false
+        },
+        {
+          "pieceId": 13,
+          "from": 13,
+          "to": 29,
+          "capture": false
+        },
+        {
+          "pieceId": 14,
+          "from": 14,
+          "to": 22,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.031250000000002005,
+      "orders": [
+        {
+          "pieceId": 9,
+          "from": 9,
+          "to": 25,
+          "capture": false
+        },
+        {
+          "pieceId": 11,
+          "from": 11,
+          "to": 19,
+          "capture": false
+        },
+        {
+          "pieceId": 4,
+          "from": 4,
+          "to": 11,
+          "capture": false
+        }
+      ]
+    }
+  ],
+  "onyx": [
+    {
+      "p": 0.06250000000000011,
+      "orders": [
+        {
+          "pieceId": 26,
+          "from": 50,
+          "to": 42,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 41,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 41,
+          "to": 13,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.06250000000000015,
+      "orders": [
+        {
+          "pieceId": 28,
+          "from": 52,
+          "to": 44,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 45,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 45,
+          "to": 13,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.09375000000000006,
+      "orders": [
+        {
+          "pieceId": 28,
+          "from": 52,
+          "to": 44,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 38,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 38,
+          "to": 11,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.12499999999999976,
+      "orders": [
+        {
+          "pieceId": 28,
+          "from": 52,
+          "to": 44,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 31,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 31,
+          "to": 13,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.10937500000000012,
+      "orders": [
+        {
+          "pieceId": 17,
+          "from": 57,
+          "to": 42,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 42,
+          "to": 36,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 36,
+          "to": 19,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.04687500000000014,
+      "orders": [
+        {
+          "pieceId": 17,
+          "from": 57,
+          "to": 42,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 42,
+          "to": 27,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 27,
+          "to": 10,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.06249999999999962,
+      "orders": [
+        {
+          "pieceId": 17,
+          "from": 57,
+          "to": 42,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 42,
+          "to": 36,
+          "capture": false
+        },
+        {
+          "pieceId": 17,
+          "from": 36,
+          "to": 21,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.04687500000000011,
+      "orders": [
+        {
+          "pieceId": 28,
+          "from": 52,
+          "to": 44,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 38,
+          "capture": false
+        },
+        {
+          "pieceId": 21,
+          "from": 61,
+          "to": 25,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.0625000000000006,
+      "orders": [
+        {
+          "pieceId": 25,
+          "from": 49,
+          "to": 41,
+          "capture": false
+        },
+        {
+          "pieceId": 18,
+          "from": 58,
+          "to": 40,
+          "capture": false
+        },
+        {
+          "pieceId": 18,
+          "from": 40,
+          "to": 12,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.12499999999999953,
+      "orders": [
+        {
+          "pieceId": 26,
+          "from": 50,
+          "to": 42,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 59,
+          "to": 32,
+          "capture": false
+        },
+        {
+          "pieceId": 19,
+          "from": 32,
+          "to": 11,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.06250000000000044,
+      "orders": [
+        {
+          "pieceId": 22,
+          "from": 62,
+          "to": 45,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 45,
+          "to": 28,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 28,
+          "to": 11,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.09374999999999992,
+      "orders": [
+        {
+          "pieceId": 22,
+          "from": 62,
+          "to": 45,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 45,
+          "to": 28,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 28,
+          "to": 13,
+          "capture": true
+        }
+      ]
+    },
+    {
+      "p": 0.015624999999999768,
+      "orders": [
+        {
+          "pieceId": 24,
+          "from": 48,
+          "to": 40,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 62,
+          "to": 45,
+          "capture": false
+        },
+        {
+          "pieceId": 22,
+          "from": 45,
+          "to": 28,
+          "capture": false
+        }
+      ]
+    },
+    {
+      "p": 0.031249999999999736,
+      "orders": [
+        {
+          "pieceId": 27,
+          "from": 51,
+          "to": 43,
+          "capture": false
+        },
+        {
+          "pieceId": 18,
+          "from": 58,
+          "to": 30,
+          "capture": false
+        },
+        {
+          "pieceId": 18,
+          "from": 30,
+          "to": 12,
+          "capture": true
+        }
+      ]
+    }
+  ]
+}

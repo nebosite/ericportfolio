@@ -1,0 +1,91 @@
+{
+  "space": "sensible",
+  "whitePlans": 11048,
+  "blackPlans": 11048,
+  "counts": {
+    "pairs": 122058304,
+    "ivoryCapturesKing": 932,
+    "onyxCapturesKing": 2116,
+    "ivoryFirstStrike": 1190932,
+    "open": 120864324,
+    "ivoryDecisiveShare": 0.009764710478035152,
+    "onyxDecisiveShare": 0.00001733597740306141,
+    "distinctPositionsEstimate": 8879747
+  },
+  "forcedWins": {
+    "ivoryHasForcedWin": false,
+    "ivoryForcedPlan": null,
+    "onyxHasForcedWin": false,
+    "onyxPlansThatNeverLoseRound1": 0
+  },
+  "vsUniformRandom": {
+    "bestIvoryPlan": "Nb1-c3, Nc3-b5, Nb5xc7",
+    "bestIvoryPlanNetWinShare": 0.9201665459811731,
+    "bestOnyxPlan": "Nb8-c6, Nc6-d4, Nd4xe2",
+    "bestOnyxPlanNetLossShare": -0.009141926140477914
+  },
+  "equilibrium": {
+    "value": 0.2857142857142856,
+    "provenLower": 0.28571428571428525,
+    "provenUpper": 0.2857142857142858,
+    "meaning": "expected (Ivory decisive − Onyx decisive) in round 1 when both sides play optimal mixtures",
+    "ivoryMix": [
+      {
+        "p": 0.1429,
+        "plan": "e2-e3, Qd1-h5, Qh5xf7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "e2-e3, Qd1-f3, Qf3xf7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "Nb1-c3, Nc3-e4, Ne4-d6"
+      },
+      {
+        "p": 0.1429,
+        "plan": "Nb1-c3, Ng1-f3, Nf3-e5"
+      },
+      {
+        "p": 0.1429,
+        "plan": "e2-e3, Qd1-g4, Qg4xd7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "c2-c3, Qd1-a4, Qa4xd7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "b2-b3, Bc1-a3, Ba3xe7"
+      }
+    ],
+    "onyxMix": [
+      {
+        "p": 0.2857,
+        "plan": "c7-c6, Qd8-c7, Ke8-d8"
+      },
+      {
+        "p": 0.1429,
+        "plan": "e7-e6, g7-g6, Ke8-e7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "b7-b5, f7-f5, a7-a6"
+      },
+      {
+        "p": 0.1429,
+        "plan": "f7-f6, g7-g6, Ke8-f7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "d7-d6, f7-f5, Ke8-d7"
+      },
+      {
+        "p": 0.1429,
+        "plan": "b7-b5, e7-e6, Ke8-e7"
+      }
+    ]
+  },
+  "nextLead": "ivory",
+  "seconds": 4.932
+}

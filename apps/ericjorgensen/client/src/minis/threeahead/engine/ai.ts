@@ -687,6 +687,262 @@ export function planKingHunt(
   return earliest;
 }
 
+/* ---- Full threat search: clearing beats and the next-round first strike -----
+   planKingHunt above models a lone hunter that stays inside this round. Two
+   real kill patterns escape it (found by a human beating level 10 with
+   e4, Qh5, Qxf7):
+     1. The hunter's side may spend a beat CLEARING its own blocker (e2-e4
+        opens d1-h5), so a friendly piece in the way is a one-beat toll, not
+        a wall.
+     2. If the enemy leads the NEXT round, a hunter that merely ENDS this round
+        attacking my king kills it at next round's step 1 — before I can move.
+   kingThreats models both. Its answer is pessimistic by design (the hunter is
+   credited with knowing my plan), so callers use the threat COUNT to rank
+   plans that can't be made fully safe. */
+
+export interface KingThreat {
+  /** Global step of the killing blow: 1–6 this round, 7 = next round's step 1. */
+  step: number;
+  /** Where the hunter starts this round. */
+  hunter: Square;
+  /** For next-round threats: the square the hunter ends the round on. */
+  landing: Square;
+}
+
+/** Hunter-side moves from `pos` on `snap`, with the beat cost of each: 1 per
+ *  move plus 1 per own (hunter-side) piece that must first be cleared away. */
+function huntMoves(
+  snap: Board,
+  type: PieceType,
+  side: Side,
+  pos: Square,
+): { to: Square; cost: number }[] {
+  const out: { to: Square; cost: number }[] = [];
+  const f0 = fileOf(pos);
+  const r0 = rankOf(pos);
+  const toll = (sq: Square) => (snap[sq] && snap[sq]!.side === side ? 1 : 0);
+  switch (type) {
+    case "knight":
+    case "king": {
+      const jumps = type === "knight" ? KNIGHT_JUMPS : [...ROOK_RAYS, ...BISHOP_RAYS];
+      for (const [df, dr] of jumps) {
+        if (!onBoard(f0 + df, r0 + dr)) continue;
+        const to = square(f0 + df, r0 + dr);
+        out.push({ to, cost: 1 + toll(to) });
+      }
+      break;
+    }
+    case "rook":
+    case "bishop":
+    case "queen": {
+      const rays =
+        type === "rook"
+          ? ROOK_RAYS
+          : type === "bishop"
+            ? BISHOP_RAYS
+            : [...ROOK_RAYS, ...BISHOP_RAYS];
+      for (const [df, dr] of rays) {
+        let cleared = 0;
+        for (let k = 1; ; k++) {
+          const f = f0 + df * k;
+          const r = r0 + dr * k;
+          if (!onBoard(f, r)) break;
+          const sq = square(f, r);
+          const occupant = snap[sq];
+          if (occupant && occupant.side === side) {
+            // A pawn can't clear a file by pushing along it (d2-d4 still
+            // blocks d1-d7); anything else steps aside for one beat.
+            if (occupant.type === "pawn" && df === 0) break;
+            cleared++;
+            // Pass through, but don't STAND where a pawn stood: it only
+            // stepped up its own file, so file routes from here stay shut.
+            if (occupant.type !== "pawn") out.push({ to: sq, cost: 1 + cleared });
+            continue;
+          }
+          out.push({ to: sq, cost: 1 + cleared });
+          if (occupant) break; // one of mine: a capture ends the ray
+        }
+      }
+      break;
+    }
+    case "pawn": {
+      const dir = side === "white" ? 1 : -1;
+      if (onBoard(f0, r0 + dir)) {
+        const one = square(f0, r0 + dir);
+        const occupant = snap[one];
+        if (!occupant || occupant.side === side) out.push({ to: one, cost: 1 + toll(one) });
+        for (const df of [-1, 1]) {
+          if (!onBoard(f0 + df, r0 + dir)) continue;
+          const diag = square(f0 + df, r0 + dir);
+          const victim = snap[diag];
+          if (victim && victim.side !== side) out.push({ to: diag, cost: 1 });
+        }
+      }
+      break;
+    }
+  }
+  return out;
+}
+
+/** Beats a hunter of `type` standing on `from` still needs (clearing tolls)
+ *  before it attacks `target` on `snap`; null if it can't attack it at all. */
+function attackToll(
+  snap: Board,
+  type: PieceType,
+  side: Side,
+  from: Square,
+  target: Square,
+): number | null {
+  if (from === target) return null;
+  const df = fileOf(target) - fileOf(from);
+  const dr = rankOf(target) - rankOf(from);
+  const adf = Math.abs(df);
+  const adr = Math.abs(dr);
+  switch (type) {
+    case "knight":
+      return (adf === 1 && adr === 2) || (adf === 2 && adr === 1) ? 0 : null;
+    case "king":
+      return Math.max(adf, adr) === 1 ? 0 : null;
+    case "pawn":
+      return adf === 1 && dr === (side === "white" ? 1 : -1) ? 0 : null;
+    case "rook":
+      if (df !== 0 && dr !== 0) return null;
+      break;
+    case "bishop":
+      if (adf !== adr) return null;
+      break;
+    case "queen":
+      if (df !== 0 && dr !== 0 && adf !== adr) return null;
+      break;
+  }
+  const stepF = Math.sign(df);
+  const stepR = Math.sign(dr);
+  let toll = 0;
+  for (let f = fileOf(from) + stepF, r = rankOf(from) + stepR; ; f += stepF, r += stepR) {
+    const sq = square(f, r);
+    if (sq === target) return toll;
+    const occupant = snap[sq];
+    if (!occupant) continue;
+    if (occupant.side !== side) return null; // one of the defender's pieces blocks the line
+    if (occupant.type === "pawn" && stepF === 0) return null; // a pawn can't leave its file
+    toll++;
+  }
+}
+
+/**
+ * Every way a single enemy piece (with its side's help clearing the road) can
+ * kill my king while `myPlan` executes, or set up an unanswerable first strike
+ * for the next round. `enemyLeadsNext` switches on the next-round threats.
+ * A next-round threat is NEUTRALIZED when my third order is an ambush — a
+ * capture aimed at the hunter's landing square that executes after it lands
+ * (only possible when I follow this round).
+ */
+export function kingThreats(
+  board: Board,
+  myPlan: Order[],
+  mySide: Side,
+  iLead: boolean,
+  enemyLeadsNext: boolean,
+): KingThreat[] {
+  const snapshots: Board[] = [cloneBoard(board)];
+  const sim = cloneBoard(board);
+  for (const order of myPlan) {
+    executeOrder(sim, order);
+    snapshots.push(cloneBoard(sim));
+  }
+  while (snapshots.length < 4) snapshots.push(snapshots[snapshots.length - 1]);
+  const endSnap = snapshots[3];
+
+  let kingSq = -1;
+  let kingId = -1;
+  for (let sq = 0; sq < 64; sq++) {
+    const p = board[sq];
+    if (p && p.type === "king" && p.side === mySide) {
+      kingSq = sq;
+      kingId = p.id;
+      break;
+    }
+  }
+  if (kingSq < 0) return [];
+  let endKingSq = -1;
+  for (let sq = 0; sq < 64; sq++) {
+    if (endSnap[sq]?.id === kingId) endKingSq = sq;
+  }
+  let kingMoveStep = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < myPlan.length; i++) {
+    if (myPlan[i].pieceId === kingId) {
+      kingMoveStep = iLead ? 2 * (i + 1) - 1 : 2 * (i + 1);
+      break;
+    }
+  }
+  const ambush = !iLead && myPlan[2]?.capture ? myPlan[2].to : -1;
+
+  const enemy = otherSide(mySide);
+  const lastRank = enemy === "white" ? 7 : 0;
+  const threats: KingThreat[] = [];
+  for (let start = 0; start < 64; start++) {
+    const hunter = board[start];
+    if (!hunter || hunter.side !== enemy) continue;
+    if (iLead && myPlan[0]?.capture && myPlan[0].to === start) continue;
+    // best[sq] = fewest beats to stand on sq; grown = crowned pawn on the way.
+    const best = new Map<Square, { beats: number; grown: boolean }>();
+    best.set(start, { beats: 0, grown: hunter.type !== "pawn" });
+    let frontier: Square[] = [start];
+    let inRoundStep = Number.POSITIVE_INFINITY;
+    for (let wave = 0; wave < 3 && frontier.length > 0; wave++) {
+      const next: Square[] = [];
+      for (const pos of frontier) {
+        const here = best.get(pos)!;
+        const moveType: PieceType = hunter.type === "pawn" && here.grown ? "queen" : hunter.type;
+        for (const { to, cost } of (() => {
+          const beat = here.beats + 1;
+          const snap = snapshots[Math.min(iLead ? beat : beat - 1, 3)];
+          const original = snap[start];
+          if (original?.id === hunter.id) snap[start] = null;
+          const moves = huntMoves(snap, moveType, enemy, pos);
+          snap[start] = original ?? null;
+          return moves;
+        })()) {
+          const beats = here.beats + cost;
+          if (beats > 3) continue;
+          if (to === kingSq) {
+            const step = iLead ? 2 * beats : 2 * beats - 1;
+            if (step < kingMoveStep) inRoundStep = Math.min(inRoundStep, step);
+            continue;
+          }
+          const grown = here.grown || (hunter.type === "pawn" && rankOf(to) === lastRank);
+          const seen = best.get(to);
+          if (!seen || beats < seen.beats || (grown && !seen.grown)) {
+            best.set(to, { beats, grown });
+            next.push(to);
+          }
+        }
+      }
+      frontier = next;
+    }
+    if (inRoundStep !== Number.POSITIVE_INFINITY) {
+      threats.push({ step: inRoundStep, hunter: start, landing: kingSq });
+      continue;
+    }
+    if (!enemyLeadsNext || endKingSq < 0) continue;
+    // Next round, step 1: can the hunter END this round attacking my king?
+    const original = endSnap[start];
+    if (original?.id === hunter.id) endSnap[start] = null;
+    for (const [pos, { beats, grown }] of best) {
+      if (pos === ambush) continue; // my third order captures it on arrival
+      const type: PieceType = hunter.type === "pawn" && grown ? "queen" : hunter.type;
+      const toll = attackToll(endSnap, type, enemy, pos, endKingSq);
+      if (toll !== null && beats + toll <= 3) {
+        // Every landing counts: blocking one of a bishop's two roads is real
+        // progress even while the other stays open.
+        threats.push({ step: 7, hunter: start, landing: pos });
+      }
+    }
+    endSnap[start] = original ?? null;
+  }
+  return threats;
+}
+
 /** Moves for the hunter standing (virtually) at `pos`, on a snapshot where its
  *  original square may still show it — that square is treated as empty. */
 function pieceMovesFromHunter(
@@ -701,6 +957,74 @@ function pieceMovesFromHunter(
   const moves = pieceMovesFrom(snap, moveType, hunter.side, pos);
   snap[originalSquare] = original ?? null;
   return moves;
+}
+
+/**
+ * How dangerous a set of threats is. The defender's odds depend on how many
+ * enemy pieces could strike (each must GUESS my sealed plan), not on how many
+ * squares one piece could strike from — so danger is counted per hunter, with
+ * only a small extra per additional landing (enough to reward a block that
+ * shuts one of a bishop's two roads). A strike at the square my king stands on
+ * now needs no guessing and weighs most; one aimed at where my king will have
+ * moved to weighs least.
+ */
+export function threatDanger(threats: KingThreat[], kingMoves: boolean): number {
+  const byHunter = new Map<Square, { weight: number; landings: number }>();
+  for (const t of threats) {
+    const weight = t.step < 7 ? 3 : kingMoves ? 1 : 2;
+    const seen = byHunter.get(t.hunter);
+    if (!seen) byHunter.set(t.hunter, { weight, landings: 1 });
+    else {
+      seen.weight = Math.max(seen.weight, weight);
+      seen.landings++;
+    }
+  }
+  let danger = 0;
+  for (const { weight, landings } of byHunter.values())
+    danger += weight * (1 + 0.1 * (landings - 1));
+  return danger;
+}
+
+/** Bonus for ending my plan with the enemy king's square (and, to a lesser
+ *  degree, its escape squares) under attack — lethal when I lead next round,
+ *  unless the enemy's sealed plan happens to move the king away. */
+function leaderPressure(board: Board, side: Side): number {
+  let kingSq = -1;
+  for (let sq = 0; sq < 64; sq++) {
+    const p = board[sq];
+    if (p && p.type === "king" && p.side !== side) kingSq = sq;
+  }
+  if (kingSq < 0) return 0;
+  let bonus = isAttacked(board, kingSq, side) ? 900 : 0;
+  const f0 = fileOf(kingSq);
+  const r0 = rankOf(kingSq);
+  for (const [df, dr] of [...ROOK_RAYS, ...BISHOP_RAYS]) {
+    if (onBoard(f0 + df, r0 + dr) && isAttacked(board, square(f0 + df, r0 + dr), side)) {
+      bonus += 40;
+    }
+  }
+  return bonus;
+}
+
+/** Every third order that would capture a hunter arriving on `landing`, for a
+ *  plan whose first orders are `prefix`: my pieces able to strike that square
+ *  once an enemy stands on it (it may be empty, or even hold my own piece that
+ *  the hunter will have taken). */
+function ambushOrders(board: Board, prefix: Order[], side: Side, landing: Square): Order[] {
+  const predicted = cloneBoard(board);
+  for (const order of prefix) executeOrder(predicted, order);
+  const original = predicted[landing];
+  predicted[landing] = { id: -1, side: otherSide(side), type: "pawn", hasMoved: true };
+  const orders: Order[] = [];
+  for (let from = 0; from < 64; from++) {
+    const piece = predicted[from];
+    if (!piece || piece.side !== side) continue;
+    if (pieceMovesFrom(predicted, piece.type, side, from).includes(landing)) {
+      orders.push({ pieceId: piece.id, from, to: landing, capture: true });
+    }
+  }
+  predicted[landing] = original;
+  return orders;
 }
 
 /** One plan variant: force a random candidate at a random ply, then finish the
@@ -766,6 +1090,11 @@ export async function planOrdersDeep(
   // criteria — final material with speculative captures discounted, hanging
   // pieces, and the lone-hunter veto. No imagined enemy ever moves.
   const iLead = opts.raceLead ? false : side === "white";
+  // Who strikes first next round? Without the race rule Ivory always does;
+  // under it nobody knows, so each side assumes the worst: the enemy.
+  const enemyLeadsNext = opts.raceLead ? true : side === "black";
+  const iLeadNext = !opts.raceLead && side === "white";
+  const threatsOf = (plan: Order[]) => kingThreats(board, plan, side, iLead, enemyLeadsNext);
   const scorePlan = (plan: Order[]): number => {
     const sim = cloneBoard(board);
     let trustRefund = 0;
@@ -785,41 +1114,122 @@ export async function planOrdersDeep(
     // lands BEFORE any provable kill against me. This is what stops two deep
     // planners from happily racing each other — the slower racer reads its own
     // death and defends instead.
-    const hunt = planKingHunt(board, plan, side, iLead);
-    const enemyKillStep =
-      hunt === null ? Number.POSITIVE_INFINITY : iLead ? 2 * hunt.beat : 2 * hunt.beat - 1;
+    const threats = threatsOf(plan);
+    let enemyKillStep = Number.POSITIVE_INFINITY;
+    for (const t of threats) enemyKillStep = Math.min(enemyKillStep, t.step);
     if (myKillStep < enemyKillStep) return KING_CAPTURE - myKillStep;
     let score = evaluate(sim, side, knightBounty, kingGuard) - trustRefund;
     score -= worstThreat(sim, side, knightBounty) * THREAT_WEIGHT;
-    if (hunt !== null) score = Math.min(score, -KING_CAPTURE + hunt.beat * 1000);
+    // The leader's first strike: ending the round with the enemy king (or the
+    // squares it could flee to) under attack is the lethal pattern in reverse.
+    if (iLeadNext) score += leaderPressure(sim, side);
+    if (threats.length > 0) {
+      // A threatened plan is only as good as the enemy's odds of guessing it.
+      // A strike at the square my king stands on NOW needs no guessing, so it
+      // weighs heaviest; one aimed at where my king will have moved to is a
+      // guess the enemy must get right. More ways in, worse odds.
+      const kingId = board.find((p) => p?.type === "king" && p.side === side)?.id;
+      const kingMoves = plan.some((o) => o.pieceId === kingId);
+      const danger = threatDanger(threats, kingMoves);
+      // Jitter smaller than one threat: near-equal defenses are chosen at
+      // random, so an opponent can't learn one rush that always lands.
+      score = -KING_CAPTURE - danger * 600 + score / 10 + rng() * 200;
+    }
     return score;
   };
 
   let bestPlan = seed;
   let bestScore = scorePlan(seed);
   let rollouts = 1;
+  const consider = (plan: Order[]) => {
+    if (plan.length < 3) return;
+    const score = scorePlan(plan);
+    rollouts++;
+    if (score > bestScore) {
+      bestScore = score;
+      bestPlan = plan;
+    }
+  };
 
   // Rescue heuristic: when the seed plan is hunted, random sampling is a slow
   // way to stumble onto salvation — so try the obvious defenses first: every
-  // king flight, and every capture of the hunter, each completed greedily.
-  const seedHunt = planKingHunt(board, seed, side, iLead);
-  if (seedHunt !== null) {
+  // king flight, and every capture of a hunter, each completed greedily.
+  const seedThreats = threatsOf(seed);
+  if (seedThreats.length > 0) {
+    const hunters = new Set(seedThreats.map((t) => t.hunter));
     for (const cand of generateCandidates(board, side)) {
       const mover = board[cand.order.from]!;
       const flight = mover.type === "king" && !cand.victim;
-      const execution = cand.order.to === seedHunt.hunter && cand.order.capture;
+      const execution = hunters.has(cand.order.to) && cand.order.capture;
       if (!flight && !execution) continue;
       const predicted = cloneBoard(board);
       executeOrder(predicted, cand.order);
-      const rest = planOrders(predicted, side, level, rng, opts).slice(0, 2);
-      const rescue = [cand.order, ...rest];
-      if (rescue.length < 3) continue;
-      const score = scorePlan(rescue);
-      rollouts++;
-      if (score > bestScore) {
-        bestScore = score;
-        bestPlan = rescue;
+      consider([cand.order, ...planOrders(predicted, side, level, rng, opts).slice(0, 2)]);
+    }
+  }
+  // Ambush rescue: a first strike needs the hunter to END the round on a
+  // landing square — so seal a third order that captures on that square
+  // after it arrives (Kxf7 answers e4, Qh5, Qxf7). Rerun on every new
+  // champion: its first two orders may already block some landings, which
+  // changes which square is worth ambushing.
+  const ambushPass = () => {
+    if (iLead) return;
+    for (let pass = 0; pass < 3; pass++) {
+      const landings = new Set(
+        threatsOf(bestPlan)
+          .filter((t) => t.step === 7)
+          .map((t) => t.landing),
+      );
+      if (landings.size === 0) break;
+      const before = bestPlan;
+      const prefix = bestPlan.slice(0, 2);
+      for (const landing of landings) {
+        for (const ambush of ambushOrders(board, prefix, side, landing)) {
+          consider([prefix[0], prefix[1], ambush]);
+        }
       }
+      if (bestPlan === before) break;
+    }
+  };
+  ambushPass();
+
+  // Defensive beam: when the enemy has many ways in, build plans that shut
+  // them one order at a time — the two orders that cut the most threat
+  // routes (blocks like e6 and Nc6 each close several diagonals), then the
+  // best ambush on what's left.
+  if (!iLead && threatsOf(bestPlan).length > 0) {
+    const BEAM = 6;
+    const weigh = (plan: Order[]) =>
+      // random tie-breaks: no single rush is a sure thing
+      threatDanger(threatsOf(plan), true) + rng() * 0.05;
+    let beams: Order[][] = [[]];
+    for (let ply = 0; ply < 2; ply++) {
+      const scored: { plan: Order[]; danger: number }[] = [];
+      for (const prefix of beams) {
+        const predicted = cloneBoard(board);
+        for (const order of prefix) executeOrder(predicted, order);
+        for (const cand of generateCandidates(predicted, side)) {
+          const plan = [...prefix, cand.order];
+          scored.push({ plan, danger: weigh(plan) });
+        }
+      }
+      scored.sort((a, b) => a.danger - b.danger);
+      beams = scored.slice(0, BEAM).map((s) => s.plan);
+    }
+    for (const prefix of beams) {
+      const landings = new Set(
+        threatsOf(prefix)
+          .filter((t) => t.step === 7)
+          .map((t) => t.landing),
+      );
+      for (const landing of landings) {
+        for (const ambush of ambushOrders(board, prefix, side, landing)) {
+          consider([...prefix, ambush]);
+        }
+      }
+      const predicted = cloneBoard(board);
+      for (const order of prefix) executeOrder(predicted, order);
+      consider([...prefix, ...planOrders(predicted, side, level, rng, opts).slice(0, 1)]);
     }
   }
 
@@ -833,6 +1243,7 @@ export async function planOrdersDeep(
     if (score > bestScore) {
       bestScore = score;
       bestPlan = variant;
+      ambushPass();
     }
     if (yieldEvery > 0 && rollouts % yieldEvery === 0) {
       await new Promise((resolve) => setTimeout(resolve, 0));

@@ -25,7 +25,8 @@ import {
   resolveRound,
   squareName,
 } from "./engine/chess";
-import { MAX_LEVEL, MIN_LEVEL, levelBudgetMs, planOrdersDeep } from "./engine/ai";
+import { MAX_LEVEL, MIN_LEVEL, levelBudgetMs } from "./engine/ai";
+import { planMachine } from "./engine/nashPlanner";
 import { NetSession, createGame, fetchState, joinGame, resign, submitOrders } from "./net";
 import PieceGlyph from "./pieces";
 import styles from "./ThreeAheadPage.module.css";
@@ -366,7 +367,7 @@ export default function ThreeAheadPage() {
     const startedAt = Date.now();
     // Its public "seal" moment: the full thinking budget, never instant.
     const sealDelay = Math.max(levelBudgetMs(level), RACE_MIN_THINK_MS);
-    aiPlanRef.current = planOrdersDeep(board, aiSide, level, undefined, { raceLead: raceRule });
+    aiPlanRef.current = planMachine(board, aiSide, level, { raceLead: raceRule });
     const sealTimer = window.setTimeout(
       () => {
         if (matchIdRef.current !== matchId) return;
@@ -386,12 +387,11 @@ export default function ThreeAheadPage() {
     const matchId = matchIdRef.current;
     const timer = window.setTimeout(() => {
       void (async () => {
-        const white = await planOrdersDeep(board, "white", level, undefined, {
-          raceLead: raceRule,
-        });
-        const black = await planOrdersDeep(board, "black", levelB, undefined, {
-          raceLead: raceRule,
-        });
+        // Both machines think at once, as two players would.
+        const [white, black] = await Promise.all([
+          planMachine(board, "white", level, { raceLead: raceRule }),
+          planMachine(board, "black", levelB, { raceLead: raceRule }),
+        ]);
         if (matchIdRef.current !== matchId) return; // spectator walked away
         // Under the race rule the shorter thinker seals first and leads.
         const whiteThink = Math.max(levelBudgetMs(level), RACE_MIN_THINK_MS);
