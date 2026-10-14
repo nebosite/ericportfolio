@@ -1,0 +1,438 @@
+.page,
+.page * {
+  box-sizing: border-box;
+}
+
+.page {
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: #0b0b0b;
+  color: #fff;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-content: start;
+}
+
+.panel,
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* Instructions + preview live together in one card. */
+.panel {
+  padding: 12px;
+  border: 1px solid #2c2c2c;
+  border-radius: 14px;
+  background: #121212;
+}
+
+.footer {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+/* The standard footer is generous; on this fit-the-screen page it stays slim. */
+.footer footer {
+  margin-top: 0;
+  padding: 4px 8px;
+}
+
+/* Landscape phones are short: panel on the left, controls on the right, so the whole
+   page fits the screen height. */
+@media (orientation: landscape) and (min-width: 560px) {
+  .page {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 8px 14px;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+  .panel,
+  .form {
+    max-width: none;
+  }
+  .footer {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .form {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+.back {
+  color: #00ff66;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.title {
+  margin: 0;
+  font-family: "Arial Black", Impact, sans-serif;
+  font-size: clamp(1.4rem, 7vw, 2rem);
+  line-height: 1.1;
+  color: #00ff66;
+  overflow-wrap: anywhere;
+}
+
+.blurb {
+  margin: 0;
+  color: #cfcfcf;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  font:
+    700 1.05rem "Arial Black",
+    Impact,
+    sans-serif;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 2px solid #444;
+  background: #161616;
+  color: #fff;
+  resize: none;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #00ff66;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.control input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  accent-color: #00ff66;
+}
+
+.colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.swatch {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.swatch[data-selected="true"] {
+  border-color: #fff;
+  outline: 2px solid #00ff66;
+  outline-offset: 1px;
+}
+
+.go {
+  width: 100%;
+  font:
+    900 1.3rem "Arial Black",
+    Impact,
+    sans-serif;
+  margin-top: 10px;
+  padding: 18px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: #00ff66;
+  color: #000;
+  cursor: pointer;
+}
+
+.go:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- Bold / font options ---- */
+
+.options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 8px;
+}
+
+.toggle,
+.segment {
+  padding: 6px 8px;
+  font: 700 0.8rem system-ui, sans-serif;
+  color: #ddd;
+  background: #161616;
+  border: 2px solid #444;
+  cursor: pointer;
+}
+
+.toggle {
+  border-radius: 10px;
+}
+
+.toggle[aria-pressed="true"],
+.segment[aria-checked="true"] {
+  color: #000;
+  background: #00ff66;
+  border-color: #00ff66;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.segment:first-child {
+  border-radius: 10px 0 0 10px;
+}
+
+.segment:last-child {
+  border-radius: 0 10px 10px 0;
+}
+
+/* ---- Phone-in-hand mock-ups ---- */
+
+.mockups {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 16px;
+}
+
+.hand {
+  position: relative;
+  flex: none;
+}
+
+.hand.portrait {
+  width: 84px;
+  height: 120px;
+}
+
+.hand.landscape {
+  width: 124px;
+  height: 90px;
+}
+
+.phone {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+  border: 3px solid #2a2a2a;
+  border-radius: 9px;
+}
+
+.portrait .phone {
+  left: 12px;
+  top: 0;
+  width: 60px;
+  height: 104px;
+}
+
+.landscape .phone {
+  left: 8px;
+  top: 6px;
+  width: 104px;
+  height: 60px;
+}
+
+.phoneScreen {
+  width: 100%;
+  height: 100%;
+}
+
+/* The hand: a palm behind the phone, a thumb and three fingers wrapped over its edge. */
+.palm,
+.thumb,
+.fingers i {
+  background: #e2ae8c;
+  border: 1px solid #b98660;
+}
+
+.palm {
+  position: absolute;
+  z-index: 0;
+  border-radius: 8px 8px 26px 26px;
+}
+
+.portrait .palm {
+  left: 6px;
+  top: 64px;
+  width: 72px;
+  height: 56px;
+}
+
+.landscape .palm {
+  left: 14px;
+  top: 46px;
+  width: 98px;
+  height: 44px;
+}
+
+.thumb,
+.fingers {
+  position: absolute;
+  z-index: 2;
+}
+
+.thumb {
+  border-radius: 8px;
+}
+
+.portrait .thumb {
+  left: 4px;
+  top: 58px;
+  width: 22px;
+  height: 11px;
+  transform: rotate(-24deg);
+}
+
+.landscape .thumb {
+  left: 24px;
+  top: 56px;
+  width: 26px;
+  height: 13px;
+  transform: rotate(-6deg);
+}
+
+.fingers {
+  display: flex;
+  gap: 2px;
+}
+
+.fingers i {
+  display: block;
+  border-radius: 6px;
+}
+
+.portrait .fingers {
+  left: 66px;
+  top: 52px;
+  flex-direction: column;
+}
+
+.portrait .fingers i {
+  width: 16px;
+  height: 10px;
+}
+
+/* Landscape: four fingers curl over the top edge, the thumb sits along the bottom. */
+.landscape .fingers {
+  left: 28px;
+  top: 0;
+  gap: 3px;
+}
+
+.landscape .fingers i {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- The marquee track: a clipped box whose height sets the letter size ---- */
+
+.track {
+  position: relative;
+  overflow: hidden;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.text {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  white-space: nowrap;
+  line-height: 1;
+  font-family: "Arial Black", Impact, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  will-change: transform;
+  user-select: none;
+}
+
+.exit {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 4px 14px;
+  font:
+    700 0.8rem system-ui,
+    sans-serif;
+  color: #fff;
+  background: rgba(60, 60, 60, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Short screens (small phones, landscape): trim spacing so the page still fits. */
+@media (max-height: 680px) {
+  .page {
+    gap: 6px;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+  .panel {
+    padding: 8px 10px;
+    gap: 5px;
+  }
+  .form {
+    gap: 5px;
+  }
+  .blurb {
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+  .input {
+    padding: 5px 8px;
+  }
+  .go {
+    margin-top: 6px;
+    padding: 13px 5px;
+  }
+}
+
+@media (max-height: 680px) {
+  .toggle,
+  .segment {
+    padding: 4px 8px;
+  }
+}

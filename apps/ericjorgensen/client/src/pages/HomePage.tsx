@@ -112,6 +112,11 @@ const RAW: RawCategory[] = [
         to: "/three-ahead-chess",
       },
       {
+        name: "Hands High",
+        desc: "Turn your phone into a giant scrolling sign to signal someone across a crowd.",
+        to: "/hands-high",
+      },
+      {
         name: "Blast Corps Reimagined",
         desc: "Drive a 900-tonne machine down a street of skyscrapers built from thousands of real parts — demolition physics, nothing scripted.",
         to: "/blast-corps-reimagined",

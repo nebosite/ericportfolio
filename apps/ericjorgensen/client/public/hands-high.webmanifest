@@ -1,0 +1,20 @@
+{
+  "name": "Hands High",
+  "short_name": "Hands High",
+  "description": "Turn your phone into a giant scrolling sign to reach someone across a crowd.",
+  "start_url": "/hands-high",
+  "scope": "/hands-high",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "/hands-high-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    {
+      "src": "/hands-high-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

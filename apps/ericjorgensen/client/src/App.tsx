@@ -6,6 +6,7 @@ import FeedbackAdminPage from "./pages/FeedbackAdminPage";
 import McpPage from "./pages/McpPage";
 import SingadoodlePage from "./minis/singadoodle/SingadoodlePage";
 import ThreeAheadPage from "./minis/threeahead/ThreeAheadPage";
+import HandsHighPage from "./minis/handshigh/HandsHighPage";
 
 // Blast Corps pulls in three.js and (inside its worker) a 3 MB physics wasm, so
 // it is the one route that loads on demand rather than with the home page.
@@ -40,6 +41,8 @@ export default function App() {
           </Suspense>
         }
       />
+      {/* Pure AI Output — Hands High, a phone-as-marquee PWA for signalling across crowds. */}
+      <Route path="/hands-high" element={<HandsHighPage />} />
       {/* Secret, password-gated feedback console. */}
       <Route path="/manage/feedback" element={<FeedbackAdminPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
