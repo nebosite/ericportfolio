@@ -5,6 +5,7 @@
   "start_url": "/hands-high",
   "scope": "/hands-high",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "any",
   "background_color": "#000000",
   "theme_color": "#000000",

@@ -37,3 +37,33 @@ export async function keepScreenAwake(): Promise<() => void> {
     return () => {};
   }
 }
+
+type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+
+/** Hides the browser chrome (address bar). Must be called from a user gesture; never throws. */
+export function enterFullscreen(): void {
+  try {
+    const el = document.documentElement as FullscreenElement;
+    const request = el.requestFullscreen
+      ? el.requestFullscreen({ navigationUI: "hide" })
+      : el.webkitRequestFullscreen?.();
+    void Promise.resolve(request).catch(() => {});
+  } catch {
+    /* fullscreen unsupported (e.g. iPhone Safari) — the marquee still works */
+  }
+}
+
+/** Leaves fullscreen if we are in it; never throws. */
+export function exitFullscreen(): void {
+  try {
+    const doc = document as FullscreenDocument;
+    if (doc.fullscreenElement) void doc.exitFullscreen().catch(() => {});
+    else if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.();
+  } catch {
+    /* nothing to exit */
+  }
+}

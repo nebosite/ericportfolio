@@ -114,6 +114,11 @@
   resize: none;
 }
 
+.input::placeholder {
+  font-size: 0.8rem;
+  text-transform: none;
+}
+
 .input:focus {
   outline: none;
   border-color: #00ff66;

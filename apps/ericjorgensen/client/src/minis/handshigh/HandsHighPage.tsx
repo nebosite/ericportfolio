@@ -12,12 +12,13 @@ import {
   fontStyle,
   normalizeMessage,
 } from "./marquee";
-import { attachManifest, registerServiceWorker } from "./pwa";
+import { attachManifest, enterFullscreen, registerServiceWorker } from "./pwa";
 import { loadSettings, saveSettings } from "./settings";
 import styles from "./HandsHighPage.module.css";
 
 const STORAGE_KEY = "handshigh:message";
 const DEMO_MESSAGE = "HANDS HIGH";
+const PLACEHOLDER = 'Enter a message.  e.g.: "Meet me at the fountain"';
 
 function loadMessage(): string {
   try {
@@ -54,6 +55,7 @@ export default function HandsHighPage() {
     const message = normalizeMessage(draft);
     if (!message) return;
     saveMessage(draft.trim());
+    enterFullscreen();
     trackEvent("marquee_start", { game: "hands-high", length: message.length });
     setActive(message);
   };
@@ -88,7 +90,7 @@ export default function HandsHighPage() {
           value={draft}
           maxLength={MAX_MESSAGE_LENGTH}
           rows={2}
-          placeholder="MEET AT THE FOUNTAIN"
+          placeholder={PLACEHOLDER}
           style={fontStyle(settings.bold, settings.font)}
           onChange={(e) => setDraft(e.target.value)}
         />

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import MarqueeTrack from "./MarqueeTrack";
-import { keepScreenAwake } from "./pwa";
+import { exitFullscreen, keepScreenAwake } from "./pwa";
 import { Settings } from "./settings";
 import styles from "./HandsHighPage.module.css";
 
@@ -24,6 +24,9 @@ export default function MarqueeDisplay({ message, settings, onExit }: Props) {
       release();
     };
   }, []);
+
+  // Entered from the Go click (a user gesture); left again whenever the marquee closes.
+  useEffect(() => exitFullscreen, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

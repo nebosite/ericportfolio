@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import HandsHighPage from "./HandsHighPage";
@@ -34,6 +34,39 @@ describe("Hands High", () => {
     fireEvent.click(screen.getByRole("button", { name: /Exit/ }));
     expect(screen.queryByTestId("marquee")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Your message")).toHaveValue("  meet  here ");
+  });
+
+  it("goes fullscreen when Go is pressed and leaves it when the marquee closes", () => {
+    const request = vi.fn().mockResolvedValue(undefined);
+    const exit = vi.fn().mockResolvedValue(undefined);
+    document.documentElement.requestFullscreen = request;
+    document.exitFullscreen = exit;
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: document.body });
+    try {
+      renderPage();
+      type("hi");
+      fireEvent.click(screen.getByRole("button", { name: "Go" }));
+      expect(request).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: /Exit/ }));
+      expect(exit).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    }
+  });
+
+  it("still works where fullscreen is unavailable", () => {
+    renderPage();
+    type("hi");
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+    expect(screen.getByTestId("marquee")).toBeInTheDocument();
+  });
+
+  it("shows the example prompt as the placeholder", () => {
+    renderPage();
+    expect(screen.getByLabelText("Your message")).toHaveAttribute(
+      "placeholder",
+      'Enter a message.  e.g.: "Meet me at the fountain"',
+    );
   });
 
   it("exits on Escape", () => {
