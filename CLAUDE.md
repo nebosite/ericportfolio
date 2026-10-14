@@ -48,7 +48,8 @@ Always run the test suite after implementing a feature or bug fix, and only comm
 ## Deployment: catching errors before they ship
 
 Deploys run on the VPS via `scripts/deploy.sh`:
-**preflight → `git pull --ff-only` → `npm ci` → `npm run build` →
+**preflight → `git pull --ff-only` → `npm ci` → `npm run build` → nginx config
+install-if-changed (`nginx-gen.sh`, which runs `nginx -t` then reloads) →
 `pm2 startOrReload` → smoke test.** Two guard scripts bracket the deploy so the
 failure modes we've actually hit can't silently ship stale or broken code.
 
@@ -80,7 +81,7 @@ first build (`free -h` should show non-zero Swap).
 `preflight.sh`. Turn every one-off deploy fix into a permanent pre-flight check
 rather than a thing to remember.
 
-Before deploying, verify the remote/VPS working tree is clean (no uncommitted lockfile changes) 
+Before deploying, verify the remote/VPS working tree is clean (no uncommitted lockfile changes)
 so git pull cannot be blocked; verify production end-to-end after deploy.
 
 ## Standard feature: Google Analytics

@@ -32,6 +32,19 @@ npm ci
 echo "==> Building all apps"
 npm run build
 
+# nginx: install the repo's server blocks when they differ from what is live
+# (nginx-gen.sh is idempotent and runs `nginx -t` before reloading). Without this
+# a config change — e.g. the per-route isolation headers Blast Corps needs —
+# would ship only on the next manual reload, and the smoke test would fail.
+for conf in "${REPO_DIR}"/nginx/*.conf; do
+  slug="$(basename "${conf}")"
+  if ! cmp -s "${conf}" "/etc/nginx/sites-available/${slug}"; then
+    echo "==> nginx config changed (${slug}) — installing and reloading"
+    bash "${REPO_DIR}/scripts/nginx-gen.sh"
+    break
+  fi
+done
+
 echo "==> Reloading PM2 processes"
 # startOrReload (not reload) so newly-added services are started, not skipped.
 pm2 startOrReload "${REPO_DIR}/ecosystem.config.js" --update-env

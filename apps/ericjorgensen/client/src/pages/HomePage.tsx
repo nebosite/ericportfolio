@@ -17,6 +17,8 @@ interface Item {
   desc?: string;
   href?: string; // external link
   to?: string; // internal route
+  /** Navigate with a full document load (for routes that need their own response headers). */
+  reload?: boolean;
 }
 interface RawCategory {
   key: string;
@@ -110,6 +112,14 @@ const RAW: RawCategory[] = [
         to: "/three-ahead-chess",
       },
       {
+        name: "Blast Corps Reimagined",
+        desc: "Drive a 900-tonne machine down a street of skyscrapers built from thousands of real parts — demolition physics, nothing scripted.",
+        to: "/blast-corps-reimagined",
+        // The page needs cross-origin isolation (multithreaded physics), which only a
+        // full document load can carry — client-side navigation would never isolate.
+        reload: true,
+      },
+      {
         name: "PixelWhimsy",
         desc: "A pixel-art toy for children.",
         href: "https://pixelwhimsy.com",
@@ -166,7 +176,7 @@ function Dot({ accent, size = 7 }: { accent: string; size?: number }) {
 function ItemName({ item }: { item: ViewItem }) {
   if (item.to)
     return (
-      <Link to={item.to} className={styles.itemName}>
+      <Link to={item.to} className={styles.itemName} reloadDocument={item.reload}>
         {item.name}
       </Link>
     );

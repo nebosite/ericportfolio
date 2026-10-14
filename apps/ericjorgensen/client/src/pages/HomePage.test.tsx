@@ -81,12 +81,29 @@ describe("HomePage — categories (machine → hand)", () => {
   });
 });
 
+describe("HomePage — routes that need their own document", () => {
+  it("links Blast Corps with a full document load (isolation headers) and the rest client-side", () => {
+    renderHome();
+    const blast = screen.getByRole("link", { name: "Blast Corps Reimagined" });
+    expect(blast).toHaveAttribute("href", "/blast-corps-reimagined");
+    // react-router's reloadDocument leaves navigation to the browser: no client-side
+    // route change happens, so the home page stays mounted after the click.
+    fireEvent.click(blast);
+    expect(screen.getByRole("heading", { level: 1, name: "Eric Jorgensen" })).toBeInTheDocument();
+    const chess = screen.getByRole("link", { name: "Three Ahead Chess" });
+    expect(chess).toHaveAttribute("href", "/three-ahead-chess");
+  });
+});
+
 describe("HomePage — layout switching & persistence", () => {
   it("swaps between spectrum, guide, and plates", () => {
     renderHome();
     // Spectrum is the default — its end-labels are unique to that layout.
     expect(screen.getByText("The Machine")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Spectrum" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Spectrum" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Field Guide" }));
     // Left the spectrum layout (end-labels gone); Field Guide is now active.

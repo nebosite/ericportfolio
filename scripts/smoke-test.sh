@@ -37,6 +37,21 @@ check "mentor health"        "http://localhost:3007/api/health"
 check "feedback admin gated" "http://localhost:3005/api/admin/feedback" 401
 # The Three Ahead Chess relay is mounted (an unknown table → 404, not a 5xx).
 check "threeahead relay"     "http://localhost:3001/api/threeahead/games/SMOKEX/state?round=1" 404
+
+# Blast Corps Reimagined needs cross-origin isolation on its own document (and
+# nowhere else) for multithreaded physics. Checked through nginx when it is up.
+if curl -sk -o /dev/null "https://localhost/" -H "Host: ericjorgensen.com" 2>/dev/null; then
+  if curl -sk -D - -o /dev/null -H "Host: ericjorgensen.com" "https://localhost/blast-corps-reimagined" | grep -qi "cross-origin-embedder-policy: credentialless"; then
+    echo "ok   blast corps isolation headers"
+  else
+    echo "FAIL blast corps isolation headers (missing COEP on /blast-corps-reimagined)"; fail=1
+  fi
+  if curl -sk -D - -o /dev/null -H "Host: ericjorgensen.com" "https://localhost/" | grep -qi "cross-origin-embedder-policy"; then
+    echo "FAIL isolation headers leaked onto /"; fail=1
+  else
+    echo "ok   no isolation headers on /"
+  fi
+fi
 # The insights MCP endpoint must reject an unauthenticated request.
 check "insights mcp gated"   "http://localhost:3006/mcp" 401
 # The public mentor MCP endpoint is mounted (a GET with no session → 400).

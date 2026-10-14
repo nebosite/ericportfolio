@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import GalleryPage from "./pages/GalleryPage";
@@ -5,6 +6,10 @@ import FeedbackAdminPage from "./pages/FeedbackAdminPage";
 import McpPage from "./pages/McpPage";
 import SingadoodlePage from "./minis/singadoodle/SingadoodlePage";
 import ThreeAheadPage from "./minis/threeahead/ThreeAheadPage";
+
+// Blast Corps pulls in three.js and (inside its worker) a 3 MB physics wasm, so
+// it is the one route that loads on demand rather than with the home page.
+const BlastCorpsPage = lazy(() => import("./minis/blastcorps/BlastCorpsPage"));
 
 export default function App() {
   return (
@@ -26,6 +31,15 @@ export default function App() {
       <Route path="/pitchcraft" element={<Navigate to="/singadoodle" replace />} />
       {/* Pure AI Output — Three Ahead Chess, chess planned three sealed moves at a time. */}
       <Route path="/three-ahead-chess" element={<ThreeAheadPage />} />
+      {/* Pure AI Output — Blast Corps Reimagined, real-time demolition physics. */}
+      <Route
+        path="/blast-corps-reimagined"
+        element={
+          <Suspense fallback={null}>
+            <BlastCorpsPage />
+          </Suspense>
+        }
+      />
       {/* Secret, password-gated feedback console. */}
       <Route path="/manage/feedback" element={<FeedbackAdminPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
