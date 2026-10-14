@@ -78,9 +78,9 @@ export default function McpPage() {
         <h1 className={styles.title}>Teaching agents to reach into real systems</h1>
         <p className={styles.intro}>
           MCP (the Model Context Protocol) is how an AI agent reaches past the chat window into
-          actual systems — data, operations, knowledge, even a native desktop app. These are the
-          MCP servers I've built. A few are private tools I use while coding; two run live on this
-          site; one lives inside a Windows app. Each links to its source.
+          actual systems — data, operations, knowledge, even a native desktop app. These are the MCP
+          servers I've built. A few are private tools I use while coding; two run live on this site;
+          one lives inside a Windows app. Each links to its source.
         </p>
 
         <div className={styles.rule} />
